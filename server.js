@@ -236,7 +236,7 @@ function setupWatcher(targetDir) {
         persistent: true,
         usePolling: true,
         interval: 600,
-        ignoreInitial: true, // We scan explicitly on startup
+        ignoreInitial: true,
         awaitWriteFinish: {
             stabilityThreshold: 1200,
             pollInterval: 300
@@ -352,6 +352,135 @@ function installApkViaAdb(deviceId, apkPath, apkMeta = null) {
     });
 }
 
+// ADB Wireless QR Code Pairing Engine
+function generateRandomString(length) {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let res = "";
+    for (let i = 0; i < length; i++) {
+        res += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return res;
+}
+
+let currentPairingSession = null;
+
+async function startAdbQrPairing() {
+    if (currentPairingSession) {
+        currentPairingSession.cancelled = true;
+    }
+
+    const serviceName = `ADB_WIFI_${generateRandomString(12)}`;
+    const password = generateRandomString(16);
+    const qrText = `WIFI:T:ADB;S:${serviceName};P:${password};;`;
+    const qrDataUrl = await QRCode.toDataURL(qrText, {
+        width: 320,
+        margin: 2,
+        color: { dark: '#000000', light: '#ffffff' }
+    });
+
+    const session = {
+        serviceName,
+        password,
+        qrText,
+        qrDataUrl,
+        status: 'waiting_for_scan',
+        message: 'Telefonunuzdan "Cihazı QR koduyla eşle"yi açıp bu kodu tarayın...',
+        startedAt: Date.now(),
+        cancelled: false
+    };
+
+    currentPairingSession = session;
+    runPairingLoop(session);
+    return session;
+}
+
+async function runPairingLoop(session) {
+    console.log(`[ADB QR Eşleme Başlatıldı]: ${session.serviceName}`);
+    const startTime = Date.now();
+    const TIMEOUT_MS = 120000;
+
+    while (!session.cancelled && (Date.now() - startTime < TIMEOUT_MS)) {
+        try {
+            const stdout = await new Promise((resolve) => {
+                exec(`"${ADB_BIN}" mdns services`, (err, out) => resolve(out || ''));
+            });
+
+            const lines = stdout.split('\n');
+            const pairLine = lines.find(l => l.includes('_adb-tls-pairing._tcp'));
+
+            if (pairLine) {
+                const parts = pairLine.trim().split(/\s+/);
+                const addressPort = parts.find(p => p.includes(':') && !p.includes('_adb'));
+                if (addressPort) {
+                    const sep = addressPort.lastIndexOf(':');
+                    const ip = addressPort.substring(0, sep);
+                    const pairPort = addressPort.substring(sep + 1);
+
+                    console.log(`[ADB QR]: Cihaz algılandı: ${ip}:${pairPort}`);
+                    session.status = 'pairing';
+                    session.message = `Cihaz algılandı (${ip}:${pairPort}), eşleştiriliyor...`;
+                    broadcast({ type: 'ADB_PAIR_STATUS', session });
+
+                    const pairResult = await new Promise((resolve) => {
+                        exec(`"${ADB_BIN}" pair ${ip}:${pairPort} ${session.password}`, (err, out, errOut) => {
+                            if (err || (out && out.includes('Failed'))) {
+                                resolve({ success: false, error: errOut || out || (err ? err.message : '') });
+                            } else {
+                                resolve({ success: true, output: out });
+                            }
+                        });
+                    });
+
+                    if (pairResult.success) {
+                        console.log(`[ADB QR]: Eşleşme başarılı! Bağlantı kuruluyor...`);
+                        session.status = 'connecting';
+                        session.message = 'Eşleşme başarılı! Cihaza bağlanılıyor...';
+                        broadcast({ type: 'ADB_PAIR_STATUS', session });
+
+                        let connectPort = null;
+                        for (let attempt = 0; attempt < 15; attempt++) {
+                            await new Promise(r => setTimeout(r, 1000));
+                            const mdnsOut = await new Promise(r => exec(`"${ADB_BIN}" mdns services`, (e, o) => r(o || '')));
+                            const connectLine = mdnsOut.split('\n').find(l => l.includes('_adb-tls-connect._tcp') && l.includes(ip));
+                            if (connectLine) {
+                                const cParts = connectLine.trim().split(/\s+/);
+                                const cAddr = cParts.find(p => p.includes(':') && !p.includes('_adb'));
+                                if (cAddr) {
+                                    connectPort = cAddr.substring(cAddr.lastIndexOf(':') + 1);
+                                    break;
+                                }
+                            }
+                        }
+
+                        const targetConnectPort = connectPort || pairPort || '5555';
+                        console.log(`[ADB QR]: Bağlanılıyor ${ip}:${targetConnectPort}`);
+                        await new Promise(r => exec(`"${ADB_BIN}" connect ${ip}:${targetConnectPort}`, () => r()));
+
+                        session.status = 'connected';
+                        session.message = `🎉 Cihaz başarıyla bağlandı! (${ip}:${targetConnectPort})`;
+                        const devices = await getAdbDevices();
+                        broadcast({ type: 'ADB_PAIR_STATUS', session });
+                        broadcast({ type: 'DEVICES_UPDATED', devices });
+                        return;
+                    } else {
+                        console.error('[ADB QR]: Eşleşme hatası:', pairResult.error);
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('[ADB QR Hata]:', e.message);
+        }
+
+        await new Promise(r => setTimeout(r, 1200));
+    }
+
+    if (!session.cancelled && session.status === 'waiting_for_scan') {
+        session.status = 'timeout';
+        session.message = 'Eşleşme zaman aşımına uğradı. QR kodu yenileyip tekrar deneyin.';
+        broadcast({ type: 'ADB_PAIR_STATUS', session });
+    }
+}
+
 // WebSocket broadcast & Logcat streaming
 let activeLogcatProcess = null;
 
@@ -373,7 +502,12 @@ wss.on('connection', async (ws) => {
         config: config,
         localIp: getPrimaryIp(),
         availableIps: getAllLocalIps(),
-        port: PORT
+        port: PORT,
+        pairingSession: currentPairingSession ? {
+            qrDataUrl: currentPairingSession.qrDataUrl,
+            status: currentPairingSession.status,
+            message: currentPairingSession.message
+        } : null
     }));
 
     ws.on('message', (message) => {
@@ -498,6 +632,40 @@ app.post('/api/config', (req, res) => {
 app.get('/api/adb/devices', async (req, res) => {
     const devices = await getAdbDevices();
     res.json(devices);
+});
+
+// Start/Get ADB Pairing QR Code
+app.get('/api/adb/pairing-qr', async (req, res) => {
+    try {
+        const session = await startAdbQrPairing();
+        res.json({
+            success: true,
+            qrDataUrl: session.qrDataUrl,
+            status: session.status,
+            message: session.message
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/adb/pairing-status', (req, res) => {
+    if (!currentPairingSession) {
+        return res.json({ active: false });
+    }
+    res.json({
+        active: true,
+        status: currentPairingSession.status,
+        message: currentPairingSession.message
+    });
+});
+
+app.post('/api/adb/tcpip', (req, res) => {
+    const targetPort = req.body.port || 5555;
+    exec(`"${ADB_BIN}" tcpip ${targetPort}`, (err, stdout, stderr) => {
+        if (err) return res.status(500).json({ error: stderr || err.message });
+        res.json({ success: true, message: `Cihaz ${targetPort} portunda kablosuz moda alındı! Kabloyu çıkarabilirsiniz.` });
+    });
 });
 
 app.post('/api/adb/connect', async (req, res) => {

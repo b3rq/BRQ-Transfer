@@ -82,9 +82,9 @@
             </div>
           </div>
 
-          <!-- Phone QR Card -->
+          <!-- Phone Download QR Card -->
           <div class="card qr-section">
-            <h2 data-i18n="qrTitle">📱 Telefon Kamerasıyla Bağlan</h2>
+            <h2 data-i18n="qrTitle">📱 Telefona İndir & Kur (Web QR)</h2>
             <p style="font-size: 13px; color: var(--text-muted);" data-i18n="qrDesc">
               Aynı Wi-Fi ağındayken telefon kameranızı tutun:
             </p>
@@ -118,38 +118,64 @@
 
     <!-- TAB 2: WIRELESS ADB & DEVICES -->
     <div id="tab-adb" class="tab-content" style="display: none;">
-      <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-          <h2>⚡ <span data-i18n="adbTitle">Bağlı Cihazlar & Kablosuz ADB</span></h2>
-          <button class="btn btn-outline btn-sm" id="refresh-devices-btn">🔄 Yenile</button>
-        </div>
-
-        <div id="devices-list" style="margin-bottom: 20px;">
-          <p style="font-size: 13px; color: var(--text-muted);">Cihazlar taranıyor...</p>
-        </div>
-
-        <!-- Connect Form -->
-        <div style="background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border-color); border-radius: 12px; padding: 18px; margin-bottom: 20px;">
-          <h3 style="font-size: 14px; margin-bottom: 8px;">📶 Kablosuz Cihaz Eşleştirme / Bağlama</h3>
-          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
-            Telefonda <b>Geliştirici Seçenekleri -> Kablosuz Hata Ayıklama</b>'yı açın. Ekranda görünen IP ve Port numarasını buraya girin:
+      <div class="grid-layout" style="grid-template-columns: 360px 1fr; margin-bottom: 24px;">
+        <!-- Left: ADB QR Code Pairing (NEW!) -->
+        <div class="card qr-section" style="margin-bottom: 0;">
+          <h2 style="font-size: 1.1rem; color: var(--accent-blue);">📱 QR ile Kablosuz Eşle</h2>
+          <p style="font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 8px;">
+            Telefonda <b>Kablosuz Hata Ayıklama -> Cihazı QR koduyla eşle</b>'yi açın ve bu kodu okutun:
           </p>
-          <div class="input-group">
-            <input type="text" id="adb-ip-input" placeholder="192.168.1.50:37855">
-            <button class="btn btn-purple" id="adb-connect-btn">Bağlan</button>
+          <div class="qr-wrapper" style="margin: 8px 0;">
+            <img id="adb-qr-img" class="qr-image" style="width: 210px; height: 210px;" alt="ADB Eşleme QR">
           </div>
+          <div id="adb-pair-status-badge" class="badge badge-purple" style="margin-bottom: 12px; font-size: 11px; text-align: center;">
+            ⏳ Telefonun taraması bekleniyor...
+          </div>
+          <button class="btn btn-outline btn-sm" id="refresh-adb-qr-btn">🔄 Yeni Eşleme QR'ı Üret</button>
         </div>
 
-        <!-- Automation Settings -->
-        <div style="display: flex; flex-direction: column; gap: 10px;">
-          <label style="display: flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer;">
-            <input type="checkbox" id="auto-adb-checkbox">
-            <span>Unity'den yeni build çıktığında seçili cihaza <b>otomatik yükle</b></span>
-          </label>
-          <label style="display: flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer;">
-            <input type="checkbox" id="auto-launch-checkbox">
-            <span>Yükleme tamamlandıktan sonra oyunu <b>otomatik başlat</b></span>
-          </label>
+        <!-- Right: Connected Devices, Manual Connect & Settings -->
+        <div>
+          <!-- Connected Devices List -->
+          <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <h2>⚡ <span data-i18n="adbTitle">Bağlı Cihazlar</span></h2>
+              <div style="display: flex; gap: 8px;">
+                <button class="btn btn-outline btn-sm" id="tcpip-btn" title="Kablo ile takılı cihazı kablosuz moda alır">
+                  🔌 USB'den Kablosuza Al
+                </button>
+                <button class="btn btn-outline btn-sm" id="refresh-devices-btn">🔄 Yenile</button>
+              </div>
+            </div>
+
+            <div id="devices-list" style="margin-bottom: 20px;">
+              <p style="font-size: 13px; color: var(--text-muted);">Cihazlar taranıyor...</p>
+            </div>
+
+            <!-- Manual IP Form (Fallback) -->
+            <div style="background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; margin-bottom: 18px;">
+              <h3 style="font-size: 13px; margin-bottom: 6px;">⌨️ Veya Manuel IP:Port ile Bağlan</h3>
+              <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">
+                Telefondaki "IP adresi ve Bağlantı Noktası"nı elle girmek isterseniz:
+              </p>
+              <div class="input-group">
+                <input type="text" id="adb-ip-input" placeholder="Örn: 192.168.1.45:38491">
+                <button class="btn btn-purple btn-sm" id="adb-connect-btn">Bağlan</button>
+              </div>
+            </div>
+
+            <!-- Automation Settings -->
+            <div style="display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+              <label style="display: flex; align-items: center; gap: 10px; font-size: 13px; cursor: pointer;">
+                <input type="checkbox" id="auto-adb-checkbox">
+                <span>Unity'den yeni build çıktığında seçili cihaza <b>otomatik yükle</b></span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 10px; font-size: 13px; cursor: pointer;">
+                <input type="checkbox" id="auto-launch-checkbox">
+                <span>Yükleme tamamlandıktan sonra oyunu <b>otomatik başlat</b></span>
+              </label>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -202,10 +228,10 @@
       <div class="card">
         <h2 style="color: var(--accent-blue);">🎮 Unity Entegrasyonu (Sıfır Zahmet)</h2>
         <p style="font-size: 14px; line-height: 1.6; margin-bottom: 16px;">
-          Unity projenize <b>UnityDrop</b> eklemek için tek yapmanız gereken:
+          Unity projenize <b>UnityDrop</b> eklemek için:
         </p>
         <div style="background: rgba(15, 23, 42, 0.7); border-radius: 10px; padding: 16px; border: 1px solid var(--border-color); font-size: 13px; line-height: 1.6; margin-bottom: 16px;">
-          <b>Adım 1:</b> <code>unity-package/Editor</code> klasöründeki iki C# dosyasını Unity projenizin <code>Assets/Editor/</code> klasörüne sürükleyin.<br>
+          <b>Adım 1:</b> <code>unity-package/Editor</code> klasöründeki iki C# dosyasını Unity projenizin <code>Assets/Editor/</code> klasörüne kopyalayın.<br>
           <b>Adım 2:</b> Artık Unity'de <code>Ctrl+B</code> ile Build aldığınızda, Unity build bittiği anda APK'yı otomatik olarak bu panele iletir ve kablosuz olarak telefonunuza kurar!<br>
           <b>Adım 3:</b> Unity üst menüsünde <b>Tools -> UnityDrop Hub</b> seçeneği ile doğrudan Unity içinden durumu kontrol edebilirsiniz.
         </div>
@@ -214,7 +240,7 @@
         <ul style="font-size: 13px; line-height: 1.8; color: var(--text-muted); padding-left: 20px;">
           <li><b>Xiaomi / Redmi / POCO:</b> Geliştirici Seçeneklerinde <i>"USB üzerinden yükle"</i> ve <i>"USB Hata Ayıklama (Güvenlik Ayarları)"</i> seçeneklerini açmanız gerekebilir.</li>
           <li><b>Samsung OneUI:</b> Kablosuz Hata Ayıklama açıldığında tek seferlik "Her zaman izin ver" kutucuğunu işaretleyin.</li>
-          <li><b>Android 14 / 15:</b> APK doğrudan indirilirken sistem "Bu kaynaktan yüklemeye izin ver" diyebilir, bir kez izin vermeniz yeterlidir.</li>
+          <li><b>Android 14 / 15:</b> QR eşleme sonrası bağlantı kurulamazsa, telefon ekranında açık olan portun PC ile aynı modemde olduğunu doğrulayın.</li>
         </ul>
       </div>
     </div>

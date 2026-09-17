@@ -21,11 +21,11 @@ const i18n = {
     watchTitle: '📂 Unity Build Klasörü İzleyici',
     watchDesc: 'Unity\'de APK çıktısını aldığınız klasörü seçin; build bittiğinde otomatik hazır olur:',
     btnSave: 'Kaydet',
-    qrTitle: '📱 Telefon Kamerasıyla Bağlan',
+    qrTitle: '📱 Telefona İndir & Kur (Web QR)',
     qrDesc: 'Aynı Wi-Fi ağındayken telefon kameranızı tutun:',
     apkListTitle: 'Hazır APK\'lar',
     noApkText: 'Henüz APK bulunmuyor. Unity\'den build alabilir veya yukarıya bir APK sürükleyebilirsiniz.',
-    adbTitle: 'Bağlı Cihazlar & Kablosuz ADB',
+    adbTitle: 'Bağlı Cihazlar',
     soundOn: 'Ses Açık',
     soundOff: 'Ses Kapalı'
   },
@@ -42,11 +42,11 @@ const i18n = {
     watchTitle: '📂 Unity Build Watcher',
     watchDesc: 'Specify your Unity build folder; new builds are deployed automatically:',
     btnSave: 'Save',
-    qrTitle: '📱 Scan with Phone Camera',
+    qrTitle: '📱 Download & Install (Web QR)',
     qrDesc: 'Point your camera when connected to the same Wi-Fi:',
     apkListTitle: 'Available APKs',
     noApkText: 'No APKs found yet. Build from Unity or drop an APK above.',
-    adbTitle: 'Connected Devices & Wireless ADB',
+    adbTitle: 'Connected Devices',
     soundOn: 'Sound On',
     soundOff: 'Muted'
   }
@@ -65,6 +65,7 @@ const apkListContainer = document.getElementById('apk-list-container');
 const apkCountSpan = document.getElementById('apk-count');
 const devicesList = document.getElementById('devices-list');
 const refreshDevicesBtn = document.getElementById('refresh-devices-btn');
+const tcpipBtn = document.getElementById('tcpip-btn');
 const adbIpInput = document.getElementById('adb-ip-input');
 const adbConnectBtn = document.getElementById('adb-connect-btn');
 const autoAdbCheckbox = document.getElementById('auto-adb-checkbox');
@@ -74,6 +75,11 @@ const saveWatchBtn = document.getElementById('save-watch-btn');
 const currentWatchLabel = document.getElementById('current-watch-label');
 const activeDeviceIndicator = document.getElementById('active-device-indicator');
 const toast = document.getElementById('toast');
+
+// ADB QR Pairing Elements
+const adbQrImg = document.getElementById('adb-qr-img');
+const adbPairStatusBadge = document.getElementById('adb-pair-status-badge');
+const refreshAdbQrBtn = document.getElementById('refresh-adb-qr-btn');
 
 // DevTools Elements
 const terminalWindow = document.getElementById('terminal-window');
@@ -96,8 +102,8 @@ function playChime() {
         const osc1 = ctx.createOscillator();
         const gain1 = ctx.createGain();
         osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(523.25, now); // C5
-        osc1.frequency.exponentialRampToValueAtTime(659.25, now + 0.15); // E5
+        osc1.frequency.setValueAtTime(523.25, now);
+        osc1.frequency.exponentialRampToValueAtTime(659.25, now + 0.15);
         gain1.gain.setValueAtTime(0.2, now);
         gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
         osc1.connect(gain1);
@@ -108,19 +114,16 @@ function playChime() {
         const osc2 = ctx.createOscillator();
         const gain2 = ctx.createGain();
         osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(783.99, now + 0.15); // G5
+        osc2.frequency.setValueAtTime(783.99, now + 0.15);
         gain2.gain.setValueAtTime(0.25, now + 0.15);
         gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.7);
         osc2.connect(gain2);
         gain2.connect(ctx.destination);
         osc2.start(now + 0.15);
         osc2.stop(now + 0.7);
-    } catch (e) {
-        console.warn('Audio not allowed yet:', e);
-    }
+    } catch (e) {}
 }
 
-// Toast
 function showToast(message, color = 'var(--accent-blue)', duration = 4000) {
     toast.textContent = message;
     toast.style.borderColor = color;
@@ -159,9 +162,58 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
         btn.classList.add('active');
         const target = document.getElementById(btn.getAttribute('data-tab'));
-        if (target) target.style.display = 'block';
+        if (target) {
+            target.style.display = 'block';
+            if (btn.getAttribute('data-tab') === 'tab-adb') {
+                loadAdbPairingQr();
+            }
+        }
     };
 });
+
+// Load ADB Pairing QR
+async function loadAdbPairingQr() {
+    if (!adbQrImg) return;
+    adbPairStatusBadge.className = 'badge badge-purple';
+    adbPairStatusBadge.textContent = '⏳ Yeni QR kod hazırlanıyor...';
+    try {
+        const res = await fetch('/api/adb/pairing-qr');
+        const data = await res.json();
+        if (data.success) {
+            adbQrImg.src = data.qrDataUrl;
+            adbPairStatusBadge.textContent = data.message;
+        }
+    } catch (e) {
+        adbPairStatusBadge.textContent = 'QR oluşturulamadı';
+    }
+}
+
+if (refreshAdbQrBtn) {
+    refreshAdbQrBtn.onclick = loadAdbPairingQr;
+}
+
+// USB to TCP/IP 5555
+if (tcpipBtn) {
+    tcpipBtn.onclick = async () => {
+        showToast('🔌 Cihaz kablosuz moda alınıyor (port 5555)...');
+        try {
+            const res = await fetch('/api/adb/tcpip', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ port: 5555 })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(`✅ ${data.message}`, 'var(--accent-green)', 6000);
+                refreshDevices();
+            } else {
+                showToast(`Hata: ${data.error}`, 'var(--accent-red)');
+            }
+        } catch (e) {
+            showToast(`Hata: ${e.message}`, 'var(--accent-red)');
+        }
+    };
+}
 
 // WebSocket Connection
 function connectWs() {
@@ -183,6 +235,10 @@ function connectWs() {
                 autoLaunchCheckbox.checked = data.config.autoLaunchAfterInstall !== false;
                 selectedDevice = data.config.selectedAdbDevice || '';
             }
+            if (data.pairingSession && adbQrImg) {
+                adbQrImg.src = data.pairingSession.qrDataUrl;
+                adbPairStatusBadge.textContent = data.pairingSession.message;
+            }
         } else if (data.type === 'NEW_APK') {
             currentApks.unshift(data.apk);
             renderApks();
@@ -197,6 +253,8 @@ function connectWs() {
         } else if (data.type === 'DEVICES_UPDATED') {
             currentDevices = data.devices;
             renderDevices();
+        } else if (data.type === 'ADB_PAIR_STATUS') {
+            handleAdbPairStatus(data.session);
         } else if (data.type === 'LOGCAT_LINE') {
             appendLogcatLine(data.line);
         }
@@ -207,7 +265,31 @@ function connectWs() {
     };
 }
 
-// Fetch QR Code
+function handleAdbPairStatus(session) {
+    if (!adbPairStatusBadge) return;
+    adbPairStatusBadge.textContent = session.message;
+
+    if (session.status === 'pairing') {
+        adbPairStatusBadge.className = 'badge';
+        adbPairStatusBadge.style.background = 'rgba(245, 158, 11, 0.2)';
+        adbPairStatusBadge.style.color = '#f59e0b';
+    } else if (session.status === 'connecting') {
+        adbPairStatusBadge.className = 'badge badge-blue';
+    } else if (session.status === 'connected') {
+        adbPairStatusBadge.className = 'badge';
+        adbPairStatusBadge.style.background = 'rgba(16, 185, 129, 0.2)';
+        adbPairStatusBadge.style.color = '#10b981';
+        playChime();
+        showToast('🎉 Android cihazınız başarıyla eşleşti ve bağlandı!', 'var(--accent-green)', 6000);
+        refreshDevices();
+    } else if (session.status === 'timeout') {
+        adbPairStatusBadge.className = 'badge';
+        adbPairStatusBadge.style.background = 'rgba(239, 68, 68, 0.2)';
+        adbPairStatusBadge.style.color = '#ef4444';
+    }
+}
+
+// Fetch Mobile QR Code
 async function loadQrCode() {
     try {
         const res = await fetch('/api/qr');
@@ -283,7 +365,7 @@ function renderDevices() {
     if (currentDevices.length === 0) {
         devicesList.innerHTML = `
           <div style="font-size: 13px; color: var(--text-muted); padding: 12px 0;">
-            ⚠️ Bağlı cihaz yok. Telefonunuzu USB ile bağlayın veya aşağıdan kablosuz IP:Port ile bağlanın.
+            ⚠️ Bağlı cihaz yok. Sol taraftaki <b>QR Kodu</b> telefonunuzdan taratarak veya aşağıdan IP:Port girerek bağlayabilirsiniz.
           </div>
         `;
         activeDeviceIndicator.textContent = 'Cihaz: Yok';
@@ -529,7 +611,6 @@ function appendLogcatLine(line) {
     div.textContent = line;
     terminalWindow.appendChild(div);
 
-    // Keep max 600 lines
     if (terminalWindow.children.length > 600) {
         terminalWindow.removeChild(terminalWindow.firstChild);
     }
@@ -566,3 +647,4 @@ function takeScreenshot(deviceId) {
 updateLanguage();
 loadQrCode();
 connectWs();
+loadAdbPairingQr();
