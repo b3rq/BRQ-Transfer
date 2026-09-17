@@ -5,6 +5,7 @@ let currentDevices = [];
 let selectedDevice = '';
 let isSoundEnabled = localStorage.getItem('apkdrop_sound') !== 'false';
 let isLogcatRunning = false;
+let isScrcpyRunning = false;
 let isMirroring = false;
 let mirrorLoopTimeout = null;
 let mirrorFpsCounter = 0;
@@ -37,6 +38,11 @@ const adbIpInput = document.getElementById('adb-ip-input');
 const adbConnectBtn = document.getElementById('adb-connect-btn');
 const tcpipBtn = document.getElementById('tcpip-btn');
 const refreshDevicesBtn = document.getElementById('refresh-devices-btn');
+
+// Scrcpy 60 FPS Elements
+const startScrcpyBtn = document.getElementById('start-scrcpy-btn');
+const stopScrcpyBtn = document.getElementById('stop-scrcpy-btn');
+const scrcpyStatusBadge = document.getElementById('scrcpy-status-badge');
 
 // Screen Mirror Elements
 const screenMirrorCanvas = document.getElementById('screen-mirror-canvas');
@@ -217,6 +223,64 @@ window.disconnectDevice = async (deviceId) => {
     }
 };
 
+// ==========================================
+// 🚀 SCRCPY 60 FPS CONTROLS
+// ==========================================
+function setScrcpyRunningUI(running) {
+    isScrcpyRunning = running;
+    if (!startScrcpyBtn || !stopScrcpyBtn || !scrcpyStatusBadge) return;
+    if (running) {
+        startScrcpyBtn.style.display = 'none';
+        stopScrcpyBtn.style.display = 'inline-flex';
+        scrcpyStatusBadge.className = 'badge';
+        scrcpyStatusBadge.style.background = 'rgba(16, 185, 129, 0.2)';
+        scrcpyStatusBadge.style.color = '#10b981';
+        scrcpyStatusBadge.textContent = '🟢 60 FPS Yayında';
+    } else {
+        startScrcpyBtn.style.display = 'inline-flex';
+        stopScrcpyBtn.style.display = 'none';
+        scrcpyStatusBadge.className = 'badge';
+        scrcpyStatusBadge.style.background = 'rgba(255, 255, 255, 0.06)';
+        scrcpyStatusBadge.style.color = 'var(--text-muted)';
+        scrcpyStatusBadge.textContent = '● Kapalı';
+    }
+}
+
+if (startScrcpyBtn) {
+    startScrcpyBtn.onclick = async () => {
+        const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
+        if (!target) return showToast('⚠️ Önce bir Android cihaz bağlamalısınız!', 'var(--accent-red)');
+        showToast('🚀 60 FPS Canlı Ekran penceresi açılıyor...');
+        try {
+            const res = await fetch('/api/adb/scrcpy/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ deviceId: target })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setScrcpyRunningUI(true);
+                playChime();
+                showToast('🎉 60 FPS Canlı Ekran açıldı! Fare ile dokunabilir, klavye ile yazabilirsiniz.', 'var(--accent-green)', 6000);
+            } else {
+                showToast(`Hata: ${data.error}`, 'var(--accent-red)', 6000);
+            }
+        } catch (e) {
+            showToast(`Hata: ${e.message}`, 'var(--accent-red)');
+        }
+    };
+}
+
+if (stopScrcpyBtn) {
+    stopScrcpyBtn.onclick = async () => {
+        try {
+            await fetch('/api/adb/scrcpy/stop', { method: 'POST' });
+            setScrcpyRunningUI(false);
+            showToast('⏹️ 60 FPS canlı ekran kapatıldı');
+        } catch (e) {}
+    };
+}
+
 // WebSocket Connection
 function connectWs() {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -242,6 +306,7 @@ function connectWs() {
                 handleAdbPairStatus(data.pairingSession);
             }
             setLogcatRunningUI(!!data.isLogcatRunning);
+            setScrcpyRunningUI(!!data.isScrcpyRunning);
         } else if (data.type === 'NEW_APK') {
             currentApks.unshift(data.apk);
             renderApks();
@@ -258,6 +323,8 @@ function connectWs() {
             renderDevices();
         } else if (data.type === 'ADB_PAIR_STATUS') {
             handleAdbPairStatus(data.session);
+        } else if (data.type === 'SCRCPY_STATUS') {
+            setScrcpyRunningUI(!!data.running);
         } else if (data.type === 'LOGCAT_LINE') {
             handleLogcatLine(data.line);
         } else if (data.type === 'LOGCAT_STARTED') {
@@ -593,7 +660,7 @@ async function uploadFile(file) {
 }
 
 // ==========================================
-// 📺 CANLI EKRAN YANSITMA (LIVE SCREEN MIRROR)
+// 📺 WEB CANVAS PREVIEW & SNAPSHOT
 // ==========================================
 startMirrorBtn.onclick = () => {
     const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
@@ -608,7 +675,7 @@ startMirrorBtn.onclick = () => {
     remoteBar.style.display = 'flex';
     mirrorFpsBadge.style.display = 'inline-flex';
 
-    showToast('📺 Canlı ekran yayını başlatıldı');
+    showToast('🌐 Web içi canlı ekran başlatıldı');
     updateMirrorFrame();
 };
 
@@ -618,7 +685,7 @@ stopMirrorBtn.onclick = () => {
     startMirrorBtn.style.display = 'inline-flex';
     stopMirrorBtn.style.display = 'none';
     mirrorFpsBadge.style.display = 'none';
-    showToast('⏹️ Canlı yayın durduruldu');
+    showToast('⏹️ Web yayını durduruldu');
 };
 
 function updateMirrorFrame() {
@@ -647,7 +714,7 @@ function updateMirrorFrame() {
             lastFpsTime = now;
         }
 
-        mirrorLoopTimeout = setTimeout(updateMirrorFrame, 40);
+        mirrorLoopTimeout = setTimeout(updateMirrorFrame, 30);
     };
     img.onerror = () => {
         if (isMirroring) mirrorLoopTimeout = setTimeout(updateMirrorFrame, 500);
@@ -673,7 +740,7 @@ snapScreenshotBtn.onclick = () => {
     };
 };
 
-// 💾 RESMİ FARKLI KAYDET (SAVE AS) - DIALOG ASKS WHERE TO SAVE
+// 💾 RESMİ FARKLI KAYDET (SAVE AS)
 saveScreenshotAsBtn.onclick = async () => {
     let blob = null;
 
