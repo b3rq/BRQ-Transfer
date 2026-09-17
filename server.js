@@ -9,6 +9,7 @@ const multer = require('multer');
 const QRCode = require('qrcode');
 const chokidar = require('chokidar');
 const cors = require('cors');
+const net = require('net');
 
 const PORT = process.env.PORT || 4500;
 const app = express();
@@ -427,6 +428,110 @@ async function startAdbQrPairing() {
     return session;
 }
 
+function testTcpPort(ip, port, timeout = 90) {
+    return new Promise(resolve => {
+        const socket = new net.Socket();
+        socket.setTimeout(timeout);
+        socket.on('connect', () => {
+            socket.destroy();
+            resolve(true);
+        });
+        socket.on('error', () => {
+            socket.destroy();
+            resolve(false);
+        });
+        socket.on('timeout', () => {
+            socket.destroy();
+            resolve(false);
+        });
+        socket.connect(port, ip);
+    });
+}
+
+async function autoResolveConnect(ip, pairPort, session) {
+    console.log(`[Auto-Connect]: ${ip} için bağlantı portu aranıyor...`);
+
+    // 1. Check if already listed as device
+    if (await verifyDeviceConnected(ip)) {
+        return true;
+    }
+
+    // 2. Check mDNS for connect port
+    for (let attempt = 0; attempt < 3; attempt++) {
+        const mdnsOut = await new Promise(r => exec(`"${ADB_BIN}" mdns services`, (e, o) => r(o || '')));
+        const connectLine = mdnsOut.split('\n').find(l => (l.includes('_adb-tls-connect._tcp') || l.includes('_adb._tcp')) && l.includes(ip));
+        if (connectLine) {
+            const cParts = connectLine.trim().split(/\s+/);
+            const cAddr = cParts.find(p => p.includes(':') && !p.includes('_adb'));
+            if (cAddr) {
+                const mdnsPort = parseInt(cAddr.substring(cAddr.lastIndexOf(':') + 1), 10);
+                if (mdnsPort) {
+                    console.log(`[Auto-Connect]: mDNS portu bulundu: ${ip}:${mdnsPort}`);
+                    await new Promise(r => exec(`"${ADB_BIN}" connect ${ip}:${mdnsPort}`, () => r()));
+                    if (await verifyDeviceConnected(ip)) return true;
+                }
+            }
+        }
+        await new Promise(r => setTimeout(r, 400));
+    }
+
+    // 3. High-priority candidates: previous device, 5555, pairPort and neighbors
+    const priorityCandidates = [];
+    if (config.selectedAdbDevice && config.selectedAdbDevice.includes(ip)) {
+        const p = parseInt(config.selectedAdbDevice.split(':')[1], 10);
+        if (p) priorityCandidates.push(p);
+    }
+    priorityCandidates.push(5555);
+    if (pairPort) {
+        const numPairPort = parseInt(pairPort, 10);
+        if (numPairPort) {
+            priorityCandidates.push(numPairPort);
+            for (let d = 1; d <= 25; d++) {
+                priorityCandidates.push(numPairPort - d);
+                priorityCandidates.push(numPairPort + d);
+            }
+        }
+    }
+
+    for (const port of priorityCandidates) {
+        if (port < 1024 || port > 65535) continue;
+        const isOpen = await testTcpPort(ip, port, 70);
+        if (isOpen) {
+            console.log(`[Auto-Connect]: Öncelikli port açık bulundu: ${ip}:${port}, bağlanılıyor...`);
+            await new Promise(r => exec(`"${ADB_BIN}" connect ${ip}:${port}`, () => r()));
+            if (await verifyDeviceConnected(ip)) return true;
+        }
+    }
+
+    // 4. Fast concurrency sweep across Android wireless debugging range (30000 - 45000)
+    console.log(`[Auto-Connect]: Hızlı port taraması başlatılıyor (30000-45000)...`);
+    session.message = `Eşleşti! Otomatik bağlantı kuruluyor...`;
+    broadcast({ type: 'ADB_PAIR_STATUS', session });
+
+    let foundPort = null;
+    const concurrency = 50;
+    let currentPort = 30000;
+    const maxPort = 45000;
+
+    async function worker() {
+        while (currentPort <= maxPort && !foundPort && !session.cancelled) {
+            const p = currentPort++;
+            const open = await testTcpPort(ip, p, 70);
+            if (open) {
+                console.log(`[Auto-Connect]: Port açık tespit edildi: ${ip}:${p}, bağlanılıyor...`);
+                await new Promise(r => exec(`"${ADB_BIN}" connect ${ip}:${p}`, () => r()));
+                if (await verifyDeviceConnected(ip)) {
+                    foundPort = p;
+                    break;
+                }
+            }
+        }
+    }
+
+    await Promise.all(Array.from({ length: concurrency }, worker));
+    return !!foundPort;
+}
+
 async function runPairingLoop(session) {
     console.log(`[ADB QR Eşleme Başlatıldı]: ${session.serviceName}`);
     const startTime = Date.now();
@@ -472,40 +577,26 @@ async function runPairingLoop(session) {
                         session.message = `✅ Eşleşme başarılı! Bağlantı portu aranıyor...`;
                         broadcast({ type: 'ADB_PAIR_STATUS', session });
 
-                        // Check mDNS for connect port
-                        let connectPort = null;
-                        for (let attempt = 0; attempt < 6; attempt++) {
-                            await new Promise(r => setTimeout(r, 1000));
-                            const mdnsOut = await new Promise(r => exec(`"${ADB_BIN}" mdns services`, (e, o) => r(o || '')));
-                            const connectLine = mdnsOut.split('\n').find(l => l.includes('_adb-tls-connect._tcp') && l.includes(ip));
-                            if (connectLine) {
-                                const cParts = connectLine.trim().split(/\s+/);
-                                const cAddr = cParts.find(p => p.includes(':') && !p.includes('_adb'));
-                                if (cAddr) {
-                                    connectPort = cAddr.substring(cAddr.lastIndexOf(':') + 1);
-                                    break;
-                                }
+                        // Automatic Zero-Click Connect Port Resolution
+                        const connected = await autoResolveConnect(ip, pairPort, session);
+                        if (connected) {
+                            session.status = 'connected';
+                            session.message = `Cihaz başarıyla bağlandı! (${ip})`;
+                            const devices = await getAdbDevices();
+                            const activeDev = devices.find(d => d.id.includes(ip));
+                            if (activeDev) {
+                                config.selectedAdbDevice = activeDev.id;
+                                saveConfig();
                             }
+                            broadcast({ type: 'ADB_PAIR_STATUS', session });
+                            broadcast({ type: 'DEVICES_UPDATED', devices });
+                            return;
                         }
 
-                        if (connectPort) {
-                            console.log(`[ADB QR]: mDNS üzerinden connect port bulundu: ${ip}:${connectPort}`);
-                            await new Promise(r => exec(`"${ADB_BIN}" connect ${ip}:${connectPort}`, () => r()));
-                            const isConnected = await verifyDeviceConnected(ip);
-                            if (isConnected) {
-                                session.status = 'connected';
-                                session.message = `🎉 Cihaz başarıyla bağlandı! (${ip}:${connectPort})`;
-                                const devices = await getAdbDevices();
-                                broadcast({ type: 'ADB_PAIR_STATUS', session });
-                                broadcast({ type: 'DEVICES_UPDATED', devices });
-                                return;
-                            }
-                        }
-
-                        // If mDNS didn't provide connect port or connect failed, prompt user for phone's port
+                        // Last resort fallback if auto-detection fails
                         session.status = 'paired_need_port';
                         session.pairedIp = ip;
-                        session.message = `✅ Eşleşme tamamlandı! Telefonda görünen 5 haneli bağlantı portunu girin:`;
+                        session.message = `Eşleşme tamamlandı. Bağlantı portunu girin:`;
                         broadcast({ type: 'ADB_PAIR_STATUS', session });
                         return;
                     } else {
@@ -954,13 +1045,18 @@ app.post('/api/adb/uninstall', (req, res) => {
 });
 
 // Remote Key Events (Back=4, Home=3, AppSwitch=187, Power=26)
-app.post('/api/adb/keyevent', (req, res) => {
-    const { deviceId, code } = req.body;
-    const targetArg = deviceId ? `-s ${deviceId}` : '';
-    exec(`"${ADB_BIN}" ${targetArg} shell input keyevent ${code}`, (err) => {
+const handleRemoteKey = (req, res) => {
+    const { deviceId, code, keyCode } = req.body;
+    const key = keyCode || code;
+    const target = deviceId || config.selectedAdbDevice;
+    const targetArg = target ? `-s ${target}` : '';
+    if (!key) return res.status(400).json({ error: 'Key code required' });
+    exec(`"${ADB_BIN}" ${targetArg} shell input keyevent ${key}`, (err) => {
         res.json({ success: !err });
     });
-});
+};
+app.post('/api/adb/key', handleRemoteKey);
+app.post('/api/adb/keyevent', handleRemoteKey);
 
 // Interactive Touch & Swipe Events from HTML Canvas/Video
 app.post('/api/adb/touch', (req, res) => {
