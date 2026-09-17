@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UnityDrop Hub & Wireless ADB</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="brand">
+        <div class="brand-icon">🎮</div>
+        <div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <h1 style="font-size: 1.45rem; font-weight: 800; letter-spacing: -0.5px;">UnityDrop</h1>
+            <span class="badge badge-purple" style="font-size: 10px;">v2.0 Open Source</span>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-muted);" data-i18n="tagline">
+            Unity için Yerel Wi-Fi APK Dağıtım, Kablosuz ADB & Canlı Test Hub'ı
+          </p>
+        </div>
+      </div>
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <button class="btn btn-outline btn-sm" id="sound-toggle-btn" title="Bildirim Sesi">
+          🔔 <span id="sound-status">Ses Açık</span>
+        </button>
+        <button class="btn btn-outline btn-sm" id="lang-toggle-btn">
+          🌐 <span id="lang-label">EN</span>
+        </button>
+        <a href="/mobile" target="_blank" class="btn btn-purple btn-sm">
+          📱 <span data-i18n="btnMobile">Mobil Arayüz</span>
+        </a>
+      </div>
+    </header>
+
+    <!-- Nav Tabs -->
+    <div class="nav-tabs">
+      <button class="tab-btn active" data-tab="tab-deploy">
+        📦 <span data-i18n="tabDeploy">Builds & Dağıtım</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-adb">
+        ⚡ <span data-i18n="tabAdb">Kablosuz ADB & Cihazlar</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-devtools">
+        🛠️ <span data-i18n="tabDevtools">Canlı Test Araçları (Logcat & Ekran)</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-guide">
+        📖 <span data-i18n="tabGuide">Unity & Kurulum Rehberi</span>
+      </button>
+    </div>
+
+    <!-- TAB 1: DEPLOY & BUILDS -->
+    <div id="tab-deploy" class="tab-content">
+      <div class="grid-layout">
+        <!-- Left Column: Dropzone, Watcher, QR -->
+        <div>
+          <!-- Drag & Drop -->
+          <div class="card">
+            <h2 data-i18n="dropTitle">📤 APK Sürükle & Bırak</h2>
+            <div class="dropzone" id="dropzone">
+              <input type="file" id="file-input" accept=".apk" style="display: none;">
+              <div class="dropzone-icon">📥</div>
+              <p style="font-weight: 600; margin-bottom: 4px;" data-i18n="dropText">APK Dosyasını Buraya Bırakın</p>
+              <p style="font-size: 13px; color: var(--text-muted);" data-i18n="dropSub">veya dosya seçmek için tıklayın</p>
+            </div>
+          </div>
+
+          <!-- Watcher Setting -->
+          <div class="card">
+            <h2 data-i18n="watchTitle">📂 Unity Build Klasörü İzleyici</h2>
+            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;" data-i18n="watchDesc">
+              Unity'de APK çıktısını aldığınız klasörü seçin; build bittiğinde otomatik hazır olur:
+            </p>
+            <div class="input-group">
+              <input type="text" id="watch-folder-input" placeholder="C:\Projects\MyGame\Builds">
+              <button class="btn btn-outline" id="save-watch-btn" data-i18n="btnSave">Kaydet</button>
+            </div>
+            <div style="margin-top: 10px; font-size: 12px; color: var(--accent-blue);" id="current-watch-label">
+              İzlenen: Yükleniyor...
+            </div>
+          </div>
+
+          <!-- Phone QR Card -->
+          <div class="card qr-section">
+            <h2 data-i18n="qrTitle">📱 Telefon Kamerasıyla Bağlan</h2>
+            <p style="font-size: 13px; color: var(--text-muted);" data-i18n="qrDesc">
+              Aynı Wi-Fi ağındayken telefon kameranızı tutun:
+            </p>
+            <div class="qr-wrapper">
+              <img id="qr-img" class="qr-image" alt="QR Kod">
+            </div>
+            <a id="mobile-url-link" href="#" target="_blank" style="color: var(--accent-blue); font-size: 13px; word-break: break-all; text-decoration: none; font-weight: 600;">
+              Yükleniyor...
+            </a>
+          </div>
+        </div>
+
+        <!-- Right Column: APK Cards List -->
+        <div>
+          <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <h2>📦 <span data-i18n="apkListTitle">Hazır APK'lar</span> (<span id="apk-count">0</span>)</h2>
+              <div style="font-size: 12px; color: var(--text-muted);">
+                <span id="active-device-indicator">Cihaz: Aranıyor...</span>
+              </div>
+            </div>
+            <div id="apk-list-container">
+              <p style="color: var(--text-muted); font-size: 14px; text-align: center; padding: 32px;" data-i18n="noApkText">
+                Henüz APK bulunmuyor. Unity'den build alabilir veya yukarıya bir APK sürükleyebilirsiniz.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: WIRELESS ADB & DEVICES -->
+    <div id="tab-adb" class="tab-content" style="display: none;">
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h2>⚡ <span data-i18n="adbTitle">Bağlı Cihazlar & Kablosuz ADB</span></h2>
+          <button class="btn btn-outline btn-sm" id="refresh-devices-btn">🔄 Yenile</button>
+        </div>
+
+        <div id="devices-list" style="margin-bottom: 20px;">
+          <p style="font-size: 13px; color: var(--text-muted);">Cihazlar taranıyor...</p>
+        </div>
+
+        <!-- Connect Form -->
+        <div style="background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border-color); border-radius: 12px; padding: 18px; margin-bottom: 20px;">
+          <h3 style="font-size: 14px; margin-bottom: 8px;">📶 Kablosuz Cihaz Eşleştirme / Bağlama</h3>
+          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+            Telefonda <b>Geliştirici Seçenekleri -> Kablosuz Hata Ayıklama</b>'yı açın. Ekranda görünen IP ve Port numarasını buraya girin:
+          </p>
+          <div class="input-group">
+            <input type="text" id="adb-ip-input" placeholder="192.168.1.50:37855">
+            <button class="btn btn-purple" id="adb-connect-btn">Bağlan</button>
+          </div>
+        </div>
+
+        <!-- Automation Settings -->
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <label style="display: flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer;">
+            <input type="checkbox" id="auto-adb-checkbox">
+            <span>Unity'den yeni build çıktığında seçili cihaza <b>otomatik yükle</b></span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer;">
+            <input type="checkbox" id="auto-launch-checkbox">
+            <span>Yükleme tamamlandıktan sonra oyunu <b>otomatik başlat</b></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: LIVE DEVTOOLS (LOGCAT & SCREENSHOT) -->
+    <div id="tab-devtools" class="tab-content" style="display: none;">
+      <div class="grid-layout">
+        <!-- Logcat Column -->
+        <div>
+          <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <h2>📜 Canlı Logcat (Unity Logları)</h2>
+              <div style="display: flex; gap: 6px;">
+                <button class="btn btn-success btn-sm" id="start-logcat-btn">▶️ Başlat</button>
+                <button class="btn btn-danger btn-sm" id="stop-logcat-btn" style="display: none;">⏹️ Durdur</button>
+                <button class="btn btn-outline btn-sm" id="clear-logcat-btn">Temizle</button>
+              </div>
+            </div>
+
+            <div class="input-group" style="margin-bottom: 12px;">
+              <input type="text" id="logcat-filter-input" placeholder="Filtrele (Örn: Unity, AndroidRuntime, Exception)...">
+            </div>
+
+            <div class="terminal-window" id="terminal-window">
+              <div class="terminal-line" style="color: var(--text-muted);">Logcat başlatılmadı. "Başlat" butonuna tıklayarak cihaz loglarını canlı izleyebilirsiniz.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Screen Snapshot Column -->
+        <div>
+          <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <h2>📸 Telefon Ekran Görüntüsü</h2>
+              <button class="btn btn-outline btn-sm" id="take-screenshot-btn">📷 Ekranı Yakala</button>
+            </div>
+            <div style="text-align: center; background: #020617; border-radius: 12px; padding: 12px; min-height: 380px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border-color);">
+              <img id="screenshot-img" style="max-height: 440px; max-width: 100%; border-radius: 8px; display: none;" alt="Ekran Görüntüsü">
+              <p id="screenshot-placeholder" style="color: var(--text-muted); font-size: 13px;">
+                "Ekranı Yakala" butonuna tıklayarak bağlı telefonun canlı ekran görüntüsünü alabilirsiniz.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: GUIDE & UNITY INTEGRATION -->
+    <div id="tab-guide" class="tab-content" style="display: none;">
+      <div class="card">
+        <h2 style="color: var(--accent-blue);">🎮 Unity Entegrasyonu (Sıfır Zahmet)</h2>
+        <p style="font-size: 14px; line-height: 1.6; margin-bottom: 16px;">
+          Unity projenize <b>UnityDrop</b> eklemek için tek yapmanız gereken:
+        </p>
+        <div style="background: rgba(15, 23, 42, 0.7); border-radius: 10px; padding: 16px; border: 1px solid var(--border-color); font-size: 13px; line-height: 1.6; margin-bottom: 16px;">
+          <b>Adım 1:</b> <code>unity-package/Editor</code> klasöründeki iki C# dosyasını Unity projenizin <code>Assets/Editor/</code> klasörüne sürükleyin.<br>
+          <b>Adım 2:</b> Artık Unity'de <code>Ctrl+B</code> ile Build aldığınızda, Unity build bittiği anda APK'yı otomatik olarak bu panele iletir ve kablosuz olarak telefonunuza kurar!<br>
+          <b>Adım 3:</b> Unity üst menüsünde <b>Tools -> UnityDrop Hub</b> seçeneği ile doğrudan Unity içinden durumu kontrol edebilirsiniz.
+        </div>
+
+        <h2 style="color: var(--accent-purple); margin-top: 24px;">📱 Telefon Markalarına Özel İpuçları</h2>
+        <ul style="font-size: 13px; line-height: 1.8; color: var(--text-muted); padding-left: 20px;">
+          <li><b>Xiaomi / Redmi / POCO:</b> Geliştirici Seçeneklerinde <i>"USB üzerinden yükle"</i> ve <i>"USB Hata Ayıklama (Güvenlik Ayarları)"</i> seçeneklerini açmanız gerekebilir.</li>
+          <li><b>Samsung OneUI:</b> Kablosuz Hata Ayıklama açıldığında tek seferlik "Her zaman izin ver" kutucuğunu işaretleyin.</li>
+          <li><b>Android 14 / 15:</b> APK doğrudan indirilirken sistem "Bu kaynaktan yüklemeye izin ver" diyebilir, bir kez izin vermeniz yeterlidir.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="pc.js"></script>
+</body>
+</html>

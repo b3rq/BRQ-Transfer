@@ -1,0 +1,8 @@
+node_modules/
+npm-debug.log*
+uploads/*.apk
+watch/*.apk
+android-companion/build/
+.DS_Store
+Thumbs.db
+config.json
