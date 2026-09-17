@@ -1,56 +1,20 @@
 let currentApks = [];
 let currentDevices = [];
 let selectedDevice = '';
-let isSoundEnabled = localStorage.getItem('unitydrop_sound') !== 'false';
-let currentLang = localStorage.getItem('unitydrop_lang') || 'tr';
+let isSoundEnabled = localStorage.getItem('apkdrop_sound') !== 'false';
+let currentLang = localStorage.getItem('apkdrop_lang') || 'tr';
 let ws = null;
-let isLogcatRunning = false;
 
-// i18n Dictionary
-const i18n = {
-  tr: {
-    tagline: 'Unity için Yerel Wi-Fi APK Dağıtım, Kablosuz ADB & Canlı Test Hub\'ı',
-    btnMobile: 'Mobil Arayüz',
-    tabDeploy: 'Builds & Dağıtım',
-    tabAdb: 'Kablosuz ADB & Cihazlar',
-    tabDevtools: 'Canlı Test Araçları (Logcat & Ekran)',
-    tabGuide: 'Unity & Kurulum Rehberi',
-    dropTitle: '📤 APK Sürükle & Bırak',
-    dropText: 'APK Dosyasını Buraya Bırakın',
-    dropSub: 'veya dosya seçmek için tıklayın',
-    watchTitle: '📂 Unity Build Klasörü İzleyici',
-    watchDesc: 'Unity\'de APK çıktısını aldığınız klasörü seçin; build bittiğinde otomatik hazır olur:',
-    btnSave: 'Kaydet',
-    qrTitle: '📱 Telefona İndir & Kur (Web QR)',
-    qrDesc: 'Aynı Wi-Fi ağındayken telefon kameranızı tutun:',
-    apkListTitle: 'Hazır APK\'lar',
-    noApkText: 'Henüz APK bulunmuyor. Unity\'den build alabilir veya yukarıya bir APK sürükleyebilirsiniz.',
-    adbTitle: 'Bağlı Cihazlar',
-    soundOn: 'Ses Açık',
-    soundOff: 'Ses Kapalı'
-  },
-  en: {
-    tagline: 'Local Wi-Fi APK Distribution, Wireless ADB & Live Testing Hub for Unity',
-    btnMobile: 'Mobile Web App',
-    tabDeploy: 'Builds & Deploy',
-    tabAdb: 'Wireless ADB & Devices',
-    tabDevtools: 'Live DevTools (Logcat & Screen)',
-    tabGuide: 'Unity & Setup Guide',
-    dropTitle: '📤 Drag & Drop APK',
-    dropText: 'Drop your APK file here',
-    dropSub: 'or click to browse from computer',
-    watchTitle: '📂 Unity Build Watcher',
-    watchDesc: 'Specify your Unity build folder; new builds are deployed automatically:',
-    btnSave: 'Save',
-    qrTitle: '📱 Download & Install (Web QR)',
-    qrDesc: 'Point your camera when connected to the same Wi-Fi:',
-    apkListTitle: 'Available APKs',
-    noApkText: 'No APKs found yet. Build from Unity or drop an APK above.',
-    adbTitle: 'Connected Devices',
-    soundOn: 'Sound On',
-    soundOff: 'Muted'
-  }
-};
+// Logcat State
+let isLogcatRunning = false;
+let logcatEntries = [];
+const MAX_LOGCAT_ENTRIES = 800;
+
+// Screen Mirror State
+let isMirroring = false;
+let mirrorFpsCounter = 0;
+let lastFpsTime = Date.now();
+let mirrorLoopTimeout = null;
 
 // DOM Elements
 const soundToggleBtn = document.getElementById('sound-toggle-btn');
@@ -81,17 +45,30 @@ const adbQrImg = document.getElementById('adb-qr-img');
 const adbPairStatusBadge = document.getElementById('adb-pair-status-badge');
 const refreshAdbQrBtn = document.getElementById('refresh-adb-qr-btn');
 
-// DevTools Elements
+// Screen Mirror Elements
+const startMirrorBtn = document.getElementById('start-mirror-btn');
+const stopMirrorBtn = document.getElementById('stop-mirror-btn');
+const snapScreenshotBtn = document.getElementById('snap-screenshot-btn');
+const saveScreenshotAsBtn = document.getElementById('save-screenshot-as-btn');
+const screenMirrorCanvas = document.getElementById('screen-mirror-canvas');
+const screenshotStaticImg = document.getElementById('screenshot-static-img');
+const screenEmptyPlaceholder = document.getElementById('screen-empty-placeholder');
+const remoteBar = document.getElementById('remote-bar');
+const mirrorFpsBadge = document.getElementById('mirror-fps-badge');
+
+// Logcat Elements
 const terminalWindow = document.getElementById('terminal-window');
 const startLogcatBtn = document.getElementById('start-logcat-btn');
 const stopLogcatBtn = document.getElementById('stop-logcat-btn');
 const clearLogcatBtn = document.getElementById('clear-logcat-btn');
-const logcatFilterInput = document.getElementById('logcat-filter-input');
-const takeScreenshotBtn = document.getElementById('take-screenshot-btn');
-const screenshotImg = document.getElementById('screenshot-img');
-const screenshotPlaceholder = document.getElementById('screenshot-placeholder');
+const copyLogcatBtn = document.getElementById('copy-logcat-btn');
+const exportLogcatBtn = document.getElementById('export-logcat-btn');
+const logcatLevelSelect = document.getElementById('logcat-level-select');
+const logcatSearchInput = document.getElementById('logcat-search-input');
+const logcatAutoscrollCheckbox = document.getElementById('logcat-autoscroll-checkbox');
+const logcatStatusBadge = document.getElementById('logcat-status-badge');
 
-// Audio Synthesizer (Chime)
+// Web Audio Chime
 function playChime() {
     if (!isSoundEnabled) return;
     try {
@@ -99,28 +76,17 @@ function playChime() {
         const ctx = new AudioContext();
         const now = ctx.currentTime;
 
-        const osc1 = ctx.createOscillator();
-        const gain1 = ctx.createGain();
-        osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(523.25, now);
-        osc1.frequency.exponentialRampToValueAtTime(659.25, now + 0.15);
-        gain1.gain.setValueAtTime(0.2, now);
-        gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
-        osc1.connect(gain1);
-        gain1.connect(ctx.destination);
-        osc1.start(now);
-        osc1.stop(now + 0.5);
-
-        const osc2 = ctx.createOscillator();
-        const gain2 = ctx.createGain();
-        osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(783.99, now + 0.15);
-        gain2.gain.setValueAtTime(0.25, now + 0.15);
-        gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.7);
-        osc2.connect(gain2);
-        gain2.connect(ctx.destination);
-        osc2.start(now + 0.15);
-        osc2.stop(now + 0.7);
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, now); // D5
+        osc.frequency.exponentialRampToValueAtTime(880.00, now + 0.15); // A5
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.5);
     } catch (e) {}
 }
 
@@ -131,27 +97,11 @@ function showToast(message, color = 'var(--accent-blue)', duration = 4000) {
     setTimeout(() => { toast.style.display = 'none'; }, duration);
 }
 
-// Language Toggle
-function updateLanguage() {
-    const texts = i18n[currentLang];
-    document.querySelectorAll('[data-i18n]').forEach(el => {
-        const key = el.getAttribute('data-i18n');
-        if (texts[key]) el.textContent = texts[key];
-    });
-    langLabel.textContent = currentLang === 'tr' ? 'EN' : 'TR';
-    soundStatus.textContent = isSoundEnabled ? texts.soundOn : texts.soundOff;
-}
-
-langToggleBtn.onclick = () => {
-    currentLang = currentLang === 'tr' ? 'en' : 'tr';
-    localStorage.setItem('unitydrop_lang', currentLang);
-    updateLanguage();
-};
-
+// Sound toggle
 soundToggleBtn.onclick = () => {
     isSoundEnabled = !isSoundEnabled;
-    localStorage.setItem('unitydrop_sound', isSoundEnabled);
-    updateLanguage();
+    localStorage.setItem('apkdrop_sound', isSoundEnabled);
+    soundStatus.textContent = isSoundEnabled ? 'Ses Açık' : 'Ses Kapalı';
     if (isSoundEnabled) playChime();
 };
 
@@ -188,11 +138,9 @@ async function loadAdbPairingQr() {
     }
 }
 
-if (refreshAdbQrBtn) {
-    refreshAdbQrBtn.onclick = loadAdbPairingQr;
-}
+if (refreshAdbQrBtn) refreshAdbQrBtn.onclick = loadAdbPairingQr;
 
-// USB to TCP/IP 5555
+// USB to TCP/IP
 if (tcpipBtn) {
     tcpipBtn.onclick = async () => {
         showToast('🔌 Cihaz kablosuz moda alınıyor (port 5555)...');
@@ -214,6 +162,27 @@ if (tcpipBtn) {
         }
     };
 }
+
+// Disconnect Device
+window.disconnectDevice = async (deviceId) => {
+    showToast(`🔌 ${deviceId} bağlantısı kesiliyor...`);
+    try {
+        const res = await fetch('/api/adb/disconnect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ deviceId })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(`✅ ${deviceId} bağlantısı sonlandırıldı`, 'var(--accent-green)');
+            refreshDevices();
+        } else {
+            showToast(`Hata: ${data.error}`, 'var(--accent-red)');
+        }
+    } catch (e) {
+        showToast(`Hata: ${e.message}`, 'var(--accent-red)');
+    }
+};
 
 // WebSocket Connection
 function connectWs() {
@@ -239,6 +208,7 @@ function connectWs() {
                 adbQrImg.src = data.pairingSession.qrDataUrl;
                 adbPairStatusBadge.textContent = data.pairingSession.message;
             }
+            setLogcatRunningUI(!!data.isLogcatRunning);
         } else if (data.type === 'NEW_APK') {
             currentApks.unshift(data.apk);
             renderApks();
@@ -256,7 +226,11 @@ function connectWs() {
         } else if (data.type === 'ADB_PAIR_STATUS') {
             handleAdbPairStatus(data.session);
         } else if (data.type === 'LOGCAT_LINE') {
-            appendLogcatLine(data.line);
+            handleLogcatLine(data.line);
+        } else if (data.type === 'LOGCAT_STARTED') {
+            setLogcatRunningUI(true);
+        } else if (data.type === 'LOGCAT_STOPPED') {
+            setLogcatRunningUI(false);
         }
     };
 
@@ -283,9 +257,7 @@ function handleAdbPairStatus(session) {
         showToast('🎉 Android cihazınız başarıyla eşleşti ve bağlandı!', 'var(--accent-green)', 6000);
         refreshDevices();
     } else if (session.status === 'timeout') {
-        adbPairStatusBadge.className = 'badge';
-        adbPairStatusBadge.style.background = 'rgba(239, 68, 68, 0.2)';
-        adbPairStatusBadge.style.color = '#ef4444';
+        adbPairStatusBadge.className = 'badge badge-red';
     }
 }
 
@@ -308,7 +280,7 @@ function renderApks() {
     if (currentApks.length === 0) {
         apkListContainer.innerHTML = `
           <p style="color: var(--text-muted); font-size: 14px; text-align: center; padding: 32px;">
-            ${i18n[currentLang].noApkText}
+            Henüz APK bulunmuyor. Derleme alabilir veya yukarıya bir APK sürükleyebilirsiniz.
           </p>
         `;
         return;
@@ -318,10 +290,10 @@ function renderApks() {
       <div class="apk-card">
         <div class="apk-header">
           <div class="apk-title">
-            <span>🎮</span> ${apk.label || apk.name}
+            <span>📦</span> ${apk.label || apk.name}
           </div>
-          <span class="badge ${apk.source === 'unity-watcher' || apk.source === 'unity-build-hook' ? 'badge-purple' : 'badge-blue'}">
-            ${apk.source === 'unity-watcher' || apk.source === 'unity-build-hook' ? '⚡ Unity' : '📥 Dosya'}
+          <span class="badge ${apk.source === 'folder-watcher' ? 'badge-purple' : 'badge-blue'}">
+            ${apk.source === 'folder-watcher' ? '⚡ Otomatik' : '📥 Dosya'}
           </span>
         </div>
 
@@ -360,7 +332,7 @@ function renderApks() {
     `).join('');
 }
 
-// Render ADB Devices
+// Render ADB Devices with Disconnect button
 function renderDevices() {
     if (currentDevices.length === 0) {
         devicesList.innerHTML = `
@@ -387,8 +359,10 @@ function renderDevices() {
             <div style="font-size: 12px; color: var(--text-muted);">${d.id} • ${d.isWifi ? '📶 Kablosuz Wi-Fi' : '🔌 USB'}</div>
           </div>
         </div>
-        <div style="display: flex; gap: 8px;">
-          <button class="btn btn-outline btn-sm" onclick="quickScreenshot('${d.id}')">📸 Ekran Al</button>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button class="btn btn-danger btn-sm" onclick="disconnectDevice('${d.id}')" title="Bağlantıyı Kes / Sil">
+            ❌ Bağlantıyı Kes
+          </button>
           <span class="badge" style="font-size: 11px;">Hazır</span>
         </div>
       </div>
@@ -448,6 +422,17 @@ window.stopApp = async (packageName) => {
     showToast(`⏹️ ${packageName} durduruldu`);
 };
 
+// Remote Keycode
+window.sendRemoteKey = async (code) => {
+    const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
+    if (!target) return showToast('⚠️ Cihaz bağlı değil', 'var(--accent-red)');
+    await fetch('/api/adb/keyevent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceId: target, code })
+    });
+};
+
 // Settings
 async function saveSettings() {
     await fetch('/api/config', {
@@ -474,7 +459,7 @@ saveWatchBtn.onclick = async () => {
         const data = await res.json();
         if (data.success) {
             currentWatchLabel.textContent = `İzlenen: ${val}`;
-            showToast('✅ Unity klasörü kaydedildi!', 'var(--accent-green)');
+            showToast('✅ Klasör kaydedildi!', 'var(--accent-green)');
         } else {
             showToast(`Hata: ${data.error}`, 'var(--accent-red)');
         }
@@ -493,7 +478,7 @@ autoLaunchCheckbox.onchange = () => {
     showToast(`Otomatik oyun başlatma: ${autoLaunchCheckbox.checked ? 'Açık' : 'Kapalı'}`);
 };
 
-// Connect Wireless ADB
+// Connect Wireless ADB Manual
 adbConnectBtn.onclick = async () => {
     const target = adbIpInput.value.trim();
     if (!target) return;
@@ -566,21 +551,169 @@ async function uploadFile(file) {
     }
 }
 
-// Logcat DevTools
+// ==========================================
+// 📺 CANLI EKRAN YANSITMA (LIVE SCREEN MIRROR)
+// ==========================================
+startMirrorBtn.onclick = () => {
+    const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
+    if (!target) return showToast('⚠️ Önce bir cihaz bağlamalısınız!', 'var(--accent-red)');
+
+    isMirroring = true;
+    startMirrorBtn.style.display = 'none';
+    stopMirrorBtn.style.display = 'inline-flex';
+    screenEmptyPlaceholder.style.display = 'none';
+    screenshotStaticImg.style.display = 'none';
+    screenMirrorCanvas.style.display = 'block';
+    remoteBar.style.display = 'flex';
+    mirrorFpsBadge.style.display = 'inline-flex';
+
+    showToast('📺 Canlı ekran yayını başlatıldı');
+    updateMirrorFrame();
+};
+
+stopMirrorBtn.onclick = () => {
+    isMirroring = false;
+    clearTimeout(mirrorLoopTimeout);
+    startMirrorBtn.style.display = 'inline-flex';
+    stopMirrorBtn.style.display = 'none';
+    mirrorFpsBadge.style.display = 'none';
+    showToast('⏹️ Canlı yayın durduruldu');
+};
+
+function updateMirrorFrame() {
+    if (!isMirroring) return;
+    const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
+    if (!target) {
+        stopMirrorBtn.click();
+        return;
+    }
+
+    const img = new Image();
+    img.onload = () => {
+        if (!isMirroring) return;
+        const ctx = screenMirrorCanvas.getContext('2d');
+        if (screenMirrorCanvas.width !== img.naturalWidth || screenMirrorCanvas.height !== img.naturalHeight) {
+            screenMirrorCanvas.width = img.naturalWidth;
+            screenMirrorCanvas.height = img.naturalHeight;
+        }
+        ctx.drawImage(img, 0, 0);
+
+        mirrorFpsCounter++;
+        const now = Date.now();
+        if (now - lastFpsTime >= 1000) {
+            mirrorFpsBadge.textContent = `${mirrorFpsCounter} FPS`;
+            mirrorFpsCounter = 0;
+            lastFpsTime = now;
+        }
+
+        mirrorLoopTimeout = setTimeout(updateMirrorFrame, 40);
+    };
+    img.onerror = () => {
+        if (isMirroring) mirrorLoopTimeout = setTimeout(updateMirrorFrame, 500);
+    };
+    img.src = `/api/adb/screenshot?deviceId=${target}&t=${Date.now()}`;
+}
+
+// High-Res Snapshot Button
+snapScreenshotBtn.onclick = () => {
+    const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
+    if (!target) return showToast('⚠️ Cihaz bağlı değil', 'var(--accent-red)');
+
+    showToast('📸 Ekran görüntüsü alınıyor...');
+    const url = `/api/adb/screenshot?deviceId=${target}&t=${Date.now()}`;
+    screenshotStaticImg.src = url;
+    screenshotStaticImg.onload = () => {
+        if (isMirroring) stopMirrorBtn.click();
+        screenEmptyPlaceholder.style.display = 'none';
+        screenMirrorCanvas.style.display = 'none';
+        screenshotStaticImg.style.display = 'block';
+        remoteBar.style.display = 'flex';
+        showToast('✅ Ekran görüntüsü alındı!', 'var(--accent-green)');
+    };
+};
+
+// 💾 RESMİ FARKLI KAYDET (SAVE AS) - DIALOG ASKS WHERE TO SAVE
+saveScreenshotAsBtn.onclick = async () => {
+    let blob = null;
+
+    if (screenshotStaticImg.style.display !== 'none' && screenshotStaticImg.src) {
+        try {
+            const res = await fetch(screenshotStaticImg.src);
+            blob = await res.blob();
+        } catch (e) {}
+    } else if (screenMirrorCanvas.style.display !== 'none' && screenMirrorCanvas.width > 0) {
+        blob = await new Promise(resolve => screenMirrorCanvas.toBlob(resolve, 'image/png'));
+    }
+
+    if (!blob) {
+        showToast('⚠️ Önce ekran görüntüsü almalı veya canlı yayını başlatmalısınız!', 'var(--accent-red)');
+        return;
+    }
+
+    const defaultFilename = `Ekran_${new Date().toISOString().slice(0,10)}_${Date.now().toString().slice(-4)}.png`;
+
+    // Modern Chrome/Edge showSaveFilePicker
+    if (window.showSaveFilePicker) {
+        try {
+            const handle = await window.showSaveFilePicker({
+                suggestedName: defaultFilename,
+                types: [{
+                    description: 'PNG Resmi',
+                    accept: { 'image/png': ['.png'] }
+                }]
+            });
+            const writable = await handle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+            showToast('💾 Resim seçtiğiniz konuma başarıyla kaydedildi!', 'var(--accent-green)');
+            return;
+        } catch (err) {
+            if (err.name === 'AbortError') return; // User cancelled
+        }
+    }
+
+    // Standard download fallback
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = defaultFilename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('💾 Resim İndirilenler klasörüne kaydedildi!', 'var(--accent-green)');
+};
+
+// ==========================================
+// 📜 RE-ENGINEERED SMART LOGCAT
+// ==========================================
+function setLogcatRunningUI(running) {
+    isLogcatRunning = running;
+    if (running) {
+        startLogcatBtn.style.display = 'none';
+        stopLogcatBtn.style.display = 'inline-flex';
+        logcatStatusBadge.className = 'badge';
+        logcatStatusBadge.style.background = 'rgba(16, 185, 129, 0.2)';
+        logcatStatusBadge.style.color = '#10b981';
+        logcatStatusBadge.textContent = '● Canlı Akıyor';
+    } else {
+        startLogcatBtn.style.display = 'inline-flex';
+        stopLogcatBtn.style.display = 'none';
+        logcatStatusBadge.className = 'badge badge-purple';
+        logcatStatusBadge.textContent = 'Durduruldu';
+    }
+}
+
 startLogcatBtn.onclick = () => {
     const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
     if (!target) return showToast('⚠️ Cihaz bağlı değil', 'var(--accent-red)');
     if (ws && ws.readyState === WebSocket.OPEN) {
-        terminalWindow.innerHTML = '';
         ws.send(JSON.stringify({
             action: 'START_LOGCAT',
-            deviceId: target,
-            filter: logcatFilterInput.value.trim()
+            deviceId: target
         }));
-        isLogcatRunning = true;
-        startLogcatBtn.style.display = 'none';
-        stopLogcatBtn.style.display = 'inline-flex';
-        showToast('📜 Logcat akışı başlatıldı');
+        setLogcatRunningUI(true);
+        showToast('📜 Logcat başlatıldı');
     }
 };
 
@@ -588,63 +721,139 @@ stopLogcatBtn.onclick = () => {
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ action: 'STOP_LOGCAT' }));
     }
-    isLogcatRunning = false;
-    startLogcatBtn.style.display = 'inline-flex';
-    stopLogcatBtn.style.display = 'none';
-    showToast('⏹️ Logcat durduruldu');
+    setLogcatRunningUI(false);
+    showToast('⏹️ Logcat tamamen durduruldu');
 };
 
 clearLogcatBtn.onclick = () => {
+    logcatEntries = [];
     terminalWindow.innerHTML = '';
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
+        if (target) ws.send(JSON.stringify({ action: 'CLEAR_LOGCAT', deviceId: target }));
+    }
+    showToast('🗑️ Loglar temizlendi');
 };
 
-function appendLogcatLine(line) {
-    const div = document.createElement('div');
-    div.className = 'terminal-line';
-    if (line.includes(' E ') || line.includes('Error') || line.includes('Exception') || line.includes('CRASH')) {
-        div.classList.add('error');
-    } else if (line.includes(' W ') || line.includes('Warning')) {
-        div.classList.add('warn');
-    } else if (line.includes('Unity')) {
-        div.classList.add('unity');
-    }
-    div.textContent = line;
-    terminalWindow.appendChild(div);
+copyLogcatBtn.onclick = () => {
+    const text = logcatEntries.map(e => e.raw).join('\n');
+    navigator.clipboard.writeText(text).then(() => {
+        showToast('📋 Loglar panoya kopyalandı!', 'var(--accent-green)');
+    });
+};
 
-    if (terminalWindow.children.length > 600) {
-        terminalWindow.removeChild(terminalWindow.firstChild);
+exportLogcatBtn.onclick = () => {
+    const text = logcatEntries.map(e => e.raw).join('\n');
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `logcat_${new Date().toISOString().slice(0,10)}_${Date.now().toString().slice(-4)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('💾 Log dosyası indirildi!', 'var(--accent-green)');
+};
+
+// Filter changes
+logcatLevelSelect.onchange = reFilterLogs;
+logcatSearchInput.oninput = reFilterLogs;
+
+function parseLogLine(raw) {
+    // threadtime format: 09-17 23:45:12.123 1234 5678 I Tag: Message
+    const match = raw.match(/^\S+\s+(\d{2}:\d{2}:\d{2}(?:\.\d+)?)\s+\d+\s+\d+\s+([VDIWEF])\s+([^:]+):\s*(.*)$/);
+    if (match) {
+        return {
+            time: match[1],
+            levelChar: match[2],
+            tag: match[3].trim(),
+            msg: match[4],
+            raw
+        };
     }
-    terminalWindow.scrollTop = terminalWindow.scrollHeight;
+    // Fallback
+    let levelChar = 'I';
+    if (/ E |FATAL|Exception|Error|CRASH/i.test(raw)) levelChar = 'E';
+    else if (/ W |Warning/i.test(raw)) levelChar = 'W';
+    else if (/ D /i.test(raw)) levelChar = 'D';
+
+    return {
+        time: '',
+        levelChar,
+        tag: '',
+        msg: raw,
+        raw
+    };
 }
 
-// Screenshot DevTools
-window.quickScreenshot = (deviceId) => {
-    document.querySelector('[data-tab="tab-devtools"]').click();
-    takeScreenshot(deviceId);
-};
+function handleLogcatLine(raw) {
+    const parsed = parseLogLine(raw);
+    logcatEntries.push(parsed);
+    if (logcatEntries.length > MAX_LOGCAT_ENTRIES) {
+        logcatEntries.shift();
+    }
 
-takeScreenshotBtn.onclick = () => {
-    const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
-    if (!target) return showToast('⚠️ Cihaz bağlı değil', 'var(--accent-red)');
-    takeScreenshot(target);
-};
+    if (matchesFilter(parsed)) {
+        renderSingleLog(parsed);
+    }
+}
 
-function takeScreenshot(deviceId) {
-    showToast('📸 Ekran görüntüsü alınıyor...');
-    const url = `/api/adb/screenshot?deviceId=${deviceId}&t=${Date.now()}`;
-    screenshotImg.src = url;
-    screenshotImg.onload = () => {
-        screenshotImg.style.display = 'block';
-        screenshotPlaceholder.style.display = 'none';
-        showToast('✅ Ekran görüntüsü alındı!', 'var(--accent-green)');
-    };
-    screenshotImg.onerror = () => {
-        showToast('Ekran görüntüsü alınamadı', 'var(--accent-red)');
-    };
+function matchesFilter(item) {
+    const selectedLevel = logcatLevelSelect.value;
+    if (selectedLevel === 'ERROR') {
+        if (item.levelChar !== 'E' && item.levelChar !== 'F') return false;
+    } else if (selectedLevel === 'WARN') {
+        if (item.levelChar !== 'E' && item.levelChar !== 'F' && item.levelChar !== 'W') return false;
+    } else if (selectedLevel === 'INFO') {
+        if (item.levelChar === 'D' || item.levelChar === 'V') return false;
+    }
+
+    const query = logcatSearchInput.value.trim().toLowerCase();
+    if (query) {
+        const full = `${item.tag} ${item.msg}`.toLowerCase();
+        if (!full.includes(query)) return false;
+    }
+
+    return true;
+}
+
+function renderSingleLog(item) {
+    const div = document.createElement('div');
+    div.className = 'log-entry';
+
+    if (item.levelChar === 'E' || item.levelChar === 'F') div.classList.add('error');
+    else if (item.levelChar === 'W') div.classList.add('warn');
+    else div.classList.add('info');
+
+    let html = '';
+    if (item.time) html += `<span class="log-time">${item.time}</span>`;
+    if (item.tag) html += `<span class="log-tag">[${item.tag}]</span>`;
+    html += `<span class="log-msg">${escapeHtml(item.msg || item.raw)}</span>`;
+
+    div.innerHTML = html;
+    terminalWindow.appendChild(div);
+
+    if (terminalWindow.children.length > MAX_LOGCAT_ENTRIES) {
+        terminalWindow.removeChild(terminalWindow.firstChild);
+    }
+
+    if (logcatAutoscrollCheckbox.checked) {
+        terminalWindow.scrollTop = terminalWindow.scrollHeight;
+    }
+}
+
+function reFilterLogs() {
+    terminalWindow.innerHTML = '';
+    const filtered = logcatEntries.filter(matchesFilter);
+    for (const item of filtered) {
+        renderSingleLog(item);
+    }
+}
+
+function escapeHtml(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 // Init
-updateLanguage();
 loadQrCode();
 connectWs();
 loadAdbPairingQr();
