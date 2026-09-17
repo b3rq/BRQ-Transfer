@@ -70,7 +70,7 @@ async function createWindow() {
         height: 880,
         minWidth: 1080,
         minHeight: 680,
-        title: 'I Have ADB - Wireless Android Cockpit',
+        title: 'BRQ Transfer - Too lazy for cables',
         backgroundColor: '#0a0d14',
         show: false,
         autoHideMenuBar: true,
@@ -108,7 +108,7 @@ function createTray() {
         tray = new Tray(iconPath);
         const contextMenu = Menu.buildFromTemplate([
             {
-                label: 'I Have ADB Aç',
+                label: 'BRQ Transfer Aç',
                 click: () => {
                     if (mainWindow) {
                         mainWindow.show();
@@ -131,7 +131,7 @@ function createTray() {
                 }
             }
         ]);
-        tray.setToolTip('I Have ADB - Wireless Android Cockpit');
+        tray.setToolTip('BRQ Transfer - Too lazy for cables');
         tray.setContextMenu(contextMenu);
         tray.on('double-click', () => {
             if (mainWindow) {

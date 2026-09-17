@@ -116,10 +116,23 @@ function getTargetAndroidDir(filename) {
     const videoExts = ['.mp4', '.mkv', '.mov', '.avi', '.webm', '.3gp', '.flv', '.m4v', '.ts'];
     const audioExts = ['.mp3', '.wav', '.ogg', '.flac', '.m4a', '.aac', '.opus', '.wma', '.mid'];
 
-    if (imageExts.includes(ext)) return { dir: '/sdcard/Pictures', category: 'image', isMedia: true };
-    if (videoExts.includes(ext)) return { dir: '/sdcard/Movies', category: 'video', isMedia: true };
-    if (audioExts.includes(ext)) return { dir: '/sdcard/Music', category: 'audio', isMedia: true };
-    return { dir: '/sdcard/Download', category: 'document', isMedia: false };
+    let category = 'document';
+    let isMedia = false;
+
+    if (imageExts.includes(ext)) {
+        category = 'image';
+        isMedia = true;
+    } else if (videoExts.includes(ext)) {
+        category = 'video';
+        isMedia = true;
+    } else if (audioExts.includes(ext)) {
+        category = 'audio';
+        isMedia = true;
+    } else if (ext === '.apk') {
+        category = 'apk';
+    }
+
+    return { dir: '/sdcard/Download', category, isMedia };
 }
 
 function formatBytes(bytes, decimals = 2) {
@@ -854,12 +867,13 @@ app.post('/api/upload', upload.any(), async (req, res) => {
     }
 
     const ext = path.extname(file.originalname).toLowerCase();
-    if (ext === '.apk') {
-        const item = await registerApk(file.path, 'drag-drop');
-        return res.json({ success: true, isApk: true, apk: item });
+    const isApk = ext === '.apk';
+    let registeredApk = null;
+    if (isApk) {
+        registeredApk = await registerApk(file.path, 'drag-drop');
     }
 
-    // Universal file transfer (images, videos, audio, documents, archives)
+    // Universal file transfer directly to /sdcard/Download
     const meta = getTargetAndroidDir(file.originalname);
     const devices = await getAdbDevices();
     const targetDevice = (req.body && req.body.deviceId) || config.selectedAdbDevice || (devices.length > 0 ? devices[0].id : null);
@@ -897,12 +911,12 @@ app.post('/api/upload', upload.any(), async (req, res) => {
             if (transfersList.length > 60) transfersList.pop();
             broadcast({ type: 'TRANSFER_COMPLETED', transfer: record, transfers: transfersList });
         });
-        return res.json({ success: true, isApk: false, transfer: record });
+        return res.json({ success: true, isApk, apk: registeredApk, transfer: record });
     } else {
         transfersList.unshift(record);
         if (transfersList.length > 60) transfersList.pop();
         broadcast({ type: 'TRANSFER_SAVED', transfer: record, transfers: transfersList });
-        return res.json({ success: true, isApk: false, transfer: record });
+        return res.json({ success: true, isApk, apk: registeredApk, transfer: record });
     }
 });
 
