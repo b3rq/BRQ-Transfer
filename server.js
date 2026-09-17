@@ -720,7 +720,13 @@ app.post('/api/adb/connect', async (req, res) => {
     if (!ip) return res.status(400).json({ error: 'IP adresi gerekli' });
     try {
         const result = await adbConnect(ip, port || 5555);
+        await new Promise(r => setTimeout(r, 500));
         const devices = await getAdbDevices();
+        const connected = devices.find(d => d.id.includes(ip));
+        if (connected) {
+            config.selectedAdbDevice = connected.id;
+            saveConfig();
+        }
         broadcast({ type: 'DEVICES_UPDATED', devices });
         res.json({ success: true, result, devices });
     } catch (e) {
@@ -829,19 +835,19 @@ app.get('/download-companion', (req, res) => {
 });
 
 app.get('/mobile', (req, res) => {
-    res.sendFile(path.join(PUBLIC_DIR, 'mobile.html'));
+    res.redirect('/');
 });
 
 app.get('/api/qr', async (req, res) => {
     try {
         const ip = getPrimaryIp();
-        const mobileUrl = `http://${ip}:${PORT}/mobile`;
-        const qrDataUrl = await QRCode.toDataURL(mobileUrl, {
+        const url = `http://${ip}:${PORT}`;
+        const qrDataUrl = await QRCode.toDataURL(url, {
             width: 320,
             margin: 2,
             color: { dark: '#000000', light: '#ffffff' }
         });
-        res.json({ url: mobileUrl, qrDataUrl });
+        res.json({ url, qrDataUrl });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
@@ -853,7 +859,6 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log('==================================================');
     console.log(`🚀 ApkDrop Hub & Wireless ADB V3`);
     console.log(`💻 PC Yönetim Paneli : http://localhost:${PORT}`);
-    console.log(`📱 Telefon Linki    : http://${ip}:${PORT}/mobile`);
     console.log(`📂 İzlenen Klasör   : ${config.watchFolder}`);
     console.log('==================================================');
 
