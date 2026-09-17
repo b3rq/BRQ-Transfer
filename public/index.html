@@ -27,10 +27,10 @@
         </div>
 
         <nav class="nav-links">
-          <button class="nav-item active" data-tab="tab-deploy">Builds</button>
-          <button class="nav-item" data-tab="tab-adb">Devices</button>
-          <button class="nav-item" data-tab="tab-screen">Mirror (60 FPS)</button>
-          <button class="nav-item" data-tab="tab-logcat">Logcat</button>
+          <button class="nav-item active" data-tab="tab-deploy" data-i18n="nav_builds">Paketler</button>
+          <button class="nav-item" data-tab="tab-adb" data-i18n="nav_devices">Cihazlar</button>
+          <button class="nav-item" data-tab="tab-screen" data-i18n="nav_mirror">Ekran Yansıtma</button>
+          <button class="nav-item" data-tab="tab-logcat" data-i18n="nav_logcat">Logcat</button>
         </nav>
       </div>
 
@@ -38,11 +38,16 @@
         <!-- Target Device Pill -->
         <div class="status-indicator" id="header-device-pill">
           <span class="status-dot"></span>
-          <span id="header-device-text" class="status-text">No Device</span>
+          <span id="header-device-text" class="status-text" data-i18n="no_device">Bağlı Cihaz Yok</span>
         </div>
 
+        <!-- Language Switcher -->
+        <button class="btn-lang" id="lang-toggle-btn" title="Dili Değiştir / Switch Language">
+          <span id="lang-label">EN</span>
+        </button>
+
         <!-- Sound Toggle -->
-        <button class="btn-icon" id="sound-toggle-btn" title="Toggle audio feedback" aria-label="Audio toggle">
+        <button class="btn-icon" id="sound-toggle-btn" title="Sesli bildirimleri aç/kapat" aria-label="Audio toggle">
           <svg id="sound-icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
             <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
@@ -51,7 +56,7 @@
         </button>
 
         <!-- Theme Toggle -->
-        <button class="btn-icon" id="theme-toggle-btn" title="Toggle color theme" aria-label="Theme toggle">
+        <button class="btn-icon" id="theme-toggle-btn" title="Temayı değiştir" aria-label="Theme toggle">
           <svg id="theme-icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="5"/>
             <line x1="12" y1="1" x2="12" y2="3"/>
@@ -79,7 +84,7 @@
             <!-- Dropzone -->
             <div class="panel">
               <div class="panel-header">
-                <h3>Upload Package</h3>
+                <h3 data-i18n="upload_package">APK Yükle</h3>
               </div>
               <div class="dropzone" id="dropzone">
                 <input type="file" id="file-input" accept=".apk" style="display: none;">
@@ -88,43 +93,43 @@
                   <polyline points="17 8 12 3 7 8"/>
                   <line x1="12" y1="3" x2="12" y2="15"/>
                 </svg>
-                <div class="dropzone-label">Drop .apk here</div>
-                <div class="dropzone-sub">or click to browse files</div>
+                <div class="dropzone-label" data-i18n="drop_apk_here">APK dosyasını buraya bırakın</div>
+                <div class="dropzone-sub" data-i18n="or_browse">veya seçmek için tıklayın</div>
               </div>
             </div>
 
             <!-- Folder Watcher -->
             <div class="panel">
               <div class="panel-header">
-                <h3>Build Watcher</h3>
+                <h3 data-i18n="build_watcher">Build İzleyici</h3>
               </div>
               <div class="form-row">
-                <input type="text" id="watch-folder-input" class="input-text" placeholder="e.g. C:\Project\Builds\Android">
-                <button class="btn btn-secondary" id="save-watch-btn">Save</button>
+                <input type="text" id="watch-folder-input" class="input-text" data-i18n-placeholder="watch_folder_placeholder" placeholder="Örn: C:\Projelerim\Builds">
+                <button class="btn btn-secondary" id="save-watch-btn" data-i18n="save">Kaydet</button>
               </div>
-              <div class="field-meta" id="current-watch-label">Loading path...</div>
+              <div class="field-meta" id="current-watch-label" data-i18n="loading_path">Yol yükleniyor...</div>
             </div>
 
             <!-- Automation Settings -->
             <div class="panel">
               <div class="panel-header">
-                <h3>Automation</h3>
+                <h3 data-i18n="automation">Otomasyon</h3>
               </div>
               <div class="setting-list">
                 <label class="checkbox-row">
                   <input type="checkbox" id="auto-adb-checkbox">
                   <span class="custom-check"></span>
-                  <span class="checkbox-label">Auto-install new builds</span>
+                  <span class="checkbox-label" data-i18n="auto_install">Yeni derlemeleri otomatik yükle</span>
                 </label>
                 <label class="checkbox-row">
                   <input type="checkbox" id="auto-launch-checkbox">
                   <span class="custom-check"></span>
-                  <span class="checkbox-label">Auto-launch after install</span>
+                  <span class="checkbox-label" data-i18n="auto_launch">Yükleme sonrası otomatik başlat</span>
                 </label>
               </div>
               <div class="meta-row">
-                <span class="meta-label">Active Target:</span>
-                <span id="quick-device-status" class="meta-val">Scanning...</span>
+                <span class="meta-label" data-i18n="active_target">Hedef Cihaz:</span>
+                <span id="quick-device-status" class="meta-val" data-i18n="scanning">Taranıyor...</span>
               </div>
             </div>
           </aside>
@@ -134,16 +139,16 @@
             <div class="panel h-full">
               <div class="panel-header-between">
                 <div class="header-group">
-                  <h3>Available Packages</h3>
+                  <h3 data-i18n="available_packages">Hazır Paketler</h3>
                   <span class="count-badge" id="apk-count">0</span>
                 </div>
-                <span class="device-context" id="active-device-indicator">Target: None</span>
+                <span class="device-context" id="active-device-indicator">Hedef: Yok</span>
               </div>
 
               <div id="apk-list-container" class="package-list">
                 <div class="empty-view">
-                  <p class="empty-title">No packages detected</p>
-                  <p class="empty-sub">Drop an APK file or configure the build watcher on the left.</p>
+                  <p class="empty-title" data-i18n="no_packages_detected">Hazır paket bulunamadı</p>
+                  <p class="empty-sub" data-i18n="no_packages_sub">APK sürükleyin veya sol panelden build izleyicisini ayarlayın.</p>
                 </div>
               </div>
             </div>
@@ -158,7 +163,7 @@
           <aside class="sidebar-panel">
             <div class="panel">
               <div class="panel-header">
-                <h3>Wireless Pairing</h3>
+                <h3 data-i18n="wireless_pairing">Kablosuz Eşleme</h3>
               </div>
               <div class="qr-container">
                 <div class="qr-canvas-wrap">
@@ -167,19 +172,19 @@
               </div>
 
               <div id="quick-port-box" class="port-input-box" style="display: none;">
-                <div class="port-input-label">Enter 5-digit Wireless Port:</div>
+                <div class="port-input-label" data-i18n="enter_port_label">5 haneli bağlantı portunu girin:</div>
                 <div class="form-row">
                   <span class="input-addon" id="paired-ip-label">192.168.137.74:</span>
                   <input type="text" id="quick-port-input" class="input-text mono" placeholder="39145" style="max-width: 90px;">
-                  <button class="btn btn-primary" id="quick-port-btn">Connect</button>
+                  <button class="btn btn-primary" id="quick-port-btn" data-i18n="connect">Bağlan</button>
                 </div>
               </div>
 
-              <div id="adb-pair-status-badge" class="status-banner">
-                Awaiting device scan...
+              <div id="adb-pair-status-badge" class="status-banner" data-i18n="awaiting_scan">
+                Telefonun taraması bekleniyor...
               </div>
 
-              <button class="btn btn-secondary w-full" id="refresh-adb-qr-btn">Generate New QR</button>
+              <button class="btn btn-secondary w-full" id="refresh-adb-qr-btn" data-i18n="generate_new_qr">Yeni QR Kod Üret</button>
             </div>
           </aside>
 
@@ -187,24 +192,24 @@
           <main class="main-panel">
             <div class="panel">
               <div class="panel-header-between">
-                <h3>Attached Devices</h3>
+                <h3 data-i18n="attached_devices">Bağlı Cihazlar</h3>
                 <div class="btn-group">
-                  <button class="btn btn-secondary btn-sm" id="tcpip-btn" title="Switch connected USB device to TCP/IP port 5555">
-                    USB &rarr; TCP/IP (5555)
+                  <button class="btn btn-secondary btn-sm" id="tcpip-btn" data-i18n="usb_to_tcpip" title="Switch connected USB device to TCP/IP port 5555">
+                    USB → TCP/IP (5555)
                   </button>
-                  <button class="btn btn-secondary btn-sm" id="refresh-devices-btn">Refresh</button>
+                  <button class="btn btn-secondary btn-sm" id="refresh-devices-btn" data-i18n="refresh">Yenile</button>
                 </div>
               </div>
 
               <div id="devices-list" class="device-list-wrap">
-                <div class="loading-state">Scanning attached devices...</div>
+                <div class="loading-state" data-i18n="scanning_devices">Bağlı cihazlar taranıyor...</div>
               </div>
 
               <div class="sub-panel">
-                <h4>Direct Connection</h4>
+                <h4 data-i18n="direct_connection">Doğrudan Bağlantı</h4>
                 <div class="form-row">
                   <input type="text" id="adb-ip-input" class="input-text mono" placeholder="192.168.137.74:39145">
-                  <button class="btn btn-primary" id="adb-connect-btn">Connect</button>
+                  <button class="btn btn-primary" id="adb-connect-btn" data-i18n="connect">Bağlan</button>
                 </div>
               </div>
             </div>
@@ -221,19 +226,17 @@
             <div class="viewport-header">
               <div class="viewport-title">
                 <span class="dot-stream" id="stream-dot"></span>
-                <span>Display Stream</span>
-                <span class="badge-status" id="screen-stream-status-badge">Idle</span>
+                <span data-i18n="display_stream">Canlı Yayın</span>
+                <span class="badge-status" id="screen-stream-status-badge" data-i18n="idle">Kapalı</span>
               </div>
               <div class="viewport-metrics">
-                <span class="metric-tag" id="stream-fps-chip">60 FPS</span>
                 <span class="metric-tag mono" id="stream-res-chip">1440x3040</span>
                 <span class="metric-tag">H.264 HW</span>
               </div>
               <div class="viewport-actions">
-                <button class="btn btn-primary btn-sm" id="start-web-stream-btn">Start Stream</button>
-                <button class="btn btn-danger btn-sm" id="stop-web-stream-btn" style="display: none;">Stop Stream</button>
-                <button class="btn btn-secondary btn-sm" id="snap-screenshot-btn">Capture</button>
-                <button class="btn btn-secondary btn-sm" id="save-screenshot-as-btn">Save Frame</button>
+                <button class="btn btn-primary btn-sm" id="start-web-stream-btn" data-i18n="start_stream">Yayını Başlat</button>
+                <button class="btn btn-danger btn-sm" id="stop-web-stream-btn" style="display: none;" data-i18n="stop_stream">Yayını Durdur</button>
+                <button class="btn btn-secondary btn-sm" id="snap-screenshot-btn" data-i18n="capture">Fotoğraf Çek</button>
               </div>
             </div>
 
@@ -243,10 +246,10 @@
               <img id="screenshot-static-img" class="stream-element" style="display: none;" alt="Snapshot">
 
               <div id="screen-empty-placeholder" class="viewport-idle">
-                <div class="idle-text">Hardware Mirroring Inactive</div>
-                <div class="idle-sub">Direct 60 FPS H.264 stream rendered via Media Source Extensions.</div>
-                <button class="btn btn-primary" onclick="document.getElementById('start-web-stream-btn').click()">
-                  Initialize Mirror
+                <div class="idle-text" data-i18n="mirror_inactive">Canlı Yayın Kapalı</div>
+                <div class="idle-sub" data-i18n="mirror_inactive_sub">Doğrudan donanımsal H.264 video yayını.</div>
+                <button class="btn btn-primary" onclick="document.getElementById('start-web-stream-btn').click()" data-i18n="initialize_mirror">
+                  Yayını Başlat
                 </button>
               </div>
 
@@ -254,36 +257,40 @@
               <div class="remote-dock" id="remote-bar" style="display: none;">
                 <button class="dock-btn" onclick="sendRemoteKey(4)" title="Back">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="15 18 9 12 15 6"/></svg>
-                  <span>Back</span>
+                  <span data-i18n="back">Geri</span>
                 </button>
                 <button class="dock-btn" onclick="sendRemoteKey(3)" title="Home">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="8"/></svg>
-                  <span>Home</span>
+                  <span data-i18n="home">Ana Ekran</span>
                 </button>
                 <button class="dock-btn" onclick="sendRemoteKey(187)" title="Recents">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
-                  <span>Recents</span>
+                  <span data-i18n="recents">Son Uygulamalar</span>
                 </button>
                 <button class="dock-btn dock-btn-danger" onclick="sendRemoteKey(26)" title="Power">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"/></svg>
-                  <span>Power</span>
+                  <span data-i18n="power">Güç</span>
                 </button>
               </div>
             </div>
           </div>
 
-          <!-- Shortcuts & Interaction Info -->
+          <!-- Right Sidebar: Captures Gallery (Replaces Input Controls) -->
           <div class="viewport-sidebar">
-            <div class="panel">
-              <div class="panel-header">
-                <h3>Input Controls</h3>
+            <div class="panel h-full captures-panel">
+              <div class="panel-header-between">
+                <div class="header-group">
+                  <h3 data-i18n="captures_title">Ekran Görüntüleri</h3>
+                  <span class="count-badge" id="captures-count">0</span>
+                </div>
               </div>
-              <ul class="control-list">
-                <li><span class="key-pill">Left Click</span> Tap coordinates</li>
-                <li><span class="key-pill">Drag</span> Swipe / Gesture</li>
-                <li><span class="key-pill">Right Click</span> Back button</li>
-                <li><span class="key-pill">Save Frame</span> Downloads full-res snapshot</li>
-              </ul>
+              
+              <div id="captures-list" class="captures-list">
+                <div class="empty-view captures-empty">
+                  <p class="empty-title" data-i18n="no_captures">Henüz görüntü alınmadı</p>
+                  <p class="empty-sub" data-i18n="no_captures_sub">Görüntü yakalamak için Capture butonuna tıklayın.</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -295,48 +302,61 @@
           <!-- Terminal Header & Actions -->
           <div class="panel-header-between">
             <div class="header-group">
-              <h3>Logcat Diagnostics</h3>
-              <span class="badge-status" id="logcat-status-badge">Idle</span>
+              <h3 data-i18n="logcat_diagnostics">Logcat Teşhisi</h3>
+              <span class="badge-status" id="logcat-status-badge" data-i18n="idle">Kapalı</span>
             </div>
             <div class="btn-group">
-              <button class="btn btn-primary btn-sm" id="start-logcat-btn">Start</button>
-              <button class="btn btn-danger btn-sm" id="stop-logcat-btn" style="display: none;">Stop</button>
-              <button class="btn btn-secondary btn-sm" id="clear-logcat-btn">Clear</button>
-              <button class="btn btn-secondary btn-sm" id="copy-logcat-btn">Copy</button>
-              <button class="btn btn-secondary btn-sm" id="export-logcat-btn">Export</button>
+              <button class="btn btn-primary btn-sm" id="start-logcat-btn" data-i18n="start">Başlat</button>
+              <button class="btn btn-danger btn-sm" id="stop-logcat-btn" style="display: none;" data-i18n="stop">Durdur</button>
+              <button class="btn btn-secondary btn-sm" id="clear-logcat-btn" data-i18n="clear">Temizle</button>
+              <button class="btn btn-secondary btn-sm" id="copy-logcat-btn" data-i18n="copy">Kopyala</button>
+              <button class="btn btn-secondary btn-sm" id="export-logcat-btn" data-i18n="export">Dışa Aktar</button>
             </div>
           </div>
 
           <!-- Terminal Filter Bar -->
           <div class="terminal-toolbar">
             <select id="logcat-level-select" class="select-field">
-              <option value="ALL">All Levels</option>
-              <option value="ERROR" selected>Error & Fatal</option>
-              <option value="WARN">Warn & Error</option>
-              <option value="INFO">Info & Above</option>
+              <option value="ALL" data-i18n="all_levels">Tüm Seviyeler</option>
+              <option value="ERROR" selected data-i18n="error_fatal">Hata & Fatal</option>
+              <option value="WARN" data-i18n="warn_error">Uyarı & Hata</option>
+              <option value="INFO" data-i18n="info_above">Bilgi ve Üzeri</option>
             </select>
 
             <div class="search-wrap">
-              <input type="text" id="logcat-search-input" class="input-text mono" placeholder="Filter by tag, message, or package...">
+              <input type="text" id="logcat-search-input" class="input-text mono" data-i18n-placeholder="filter_placeholder" placeholder="Tag, mesaj veya paket adı filtrele...">
             </div>
 
             <label class="checkbox-row compact">
               <input type="checkbox" id="logcat-autoscroll-checkbox" checked>
               <span class="custom-check"></span>
-              <span class="checkbox-label">Autoscroll</span>
+              <span class="checkbox-label" data-i18n="autoscroll">Otomatik Kaydır</span>
             </label>
           </div>
 
           <!-- Terminal Canvas -->
           <div class="console-box" id="terminal-window">
             <div class="log-entry log-sys">
-              <span class="log-time">[System]</span>
+              <span class="log-time">[Sistem]</span>
               <span class="log-tag">INIT</span>
-              <span class="log-msg">Logcat subsystem ready. Select an attached device to begin capture.</span>
+              <span class="log-msg" data-i18n="logcat_ready">Logcat sistemi hazır. Kayda başlamak için bağlı bir cihaz seçin.</span>
             </div>
           </div>
         </div>
       </section>
+    </div>
+  </div>
+
+  <!-- Fullscreen Modal for image inspection -->
+  <div id="image-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <span id="modal-title" class="modal-title">Görüntü İnceleme</span>
+        <button class="btn-icon" id="modal-close-btn" title="Kapat">✕</button>
+      </div>
+      <div class="modal-body">
+        <img id="modal-img" class="modal-image" alt="Preview">
+      </div>
     </div>
   </div>
 
