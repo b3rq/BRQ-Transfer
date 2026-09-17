@@ -285,11 +285,27 @@ function getAdbDevices() {
     });
 }
 
+function verifyDeviceConnected(deviceIdOrIp) {
+    return new Promise(resolve => {
+        exec(`"${ADB_BIN}" devices`, (err, stdout) => {
+            if (err || !stdout) return resolve(false);
+            const isListed = stdout.split('\n').some(line => {
+                const parts = line.trim().split(/\s+/);
+                return parts[0].includes(deviceIdOrIp) && parts[1] === 'device';
+            });
+            resolve(isListed);
+        });
+    });
+}
+
 function adbConnect(ip, port = 5555) {
     return new Promise((resolve, reject) => {
         exec(`"${ADB_BIN}" connect ${ip}:${port}`, (err, stdout, stderr) => {
-            if (err) return reject(new Error(stderr || err.message));
-            resolve(stdout.trim());
+            const out = (stdout || '') + (stderr || '');
+            if (err || out.includes('cannot connect') || out.includes('failed to connect')) {
+                return reject(new Error(out.trim() || 'Bağlantı kurulamadı'));
+            }
+            resolve(out.trim());
         });
     });
 }
@@ -297,8 +313,11 @@ function adbConnect(ip, port = 5555) {
 function adbPair(ip, port, code) {
     return new Promise((resolve, reject) => {
         exec(`"${ADB_BIN}" pair ${ip}:${port} ${code}`, (err, stdout, stderr) => {
-            if (err) return reject(new Error(stderr || err.message));
-            resolve(stdout.trim());
+            const out = (stdout || '') + (stderr || '');
+            if (err || out.includes('Failed') || out.includes('error')) {
+                return reject(new Error(out.trim() || 'Eşleştirme başarısız'));
+            }
+            resolve(out.trim());
         });
     });
 }
@@ -384,6 +403,7 @@ async function startAdbQrPairing() {
         qrText,
         qrDataUrl,
         status: 'waiting_for_scan',
+        pairedIp: '',
         message: 'Telefonunuzdan "Cihazı QR koduyla eşle"yi açıp bu kodu tarayın...',
         startedAt: Date.now(),
         cancelled: false
@@ -418,6 +438,7 @@ async function runPairingLoop(session) {
 
                     console.log(`[ADB QR]: Cihaz algılandı: ${ip}:${pairPort}`);
                     session.status = 'pairing';
+                    session.pairedIp = ip;
                     session.message = `Cihaz algılandı (${ip}:${pairPort}), eşleştiriliyor...`;
                     broadcast({ type: 'ADB_PAIR_STATUS', session });
 
@@ -432,13 +453,15 @@ async function runPairingLoop(session) {
                     });
 
                     if (pairResult.success) {
-                        console.log(`[ADB QR]: Eşleşme başarılı! Bağlantı kuruluyor...`);
-                        session.status = 'connecting';
-                        session.message = 'Eşleşme başarılı! Cihaza bağlanılıyor...';
+                        console.log(`[ADB QR]: Eşleşme başarılı! Cihaz: ${ip}`);
+                        session.status = 'paired';
+                        session.pairedIp = ip;
+                        session.message = `✅ Eşleşme başarılı! Bağlantı portu aranıyor...`;
                         broadcast({ type: 'ADB_PAIR_STATUS', session });
 
+                        // Check mDNS for connect port
                         let connectPort = null;
-                        for (let attempt = 0; attempt < 15; attempt++) {
+                        for (let attempt = 0; attempt < 6; attempt++) {
                             await new Promise(r => setTimeout(r, 1000));
                             const mdnsOut = await new Promise(r => exec(`"${ADB_BIN}" mdns services`, (e, o) => r(o || '')));
                             const connectLine = mdnsOut.split('\n').find(l => l.includes('_adb-tls-connect._tcp') && l.includes(ip));
@@ -452,15 +475,25 @@ async function runPairingLoop(session) {
                             }
                         }
 
-                        const targetConnectPort = connectPort || pairPort || '5555';
-                        console.log(`[ADB QR]: Bağlanılıyor ${ip}:${targetConnectPort}`);
-                        await new Promise(r => exec(`"${ADB_BIN}" connect ${ip}:${targetConnectPort}`, () => r()));
+                        if (connectPort) {
+                            console.log(`[ADB QR]: mDNS üzerinden connect port bulundu: ${ip}:${connectPort}`);
+                            await new Promise(r => exec(`"${ADB_BIN}" connect ${ip}:${connectPort}`, () => r()));
+                            const isConnected = await verifyDeviceConnected(ip);
+                            if (isConnected) {
+                                session.status = 'connected';
+                                session.message = `🎉 Cihaz başarıyla bağlandı! (${ip}:${connectPort})`;
+                                const devices = await getAdbDevices();
+                                broadcast({ type: 'ADB_PAIR_STATUS', session });
+                                broadcast({ type: 'DEVICES_UPDATED', devices });
+                                return;
+                            }
+                        }
 
-                        session.status = 'connected';
-                        session.message = `🎉 Cihaz başarıyla bağlandı! (${ip}:${targetConnectPort})`;
-                        const devices = await getAdbDevices();
+                        // If mDNS didn't provide connect port or connect failed, prompt user for phone's port
+                        session.status = 'paired_need_port';
+                        session.pairedIp = ip;
+                        session.message = `✅ Eşleşme tamamlandı! Telefonda görünen 5 haneli bağlantı portunu girin:`;
                         broadcast({ type: 'ADB_PAIR_STATUS', session });
-                        broadcast({ type: 'DEVICES_UPDATED', devices });
                         return;
                     } else {
                         console.error('[ADB QR]: Eşleşme hatası:', pairResult.error);
@@ -514,7 +547,6 @@ function startLogcatStream(deviceId, filter = '', level = '') {
     stopLogcatStream();
 
     const targetArg = deviceId ? ['-s', deviceId] : [];
-    // -v threadtime produces: 09-17 23:45:12.123  1234  5678 I Tag: Message
     const args = [...targetArg, 'logcat', '-v', 'threadtime'];
     console.log('[Logcat]: Başlatılıyor:', ADB_BIN, args.join(' '));
 
@@ -527,8 +559,6 @@ function startLogcatStream(deviceId, filter = '', level = '') {
         for (const rawLine of lines) {
             const line = rawLine.trim();
             if (!line) continue;
-
-            // Optional server-side filter
             if (filter && !line.toLowerCase().includes(filter.toLowerCase())) continue;
 
             broadcast({
@@ -562,6 +592,7 @@ wss.on('connection', async (ws) => {
         pairingSession: currentPairingSession ? {
             qrDataUrl: currentPairingSession.qrDataUrl,
             status: currentPairingSession.status,
+            pairedIp: currentPairingSession.pairedIp,
             message: currentPairingSession.message
         } : null
     }));
@@ -656,6 +687,7 @@ app.get('/api/adb/pairing-qr', async (req, res) => {
             success: true,
             qrDataUrl: session.qrDataUrl,
             status: session.status,
+            pairedIp: session.pairedIp,
             message: session.message
         });
     } catch (e) {
@@ -670,6 +702,7 @@ app.get('/api/adb/pairing-status', (req, res) => {
     res.json({
         active: true,
         status: currentPairingSession.status,
+        pairedIp: currentPairingSession.pairedIp,
         message: currentPairingSession.message
     });
 });
