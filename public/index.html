@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ApkDrop - Evrensel Android Dağıtım & Canlı Test Hub'ı</title>
   <link rel="stylesheet" href="app.css">
+  <script src="jmuxer.min.js"></script>
 </head>
 <body>
   <div class="container">
@@ -38,7 +39,7 @@
         ⚡ Kablosuz ADB & Cihazlar
       </button>
       <button class="tab-btn" data-tab="tab-screen">
-        📺 Canlı Ekran Yansıtma (60 FPS)
+        📺 Tarayıcı İçi Canlı Ekran (60 FPS)
       </button>
       <button class="tab-btn" data-tab="tab-logcat">
         📜 Akıllı Logcat & Hatalar
@@ -194,76 +195,36 @@
       </div>
     </div>
 
-    <!-- TAB 3: LIVE SCREEN MIRROR & SCREENSHOT -->
+    <!-- TAB 3: IN-BROWSER 60 FPS SCREEN STREAM & TOUCH -->
     <div id="tab-screen" class="tab-content" style="display: none;">
-      <!-- Hero Card: 60 FPS Scrcpy Native Mirroring -->
-      <div class="card" style="margin-bottom: 24px; border: 1px solid rgba(16, 185, 129, 0.35); background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(15, 23, 42, 0.85) 100%);">
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 16px;">
-          <div>
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <h2 style="font-size: 1.35rem; color: #10b981; font-weight: 800;">🚀 60 FPS Ultra Akıcı Canlı Ekran</h2>
-              <span class="badge" id="scrcpy-status-badge" style="font-size: 11px; background: rgba(255,255,255,0.06); color: var(--text-muted);">
-                ● Kapalı
-              </span>
-            </div>
-            <p style="font-size: 13px; color: #94a3b8; margin-top: 4px;">
-              Snapdragon/MediaTek donanım H.264 çipiyle <b>sıfır gecikmeli (<30ms) 60 FPS canlı görüntü</b>. PC faresi ve klavyesiyle telefonu doğrudan kontrol edin!
-            </p>
-          </div>
-          <div style="display: flex; gap: 10px; align-items: center;">
-            <button class="btn btn-success" id="start-scrcpy-btn" style="padding: 12px 24px; font-size: 15px; font-weight: 700; box-shadow: 0 4px 16px rgba(16, 185, 129, 0.35);">
-              ⚡ 60 FPS Canlı Ekranı Başlat
-            </button>
-            <button class="btn btn-danger" id="stop-scrcpy-btn" style="display: none; padding: 12px 20px; font-size: 14px; font-weight: 700;">
-              ⏹️ Pencereyi Kapat
-            </button>
-          </div>
-        </div>
-
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
-          <div style="font-size: 12px; color: #cbd5e1; display: flex; align-items: center; gap: 8px;">
-            <span>🎮</span> <b>60 FPS Akıcı Oyun Testi:</b> 1 FPS kasmaları bitti, gerçek zamanlı akar.
-          </div>
-          <div style="font-size: 12px; color: #cbd5e1; display: flex; align-items: center; gap: 8px;">
-            <span>🖱️</span> <b>PC Faresi:</b> Sol tık dokunma, sağ tık Geri (Back), orta tık Home.
-          </div>
-          <div style="font-size: 12px; color: #cbd5e1; display: flex; align-items: center; gap: 8px;">
-            <span>⌨️</span> <b>PC Klavyesi:</b> Klavyeden doğrudan telefona yazı yazma ve kısayollar.
-          </div>
-          <div style="font-size: 12px; color: #cbd5e1; display: flex; align-items: center; gap: 8px;">
-            <span>📌</span> <b>Her Zaman Üstte:</b> Unity Editor veya kod yazarken ekran hep önünüzde durur.
-          </div>
-        </div>
-      </div>
-
-      <!-- Grid for Snapshot & In-Browser Screen -->
       <div class="grid-layout" style="grid-template-columns: 1fr 340px;">
-        <!-- Left: Static Snapshot Display or Web Canvas -->
+        <!-- Left: Pure HTML5 Video Stream & Controls -->
         <div class="card" style="margin-bottom: 0;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
             <div style="display: flex; align-items: center; gap: 10px;">
-              <h2>📸 Ekran Görüntüsü & Web Önizleme</h2>
-              <span class="badge badge-blue" id="mirror-fps-badge" style="display: none;">0 FPS</span>
+              <h2>📺 Tarayıcı İçi Canlı Ekran</h2>
+              <span class="badge badge-purple" id="screen-stream-status-badge">Durduruldu</span>
             </div>
-            <div style="display: flex; gap: 8px;">
-              <button class="btn btn-purple btn-sm" id="snap-screenshot-btn">📸 Anlık Ekran Al</button>
-              <button class="btn btn-outline btn-sm" id="start-mirror-btn">🌐 Web Canlı Ekranı Aç</button>
-              <button class="btn btn-danger btn-sm" id="stop-mirror-btn" style="display: none;">⏹️ Yayını Durdur</button>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <button class="btn btn-success" id="start-web-stream-btn">▶️ Canlı Ekranı Başlat</button>
+              <button class="btn btn-danger" id="stop-web-stream-btn" style="display: none;">⏹️ Yayını Durdur</button>
+              <button class="btn btn-purple btn-sm" id="snap-screenshot-btn">📸 Fotoğraf Çek</button>
             </div>
           </div>
 
-          <div class="screen-mirror-wrapper">
-            <canvas id="screen-mirror-canvas" class="screen-canvas" style="display: none;"></canvas>
+          <!-- Video Wrapper -->
+          <div class="screen-mirror-wrapper" style="position: relative; min-height: 520px;">
+            <video id="screen-video" class="screen-canvas" autoplay muted playsinline style="display: none; cursor: pointer; background: #000;"></video>
             <img id="screenshot-static-img" class="screen-canvas" style="display: none;" alt="Ekran Görüntüsü">
             
-            <div id="screen-empty-placeholder" style="text-align: center; color: var(--text-muted); padding: 40px 20px;">
-              <div style="font-size: 48px; margin-bottom: 12px;">📱</div>
-              <p style="font-weight: 600; font-size: 15px; color: #fff; margin-bottom: 6px;">Ekran Görüntüsü Yok</p>
-              <p style="font-size: 13px; max-width: 440px; margin: 0 auto 16px;">
-                Ultra akıcı 60 FPS oyun testi için yukarıdaki <b>"⚡ 60 FPS Canlı Ekranı Başlat"</b> butonunu kullanın ya da tek kare fotoğraf yakalamak için <b>"📸 Anlık Ekran Al"</b> butonuna tıklayın.
+            <div id="screen-empty-placeholder" style="text-align: center; color: var(--text-muted); padding: 50px 20px;">
+              <div style="font-size: 56px; margin-bottom: 14px;">📱</div>
+              <p style="font-weight: 700; font-size: 16px; color: #fff; margin-bottom: 6px;">Tarayıcı İçi Canlı Ekran Kapalı</p>
+              <p style="font-size: 13px; max-width: 440px; margin: 0 auto 18px; line-height: 1.6;">
+                Dışarıda hiçbir exe veya program çalıştırmadan, doğrudan bu web sayfasında <b>60 FPS donanım hızlandırmalı</b> canlı video izlemek ve fareyle dokunarak kontrol etmek için başlatın:
               </p>
-              <button class="btn btn-purple btn-sm" onclick="document.getElementById('snap-screenshot-btn').click()">
-                📸 Anlık Ekran Al
+              <button class="btn btn-success" onclick="document.getElementById('start-web-stream-btn').click()">
+                ▶️ Canlı Ekranı Başlat
               </button>
             </div>
 
@@ -277,29 +238,32 @@
           </div>
         </div>
 
-        <!-- Right: Save As Options & Quick Tips -->
+        <!-- Right: Touch Guide & Save Options -->
         <div>
           <div class="card">
-            <h2>💾 Resmi Bilgisayara Kaydet</h2>
-            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
-              Yakalanan ekran görüntüsünü Windows dosya seçiciyle bilgisayarınızda istediğiniz klasöre kaydedin:
+            <h2>🖱️ Canlı Etkileşim & Kontrol</h2>
+            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">
+              Tarayıcı içindeki videoya doğrudan fareyle tıklayarak telefonu yönetebilirsiniz:
             </p>
 
-            <button class="btn btn-success" id="save-screenshot-as-btn" style="width: 100%; justify-content: center; padding: 14px; font-size: 14px; margin-bottom: 12px;">
-              💾 Resmi Farklı Kaydet (Save As)
-            </button>
-            <p style="font-size: 11px; color: var(--text-muted); line-height: 1.5; margin-bottom: 20px;">
-              *Tıkladığınızda Windows dosya seçici penceresi açılır, resmi nereye ve hangi isimle kaydedeceğinizi seçebilirsiniz.
-            </p>
+            <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px; margin-bottom: 16px;">
+              <div style="font-size: 12px; color: #cbd5e1; line-height: 2;">
+                <div>👆 <b>Fare Sol Tık:</b> Ekrana anında dokunur (Tap)</div>
+                <div>↔️ <b>Fareyi Sürükle:</b> Ekranda kaydırır (Swipe / Drag)</div>
+                <div>🔙 <b>Fare Sağ Tık:</b> Telefonun Geri (Back) tuşudur</div>
+                <div>🎮 <b>Unity Oyun Testi:</b> Menülere ve butonlara PC'den tıkla</div>
+              </div>
+            </div>
 
-            <div style="border-top: 1px solid var(--border-color); padding-top: 16px;">
-              <h3 style="font-size: 13px; margin-bottom: 8px;">💡 Faydalı Kısayollar</h3>
-              <ul style="font-size: 12px; color: var(--text-muted); line-height: 1.8; padding-left: 16px;">
-                <li><b>60 FPS Canlı Pencere</b> açıkken fare sol tıkıyla telefonda dokunma ve kaydırma yapabilirsiniz.</li>
-                <li>Sağ tıkladığınızda telefonun <b>Geri (Back)</b> tuşuna basılır.</li>
-                <li>Fare tekerleğiyle sayfaları kaydırabilirsiniz.</li>
-                <li>Bilgisayar klavyesinden yazdığınız harfler doğrudan telefondaki aktif alana yazılır.</li>
-              </ul>
+            <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-bottom: 16px;">
+              <h3 style="font-size: 13px; margin-bottom: 10px;">💾 Ekran Görüntüsü Kaydet</h3>
+              <button class="btn btn-success" id="save-screenshot-as-btn" style="width: 100%; justify-content: center; padding: 12px; font-size: 13px;">
+                💾 Resmi Farklı Kaydet (Save As)
+              </button>
+            </div>
+
+            <div style="border-top: 1px solid var(--border-color); padding-top: 14px; font-size: 11px; color: var(--text-muted); line-height: 1.6;">
+              <p>💡 <b>Nasıl çalışıyor?</b> Telefonunuzun GPU'su H.264 video üretir; web sayfası HTML5 Media Source Extensions ve donanım video çözücü ile doğrudan tarayıcı içinde 60 FPS oynatır.</p>
             </div>
           </div>
         </div>
