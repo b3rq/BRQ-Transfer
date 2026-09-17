@@ -5,11 +5,13 @@ let currentDevices = [];
 let selectedDevice = '';
 let isSoundEnabled = localStorage.getItem('apkdrop_sound') !== 'false';
 let isLogcatRunning = false;
-let isScrcpyRunning = false;
-let isMirroring = false;
-let mirrorLoopTimeout = null;
-let mirrorFpsCounter = 0;
-let lastFpsTime = Date.now();
+let isWebStreaming = false;
+let jmuxerInstance = null;
+let phonePhysicalWidth = 1440;
+let phonePhysicalHeight = 3040;
+let isTouchDown = false;
+let touchStartX = 0;
+let touchStartY = 0;
 let lastPairedIp = '192.168.137.74';
 
 // DOM Elements
@@ -39,20 +41,15 @@ const adbConnectBtn = document.getElementById('adb-connect-btn');
 const tcpipBtn = document.getElementById('tcpip-btn');
 const refreshDevicesBtn = document.getElementById('refresh-devices-btn');
 
-// Scrcpy 60 FPS Elements
-const startScrcpyBtn = document.getElementById('start-scrcpy-btn');
-const stopScrcpyBtn = document.getElementById('stop-scrcpy-btn');
-const scrcpyStatusBadge = document.getElementById('scrcpy-status-badge');
-
-// Screen Mirror Elements
-const screenMirrorCanvas = document.getElementById('screen-mirror-canvas');
+// In-Browser Screen Stream Elements
+const screenVideo = document.getElementById('screen-video');
 const screenshotStaticImg = document.getElementById('screenshot-static-img');
 const screenEmptyPlaceholder = document.getElementById('screen-empty-placeholder');
-const startMirrorBtn = document.getElementById('start-mirror-btn');
-const stopMirrorBtn = document.getElementById('stop-mirror-btn');
+const startWebStreamBtn = document.getElementById('start-web-stream-btn');
+const stopWebStreamBtn = document.getElementById('stop-web-stream-btn');
 const snapScreenshotBtn = document.getElementById('snap-screenshot-btn');
 const saveScreenshotAsBtn = document.getElementById('save-screenshot-as-btn');
-const mirrorFpsBadge = document.getElementById('mirror-fps-badge');
+const screenStreamStatusBadge = document.getElementById('screen-stream-status-badge');
 const remoteBar = document.getElementById('remote-bar');
 
 // Logcat Elements
@@ -83,8 +80,8 @@ function playChime() {
         const gain = ctx.createGain();
         const now = ctx.currentTime;
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(587.33, now); // D5
-        osc.frequency.exponentialRampToValueAtTime(880.00, now + 0.15); // A5
+        osc.frequency.setValueAtTime(587.33, now);
+        osc.frequency.exponentialRampToValueAtTime(880.00, now + 0.15);
         gain.gain.setValueAtTime(0.2, now);
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
         osc.connect(gain);
@@ -224,69 +221,258 @@ window.disconnectDevice = async (deviceId) => {
 };
 
 // ==========================================
-// 🚀 SCRCPY 60 FPS CONTROLS
+// 📺 TARAYICI İÇİ 60 FPS CANLI EKRAN (JMUXER)
 // ==========================================
-function setScrcpyRunningUI(running) {
-    isScrcpyRunning = running;
-    if (!startScrcpyBtn || !stopScrcpyBtn || !scrcpyStatusBadge) return;
-    if (running) {
-        startScrcpyBtn.style.display = 'none';
-        stopScrcpyBtn.style.display = 'inline-flex';
-        scrcpyStatusBadge.className = 'badge';
-        scrcpyStatusBadge.style.background = 'rgba(16, 185, 129, 0.2)';
-        scrcpyStatusBadge.style.color = '#10b981';
-        scrcpyStatusBadge.textContent = '🟢 60 FPS Yayında';
-    } else {
-        startScrcpyBtn.style.display = 'inline-flex';
-        stopScrcpyBtn.style.display = 'none';
-        scrcpyStatusBadge.className = 'badge';
-        scrcpyStatusBadge.style.background = 'rgba(255, 255, 255, 0.06)';
-        scrcpyStatusBadge.style.color = 'var(--text-muted)';
-        scrcpyStatusBadge.textContent = '● Kapalı';
-    }
-}
-
-if (startScrcpyBtn) {
-    startScrcpyBtn.onclick = async () => {
-        const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
-        if (!target) return showToast('⚠️ Önce bir Android cihaz bağlamalısınız!', 'var(--accent-red)');
-        showToast('🚀 60 FPS Canlı Ekran penceresi açılıyor...');
-        try {
-            const res = await fetch('/api/adb/scrcpy/start', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ deviceId: target })
-            });
-            const data = await res.json();
-            if (data.success) {
-                setScrcpyRunningUI(true);
-                playChime();
-                showToast('🎉 60 FPS Canlı Ekran açıldı! Fare ile dokunabilir, klavye ile yazabilirsiniz.', 'var(--accent-green)', 6000);
-            } else {
-                showToast(`Hata: ${data.error}`, 'var(--accent-red)', 6000);
-            }
-        } catch (e) {
-            showToast(`Hata: ${e.message}`, 'var(--accent-red)');
+async function fetchDisplaySize(deviceId) {
+    try {
+        const res = await fetch(`/api/adb/display-size?deviceId=${encodeURIComponent(deviceId)}`);
+        const data = await res.json();
+        if (data && data.width && data.height) {
+            phonePhysicalWidth = data.width;
+            phonePhysicalHeight = data.height;
         }
+    } catch (e) {}
+}
+
+function initJMuxer() {
+    if (jmuxerInstance) {
+        try { jmuxerInstance.destroy(); } catch (e) {}
+    }
+    jmuxerInstance = new JMuxer({
+        node: 'screen-video',
+        mode: 'video',
+        flushingTime: 0,
+        fps: 60,
+        clearBuffer: true,
+        debug: false
+    });
+}
+
+function startWebScreenStream() {
+    const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
+    if (!target) return showToast('⚠️ Önce bir Android cihaz bağlamalısınız!', 'var(--accent-red)');
+
+    fetchDisplaySize(target);
+
+    isWebStreaming = true;
+    startWebStreamBtn.style.display = 'none';
+    stopWebStreamBtn.style.display = 'inline-flex';
+    screenEmptyPlaceholder.style.display = 'none';
+    screenshotStaticImg.style.display = 'none';
+    screenVideo.style.display = 'block';
+    remoteBar.style.display = 'flex';
+    screenStreamStatusBadge.className = 'badge';
+    screenStreamStatusBadge.style.background = 'rgba(16, 185, 129, 0.2)';
+    screenStreamStatusBadge.style.color = '#10b981';
+    screenStreamStatusBadge.textContent = '🟢 60 FPS Canlı Akıyor';
+
+    initJMuxer();
+
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            action: 'START_SCREEN_STREAM',
+            deviceId: target
+        }));
+    }
+
+    showToast('📺 Tarayıcı içi 60 FPS canlı ekran başlatıldı', 'var(--accent-green)');
+}
+
+function stopWebScreenStream() {
+    isWebStreaming = false;
+    startWebStreamBtn.style.display = 'inline-flex';
+    stopWebStreamBtn.style.display = 'none';
+    screenStreamStatusBadge.className = 'badge badge-purple';
+    screenStreamStatusBadge.textContent = 'Durduruldu';
+
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ action: 'STOP_SCREEN_STREAM' }));
+    }
+
+    if (jmuxerInstance) {
+        try { jmuxerInstance.destroy(); } catch (e) {}
+        jmuxerInstance = null;
+    }
+
+    showToast('⏹️ Canlı yayın durduruldu');
+}
+
+if (startWebStreamBtn) startWebStreamBtn.onclick = startWebScreenStream;
+if (stopWebStreamBtn) stopWebStreamBtn.onclick = stopWebScreenStream;
+
+// Interactive Touch & Drag on Video element
+function getScaledTouchCoords(e) {
+    const rect = screenVideo.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+
+    const scaleX = phonePhysicalWidth / rect.width;
+    const scaleY = phonePhysicalHeight / rect.height;
+
+    return {
+        x: Math.round(clickX * scaleX),
+        y: Math.round(clickY * scaleY)
     };
 }
 
-if (stopScrcpyBtn) {
-    stopScrcpyBtn.onclick = async () => {
+screenVideo.onmousedown = (e) => {
+    if (e.button !== 0) return; // Only left click
+    isTouchDown = true;
+    const coords = getScaledTouchCoords(e);
+    touchStartX = coords.x;
+    touchStartY = coords.y;
+};
+
+screenVideo.onmouseup = (e) => {
+    if (!isTouchDown || e.button !== 0) return;
+    isTouchDown = false;
+    const coords = getScaledTouchCoords(e);
+
+    const dist = Math.hypot(coords.x - touchStartX, coords.y - touchStartY);
+    const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
+    if (!target) return;
+
+    if (dist < 18) {
+        // Simple Tap
+        fetch('/api/adb/touch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                deviceId: target,
+                type: 'tap',
+                x: coords.x,
+                y: coords.y
+            })
+        });
+    } else {
+        // Swipe / Drag
+        fetch('/api/adb/touch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                deviceId: target,
+                type: 'swipe',
+                x: touchStartX,
+                y: touchStartY,
+                x2: coords.x,
+                y2: coords.y
+            })
+        });
+    }
+};
+
+screenVideo.oncontextmenu = (e) => {
+    e.preventDefault();
+    // Right click = Back key
+    sendRemoteKey(4);
+    showToast('◀ Geri (Back)', 'var(--accent-blue)', 1500);
+};
+
+// Snapshot from Video
+snapScreenshotBtn.onclick = () => {
+    const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
+    if (!target) return showToast('⚠️ Cihaz bağlı değil', 'var(--accent-red)');
+
+    if (isWebStreaming && screenVideo.style.display !== 'none' && screenVideo.videoWidth > 0) {
+        const canvas = document.createElement('canvas');
+        canvas.width = screenVideo.videoWidth;
+        canvas.height = screenVideo.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(screenVideo, 0, 0, canvas.width, canvas.height);
+        screenshotStaticImg.src = canvas.toDataURL('image/png');
+        stopWebScreenStream();
+        screenEmptyPlaceholder.style.display = 'none';
+        screenVideo.style.display = 'none';
+        screenshotStaticImg.style.display = 'block';
+        remoteBar.style.display = 'flex';
+        showToast('✅ Fotoğraf anında yakalandı!', 'var(--accent-green)');
+    } else {
+        showToast('📸 Ekran görüntüsü alınıyor...');
+        const url = `/api/adb/screenshot?deviceId=${encodeURIComponent(target)}&t=${Date.now()}`;
+        screenshotStaticImg.src = url;
+        screenshotStaticImg.onload = () => {
+            if (isWebStreaming) stopWebScreenStream();
+            screenEmptyPlaceholder.style.display = 'none';
+            screenVideo.style.display = 'none';
+            screenshotStaticImg.style.display = 'block';
+            remoteBar.style.display = 'flex';
+            showToast('✅ Ekran görüntüsü alındı!', 'var(--accent-green)');
+        };
+    }
+};
+
+// 💾 Save As File Dialog
+saveScreenshotAsBtn.onclick = async () => {
+    let blob = null;
+
+    if (screenshotStaticImg.style.display !== 'none' && screenshotStaticImg.src) {
         try {
-            await fetch('/api/adb/scrcpy/stop', { method: 'POST' });
-            setScrcpyRunningUI(false);
-            showToast('⏹️ 60 FPS canlı ekran kapatıldı');
+            const res = await fetch(screenshotStaticImg.src);
+            blob = await res.blob();
         } catch (e) {}
-    };
-}
+    } else if (isWebStreaming && screenVideo.style.display !== 'none' && screenVideo.videoWidth > 0) {
+        const canvas = document.createElement('canvas');
+        canvas.width = screenVideo.videoWidth;
+        canvas.height = screenVideo.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(screenVideo, 0, 0, canvas.width, canvas.height);
+        blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    }
+
+    if (!blob) {
+        showToast('⚠️ Önce fotoğraf çekmeli veya yayını başlatmalısınız!', 'var(--accent-red)');
+        return;
+    }
+
+    const defaultFilename = `Ekran_${new Date().toISOString().slice(0,10)}_${Date.now().toString().slice(-4)}.png`;
+
+    if (window.showSaveFilePicker) {
+        try {
+            const handle = await window.showSaveFilePicker({
+                suggestedName: defaultFilename,
+                types: [{
+                    description: 'PNG Resmi',
+                    accept: { 'image/png': ['.png'] }
+                }]
+            });
+            const writable = await handle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+            showToast('💾 Resim seçtiğiniz konuma başarıyla kaydedildi!', 'var(--accent-green)');
+            return;
+        } catch (err) {
+            if (err.name === 'AbortError') return;
+        }
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = defaultFilename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('💾 Resim İndirilenler klasörüne kaydedildi!', 'var(--accent-green)');
+};
 
 // WebSocket Connection
 function connectWs() {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     ws = new WebSocket(`${protocol}//${location.host}`);
+    ws.binaryType = 'arraybuffer';
 
     ws.onmessage = (event) => {
+        // Handle binary H.264 video chunks for jMuxer
+        if (event.data instanceof ArrayBuffer) {
+            if (jmuxerInstance && isWebStreaming) {
+                jmuxerInstance.feed({
+                    video: new Uint8Array(event.data)
+                });
+            }
+            return;
+        }
+
         const data = JSON.parse(event.data);
 
         if (data.type === 'INIT') {
@@ -306,7 +492,6 @@ function connectWs() {
                 handleAdbPairStatus(data.pairingSession);
             }
             setLogcatRunningUI(!!data.isLogcatRunning);
-            setScrcpyRunningUI(!!data.isScrcpyRunning);
         } else if (data.type === 'NEW_APK') {
             currentApks.unshift(data.apk);
             renderApks();
@@ -323,8 +508,10 @@ function connectWs() {
             renderDevices();
         } else if (data.type === 'ADB_PAIR_STATUS') {
             handleAdbPairStatus(data.session);
-        } else if (data.type === 'SCRCPY_STATUS') {
-            setScrcpyRunningUI(!!data.running);
+        } else if (data.type === 'SCREEN_STREAM_STATUS') {
+            if (!data.running && isWebStreaming) {
+                stopWebScreenStream();
+            }
         } else if (data.type === 'LOGCAT_LINE') {
             handleLogcatLine(data.line);
         } else if (data.type === 'LOGCAT_STARTED') {
@@ -660,139 +847,6 @@ async function uploadFile(file) {
 }
 
 // ==========================================
-// 📺 WEB CANVAS PREVIEW & SNAPSHOT
-// ==========================================
-startMirrorBtn.onclick = () => {
-    const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
-    if (!target) return showToast('⚠️ Önce bir cihaz bağlamalısınız!', 'var(--accent-red)');
-
-    isMirroring = true;
-    startMirrorBtn.style.display = 'none';
-    stopMirrorBtn.style.display = 'inline-flex';
-    screenEmptyPlaceholder.style.display = 'none';
-    screenshotStaticImg.style.display = 'none';
-    screenMirrorCanvas.style.display = 'block';
-    remoteBar.style.display = 'flex';
-    mirrorFpsBadge.style.display = 'inline-flex';
-
-    showToast('🌐 Web içi canlı ekran başlatıldı');
-    updateMirrorFrame();
-};
-
-stopMirrorBtn.onclick = () => {
-    isMirroring = false;
-    clearTimeout(mirrorLoopTimeout);
-    startMirrorBtn.style.display = 'inline-flex';
-    stopMirrorBtn.style.display = 'none';
-    mirrorFpsBadge.style.display = 'none';
-    showToast('⏹️ Web yayını durduruldu');
-};
-
-function updateMirrorFrame() {
-    if (!isMirroring) return;
-    const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
-    if (!target) {
-        stopMirrorBtn.click();
-        return;
-    }
-
-    const img = new Image();
-    img.onload = () => {
-        if (!isMirroring) return;
-        const ctx = screenMirrorCanvas.getContext('2d');
-        if (screenMirrorCanvas.width !== img.naturalWidth || screenMirrorCanvas.height !== img.naturalHeight) {
-            screenMirrorCanvas.width = img.naturalWidth;
-            screenMirrorCanvas.height = img.naturalHeight;
-        }
-        ctx.drawImage(img, 0, 0);
-
-        mirrorFpsCounter++;
-        const now = Date.now();
-        if (now - lastFpsTime >= 1000) {
-            mirrorFpsBadge.textContent = `${mirrorFpsCounter} FPS`;
-            mirrorFpsCounter = 0;
-            lastFpsTime = now;
-        }
-
-        mirrorLoopTimeout = setTimeout(updateMirrorFrame, 30);
-    };
-    img.onerror = () => {
-        if (isMirroring) mirrorLoopTimeout = setTimeout(updateMirrorFrame, 500);
-    };
-    img.src = `/api/adb/screenshot?deviceId=${encodeURIComponent(target)}&t=${Date.now()}`;
-}
-
-// High-Res Snapshot Button
-snapScreenshotBtn.onclick = () => {
-    const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
-    if (!target) return showToast('⚠️ Cihaz bağlı değil', 'var(--accent-red)');
-
-    showToast('📸 Ekran görüntüsü alınıyor...');
-    const url = `/api/adb/screenshot?deviceId=${encodeURIComponent(target)}&t=${Date.now()}`;
-    screenshotStaticImg.src = url;
-    screenshotStaticImg.onload = () => {
-        if (isMirroring) stopMirrorBtn.click();
-        screenEmptyPlaceholder.style.display = 'none';
-        screenMirrorCanvas.style.display = 'none';
-        screenshotStaticImg.style.display = 'block';
-        remoteBar.style.display = 'flex';
-        showToast('✅ Ekran görüntüsü alındı!', 'var(--accent-green)');
-    };
-};
-
-// 💾 RESMİ FARKLI KAYDET (SAVE AS)
-saveScreenshotAsBtn.onclick = async () => {
-    let blob = null;
-
-    if (screenshotStaticImg.style.display !== 'none' && screenshotStaticImg.src) {
-        try {
-            const res = await fetch(screenshotStaticImg.src);
-            blob = await res.blob();
-        } catch (e) {}
-    } else if (screenMirrorCanvas.style.display !== 'none' && screenMirrorCanvas.width > 0) {
-        blob = await new Promise(resolve => screenMirrorCanvas.toBlob(resolve, 'image/png'));
-    }
-
-    if (!blob) {
-        showToast('⚠️ Önce ekran görüntüsü almalı veya canlı yayını başlatmalısınız!', 'var(--accent-red)');
-        return;
-    }
-
-    const defaultFilename = `Ekran_${new Date().toISOString().slice(0,10)}_${Date.now().toString().slice(-4)}.png`;
-
-    // Modern Chrome/Edge showSaveFilePicker
-    if (window.showSaveFilePicker) {
-        try {
-            const handle = await window.showSaveFilePicker({
-                suggestedName: defaultFilename,
-                types: [{
-                    description: 'PNG Resmi',
-                    accept: { 'image/png': ['.png'] }
-                }]
-            });
-            const writable = await handle.createWritable();
-            await writable.write(blob);
-            await writable.close();
-            showToast('💾 Resim seçtiğiniz konuma başarıyla kaydedildi!', 'var(--accent-green)');
-            return;
-        } catch (err) {
-            if (err.name === 'AbortError') return; // User cancelled dialog
-        }
-    }
-
-    // Standard download fallback
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = defaultFilename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast('💾 Resim İndirilenler klasörüne kaydedildi!', 'var(--accent-green)');
-};
-
-// ==========================================
 // 📜 RE-ENGINEERED SMART LOGCAT
 // ==========================================
 function setLogcatRunningUI(running) {
@@ -936,7 +990,6 @@ function handleLogcatLine(rawLine) {
 
     terminalWindow.appendChild(div);
 
-    // Limit log lines to 800 to prevent browser slowdown
     if (terminalWindow.children.length > 800) {
         terminalWindow.removeChild(terminalWindow.firstChild);
     }

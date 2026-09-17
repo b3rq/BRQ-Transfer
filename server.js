@@ -578,6 +578,76 @@ function startLogcatStream(deviceId, filter = '', level = '') {
     });
 }
 
+// In-Browser High-FPS Screen Streamer via hardware screenrecord H.264
+let screenStreamProcess = null;
+let activeScreenStreamWs = null;
+
+function stopScreenStream() {
+    if (screenStreamProcess) {
+        console.log('[Screen Stream]: Durduruluyor PID:', screenStreamProcess.pid);
+        try {
+            if (process.platform === 'win32') {
+                exec(`taskkill /pid ${screenStreamProcess.pid} /T /F`, () => {});
+            } else {
+                screenStreamProcess.kill();
+            }
+        } catch (e) {}
+        screenStreamProcess = null;
+        activeScreenStreamWs = null;
+        broadcast({ type: 'SCREEN_STREAM_STATUS', running: false });
+    }
+}
+
+function startScreenStream(targetWs, deviceId) {
+    stopScreenStream();
+
+    const targetDevice = deviceId || config.selectedAdbDevice;
+    if (!targetDevice) return;
+
+    activeScreenStreamWs = targetWs;
+    const targetArg = targetDevice ? ['-s', targetDevice] : [];
+    const args = [
+        ...targetArg,
+        'exec-out',
+        'screenrecord',
+        '--output-format=h264',
+        '--size', '720x1520',
+        '--bit-rate', '6000000',
+        '--time-limit', '180',
+        '-'
+    ];
+
+    console.log('[Screen Stream H264]: Başlatılıyor:', ADB_BIN, args.join(' '));
+    screenStreamProcess = spawn(ADB_BIN, args);
+
+    broadcast({ type: 'SCREEN_STREAM_STATUS', running: true });
+
+    screenStreamProcess.stdout.on('data', (chunk) => {
+        if (targetWs && targetWs.readyState === WebSocket.OPEN) {
+            targetWs.send(chunk);
+        }
+    });
+
+    screenStreamProcess.stderr.on('data', (errChunk) => {
+        console.error('[Screen Stream stderr]:', errChunk.toString('utf8').trim());
+    });
+
+    screenStreamProcess.on('close', (code) => {
+        console.log('[Screen Stream]: Kapandı, kod:', code);
+        if (screenStreamProcess && targetWs && targetWs.readyState === WebSocket.OPEN) {
+            setTimeout(() => {
+                if (targetWs && targetWs.readyState === WebSocket.OPEN && screenStreamProcess) {
+                    startScreenStream(targetWs, targetDevice);
+                }
+            }, 100);
+        } else {
+            screenStreamProcess = null;
+            activeScreenStreamWs = null;
+            broadcast({ type: 'SCREEN_STREAM_STATUS', running: false });
+        }
+    });
+}
+
 wss.on('connection', async (ws) => {
     const devices = await getAdbDevices();
     ws.send(JSON.stringify({
@@ -610,9 +680,19 @@ wss.on('connection', async (ws) => {
                 exec(`"${ADB_BIN}" ${targetArg} logcat -c`, () => {
                     broadcast({ type: 'LOGCAT_CLEARED' });
                 });
+            } else if (data.action === 'START_SCREEN_STREAM') {
+                startScreenStream(ws, data.deviceId);
+            } else if (data.action === 'STOP_SCREEN_STREAM') {
+                stopScreenStream();
             }
         } catch (e) {
             console.error('WS message error:', e);
+        }
+    });
+
+    ws.on('close', () => {
+        if (activeScreenStreamWs === ws) {
+            stopScreenStream();
         }
     });
 });
@@ -799,6 +879,39 @@ app.post('/api/adb/keyevent', (req, res) => {
     const targetArg = deviceId ? `-s ${deviceId}` : '';
     exec(`"${ADB_BIN}" ${targetArg} shell input keyevent ${code}`, (err) => {
         res.json({ success: !err });
+    });
+});
+
+// Interactive Touch & Swipe Events from HTML Canvas/Video
+app.post('/api/adb/touch', (req, res) => {
+    const { deviceId, type, x, y, x2, y2 } = req.body;
+    const target = deviceId || config.selectedAdbDevice;
+    const targetArg = target ? `-s ${target}` : '';
+    let cmd = '';
+    if (type === 'tap') {
+        cmd = `"${ADB_BIN}" ${targetArg} shell input tap ${Math.round(x)} ${Math.round(y)}`;
+    } else if (type === 'swipe') {
+        cmd = `"${ADB_BIN}" ${targetArg} shell input swipe ${Math.round(x)} ${Math.round(y)} ${Math.round(x2)} ${Math.round(y2)} 150`;
+    }
+    if (cmd) {
+        exec(cmd, (err) => res.json({ success: !err }));
+    } else {
+        res.json({ success: false });
+    }
+});
+
+// Get Device Display Resolution
+app.get('/api/adb/display-size', (req, res) => {
+    const { deviceId } = req.query;
+    const target = deviceId || config.selectedAdbDevice;
+    const targetArg = target ? `-s ${target}` : '';
+    exec(`"${ADB_BIN}" ${targetArg} shell wm size`, (err, stdout) => {
+        const match = stdout && stdout.match(/Physical size:\s*(\d+)x(\d+)/);
+        if (match) {
+            res.json({ width: parseInt(match[1]), height: parseInt(match[2]) });
+        } else {
+            res.json({ width: 1440, height: 3040 });
+        }
     });
 });
 
