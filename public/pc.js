@@ -6,7 +6,7 @@
 const i18n = {
     tr: {
         // Navigation
-        nav_builds: "Paketler",
+        nav_builds: "Paketler & Transfer",
         nav_devices: "Cihazlar",
         nav_mirror: "Ekran Yansıtma",
         nav_logcat: "Logcat",
@@ -19,11 +19,12 @@ const i18n = {
         theme_title: "Temayı değiştir",
         lang_toggle: "EN",
         lang_title: "Switch to English",
+        privacy_title: "Gizlilik Modu (Seri No & IP Gizle)",
 
-        // Builds
-        upload_package: "APK Yükle",
-        drop_apk_here: "APK dosyasını buraya bırakın",
-        or_browse: "veya seçmek için tıklayın",
+        // Builds & Transfers
+        upload_title: "Dosya & Paket Yükle",
+        drop_files_here: "Dosyaları buraya bırakın",
+        drop_files_sub: "veya seçmek için tıklayın",
         build_watcher: "Build İzleyici",
         watch_folder_placeholder: "Örn: C:\\Projelerim\\Builds",
         save: "Kaydet",
@@ -35,16 +36,22 @@ const i18n = {
         active_target: "Hedef Cihaz:",
         scanning: "Taranıyor...",
         available_packages: "Hazır Paketler",
+        device_transfers: "Dosya Transferleri",
         target_prefix: "Hedef:",
         none: "Yok",
         no_packages_detected: "Hazır paket bulunamadı",
         no_packages_sub: "APK sürükleyin veya sol panelden build izleyicisini ayarlayın.",
+        no_transfers: "Henüz dosya aktarılmadı",
+        no_transfers_sub: "APK, resim, video, ses veya belge sürükleyip bırakın.",
         source_watcher: "İzleyici",
         source_upload: "Yükleme",
         install_and_launch: "Yükle & Başlat",
         launch: "Başlat",
         stop: "Durdur",
         download: "İndir",
+        status_transferred: "Cihaza Aktarıldı",
+        status_saved: "Sunucuda Hazır",
+        status_error: "Aktarım Başarısız",
 
         // Devices
         wireless_pairing: "Kablosuz Eşleme",
@@ -54,12 +61,14 @@ const i18n = {
         generate_new_qr: "Yeni QR Kod Üret",
         attached_devices: "Bağlı Cihazlar",
         usb_to_tcpip: "USB → TCP/IP (5555)",
+        usb_to_tcpip_title: "Bağlı USB cihazını TCP/IP 5555 portuna geçir",
         refresh: "Yenile",
         scanning_devices: "Bağlı cihazlar taranıyor...",
         no_devices_attached: "Bağlı cihaz yok. QR kodu taratın veya aşağıdan IP:Port girin.",
         direct_connection: "Doğrudan Bağlantı",
         disconnect: "Bağlantıyı Kes",
         ready: "Hazır",
+        error_loading_qr: "QR yüklenemedi",
 
         // Mirror
         display_stream: "Canlı Yayın",
@@ -69,7 +78,7 @@ const i18n = {
         stop_stream: "Yayını Durdur",
         capture: "Fotoğraf Çek",
         mirror_inactive: "Canlı Yayın Kapalı",
-        mirror_inactive_sub: "Doğrudan donanımsal H.264 video yayını.",
+        mirror_inactive_sub: "Doğrudan donanımsal video yayını.",
         initialize_mirror: "Yayını Başlat",
         back: "Geri",
         home: "Ana Ekran",
@@ -81,6 +90,8 @@ const i18n = {
         save_capture: "Kaydet",
         delete_capture: "Sil",
         preview_modal_title: "Ekran Görüntüsü İnceleme",
+        modal_preview_title: "Görüntü İnceleme",
+        close: "Kapat",
 
         // Logcat
         logcat_diagnostics: "Logcat Teşhisi",
@@ -96,10 +107,15 @@ const i18n = {
         filter_placeholder: "Tag, mesaj veya paket adı filtrele...",
         autoscroll: "Otomatik Kaydır",
         logcat_ready: "Logcat sistemi hazır. Kayda başlamak için bağlı bir cihaz seçin.",
+        system_tag: "[Sistem]",
 
         // Dynamic Toasts
         toast_only_apk: "Sadece .apk dosyaları kabul edilir",
         toast_uploading: "Yükleniyor:",
+        toast_transferring: "Cihaza aktarılıyor:",
+        toast_transferred: "Cihaza aktarıldı:",
+        toast_transfer_saved: "Dosya yüklendi (Cihaz bekleniyor):",
+        toast_transfer_error: "Aktarım hatası:",
         toast_ready: "Paket hazır:",
         toast_installing: "Yükleniyor:",
         toast_installed: "Yüklendi:",
@@ -110,6 +126,8 @@ const i18n = {
         toast_stream_stopped: "Canlı yayın durduruldu",
         toast_back_sent: "Geri tuşu gönderildi",
         toast_captured: "Ekran görüntüsü yakalandı",
+        toast_capturing: "Ekran yakalanıyor...",
+        toast_capture_error: "Ekran yakalama hatası",
         toast_saved: "Ekran görüntüsü kaydedildi",
         toast_downloaded: "Ekran görüntüsü indirildi",
         toast_buffer_cleared: "Log penceresi temizlendi",
@@ -118,11 +136,22 @@ const i18n = {
         toast_watcher_saved: "İzleyici klasörü güncellendi",
         toast_device_refreshed: "Cihaz listesi güncellendi",
         toast_port_required: "5 haneli bağlantı portunu giriniz",
-        toast_ip_required: "IP:Port giriniz"
+        toast_ip_required: "IP:Port giriniz",
+        toast_pairing_ok: "Eşleşme başarılı. Portu giriniz.",
+        toast_device_connected: "Cihaz bağlandı",
+        toast_launched: "Başlatıldı:",
+        toast_launch_failed: "Başlatılamadı:",
+        toast_stopped: "Durduruldu:",
+        toast_saving_path: "Klasör yolu kaydediliyor...",
+        toast_logcat_started: "Logcat başlatıldı",
+        toast_logcat_stopped: "Logcat durduruldu",
+        toast_tcpip_switching: "TCP/IP moduna geçiriliyor (5555)...",
+        toast_privacy_on: "Gizlilik modu aktif (Bilgiler gizlendi)",
+        toast_privacy_off: "Gizlilik modu kapalı"
     },
     en: {
         // Navigation
-        nav_builds: "Builds",
+        nav_builds: "Builds & Transfer",
         nav_devices: "Devices",
         nav_mirror: "Mirror",
         nav_logcat: "Logcat",
@@ -135,11 +164,12 @@ const i18n = {
         theme_title: "Toggle color theme",
         lang_toggle: "TR",
         lang_title: "Türkçe'ye geç",
+        privacy_title: "Privacy Mode (Mask Serial & IP)",
 
-        // Builds
-        upload_package: "Upload Package",
-        drop_apk_here: "Drop .apk here",
-        or_browse: "or click to browse files",
+        // Builds & Transfers
+        upload_title: "Upload Files & Packages",
+        drop_files_here: "Drop files here",
+        drop_files_sub: "or click to browse",
         build_watcher: "Build Watcher",
         watch_folder_placeholder: "e.g. C:\\Projects\\Builds\\Android",
         save: "Save",
@@ -151,16 +181,22 @@ const i18n = {
         active_target: "Active Target:",
         scanning: "Scanning...",
         available_packages: "Available Packages",
+        device_transfers: "File Transfers",
         target_prefix: "Target:",
         none: "None",
         no_packages_detected: "No packages detected",
         no_packages_sub: "Drop an APK file or configure the build watcher on the left.",
+        no_transfers: "No files transferred yet",
+        no_transfers_sub: "Drag and drop APK, images, videos, audio or documents.",
         source_watcher: "Watcher",
         source_upload: "Upload",
         install_and_launch: "Install & Launch",
         launch: "Launch",
         stop: "Stop",
         download: "Download",
+        status_transferred: "Transferred to Device",
+        status_saved: "Ready on Server",
+        status_error: "Transfer Failed",
 
         // Devices
         wireless_pairing: "Wireless Pairing",
@@ -170,12 +206,14 @@ const i18n = {
         generate_new_qr: "Generate New QR",
         attached_devices: "Attached Devices",
         usb_to_tcpip: "USB → TCP/IP (5555)",
+        usb_to_tcpip_title: "Switch connected USB device to TCP/IP port 5555",
         refresh: "Refresh",
         scanning_devices: "Scanning attached devices...",
         no_devices_attached: "No devices attached. Scan QR code or enter IP:Port below.",
         direct_connection: "Direct Connection",
         disconnect: "Disconnect",
         ready: "Ready",
+        error_loading_qr: "Error loading QR",
 
         // Mirror
         display_stream: "Display Stream",
@@ -185,7 +223,7 @@ const i18n = {
         stop_stream: "Stop Stream",
         capture: "Capture",
         mirror_inactive: "Hardware Mirroring Inactive",
-        mirror_inactive_sub: "Direct hardware H.264 stream rendered via Media Source Extensions.",
+        mirror_inactive_sub: "Direct hardware video stream.",
         initialize_mirror: "Initialize Mirror",
         back: "Back",
         home: "Home",
@@ -197,6 +235,8 @@ const i18n = {
         save_capture: "Save",
         delete_capture: "Delete",
         preview_modal_title: "Snapshot Inspection",
+        modal_preview_title: "Image Preview",
+        close: "Close",
 
         // Logcat
         logcat_diagnostics: "Logcat Diagnostics",
@@ -212,10 +252,15 @@ const i18n = {
         filter_placeholder: "Filter by tag, message, or package...",
         autoscroll: "Autoscroll",
         logcat_ready: "Logcat subsystem ready. Select an attached device to begin capture.",
+        system_tag: "[System]",
 
         // Dynamic Toasts
         toast_only_apk: "Only .apk files allowed",
         toast_uploading: "Uploading:",
+        toast_transferring: "Transferring to device:",
+        toast_transferred: "Transferred to device:",
+        toast_transfer_saved: "File saved (Awaiting device):",
+        toast_transfer_error: "Transfer error:",
         toast_ready: "Package ready:",
         toast_installing: "Installing:",
         toast_installed: "Installed:",
@@ -226,6 +271,8 @@ const i18n = {
         toast_stream_stopped: "Stream stopped",
         toast_back_sent: "Back key sent",
         toast_captured: "Frame captured",
+        toast_capturing: "Capturing display...",
+        toast_capture_error: "Capture error",
         toast_saved: "Snapshot saved",
         toast_downloaded: "Snapshot downloaded",
         toast_buffer_cleared: "Buffer cleared",
@@ -234,7 +281,18 @@ const i18n = {
         toast_watcher_saved: "Watcher updated",
         toast_device_refreshed: "Device list refreshed",
         toast_port_required: "Enter 5-digit wireless port",
-        toast_ip_required: "Enter IP:Port"
+        toast_ip_required: "Enter IP:Port",
+        toast_pairing_ok: "Pairing successful. Enter port.",
+        toast_device_connected: "Device connected",
+        toast_launched: "Launched:",
+        toast_launch_failed: "Launch failed:",
+        toast_stopped: "Stopped:",
+        toast_saving_path: "Saving folder path...",
+        toast_logcat_started: "Logcat started",
+        toast_logcat_stopped: "Logcat stopped",
+        toast_tcpip_switching: "Switching to TCP/IP (5555)...",
+        toast_privacy_on: "Privacy mode enabled (Identifiers masked)",
+        toast_privacy_off: "Privacy mode disabled"
     }
 };
 
@@ -242,14 +300,17 @@ const i18n = {
 let currentLang = localStorage.getItem('apkdrop_lang') || 'tr';
 let ws = null;
 let currentApks = [];
+let currentTransfers = [];
 let currentDevices = [];
 let selectedDevice = '';
+let activeDeployTab = 'apks';
+let isPrivacyMode = localStorage.getItem('apkdrop_privacy') === 'true';
 let isSoundEnabled = localStorage.getItem('apkdrop_sound') !== 'false';
 let isLogcatRunning = false;
 let isWebStreaming = false;
 let jmuxerInstance = null;
-let phonePhysicalWidth = 1440;
-let phonePhysicalHeight = 3040;
+let phonePhysicalWidth = 1080;
+let phonePhysicalHeight = 2400;
 let isTouchDown = false;
 let touchStartX = 0;
 let touchStartY = 0;
@@ -259,13 +320,17 @@ let capturedScreenshots = [];
 // DOM References
 const langToggleBtn = document.getElementById('lang-toggle-btn');
 const langLabel = document.getElementById('lang-label');
+const privacyToggleBtn = document.getElementById('privacy-toggle-btn');
 const themeToggleBtn = document.getElementById('theme-toggle-btn');
 const soundToggleBtn = document.getElementById('sound-toggle-btn');
 const soundStatus = document.getElementById('sound-status');
 const headerDevicePill = document.getElementById('header-device-pill');
 const headerDeviceText = document.getElementById('header-device-text');
 
+const tabBtnApks = document.getElementById('tab-btn-apks');
+const tabBtnTransfers = document.getElementById('tab-btn-transfers');
 const apkListContainer = document.getElementById('apk-list-container');
+const transfersListContainer = document.getElementById('transfers-list-container');
 const apkCountSpan = document.getElementById('apk-count');
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('file-input');
@@ -320,6 +385,76 @@ const logcatAutoscrollCheckbox = document.getElementById('logcat-autoscroll-chec
 const terminalWindow = document.getElementById('terminal-window');
 const toast = document.getElementById('toast');
 
+// --- Privacy / Streamer Masking Engine ---
+function maskIdentifier(str) {
+    if (!isPrivacyMode || !str) return str;
+    // Mask IP:port like 192.168.137.74:32893 -> 192.168.***.**:*****
+    if (/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?\b/.test(str)) {
+        return str.replace(/\b(\d{1,3}\.\d{1,3}\.)\d{1,3}\.\d{1,3}(:\d+)?\b/g, '$1***.***:*****');
+    }
+    // Mask device serials or model identifiers
+    if (str.length > 5) {
+        return str.slice(0, 3) + '••••••' + (str.length > 9 ? str.slice(-2) : '');
+    }
+    return '••••••';
+}
+
+function updatePrivacyUI() {
+    if (!privacyToggleBtn) return;
+    if (isPrivacyMode) {
+        privacyToggleBtn.classList.add('active');
+        privacyToggleBtn.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+            <line x1="1" y1="1" x2="23" y2="23"/>
+          </svg>
+        `;
+    } else {
+        privacyToggleBtn.classList.remove('active');
+        privacyToggleBtn.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        `;
+    }
+}
+
+if (privacyToggleBtn) {
+    updatePrivacyUI();
+    privacyToggleBtn.onclick = () => {
+        isPrivacyMode = !isPrivacyMode;
+        localStorage.setItem('apkdrop_privacy', isPrivacyMode);
+        updatePrivacyUI();
+        showToast(isPrivacyMode ? i18n[currentLang].toast_privacy_on : i18n[currentLang].toast_privacy_off, isPrivacyMode ? '#10b981' : 'var(--text-tertiary)');
+        renderDevices();
+        renderApks();
+        renderTransfers();
+    };
+}
+
+// --- Segment Switcher (APKs vs Transfers) ---
+if (tabBtnApks && tabBtnTransfers) {
+    tabBtnApks.onclick = () => {
+        activeDeployTab = 'apks';
+        tabBtnApks.classList.add('active');
+        tabBtnTransfers.classList.remove('active');
+        if (apkListContainer) apkListContainer.style.display = 'flex';
+        if (transfersListContainer) transfersListContainer.style.display = 'none';
+        if (apkCountSpan) apkCountSpan.textContent = currentApks.length;
+    };
+
+    tabBtnTransfers.onclick = () => {
+        activeDeployTab = 'transfers';
+        tabBtnTransfers.classList.add('active');
+        tabBtnApks.classList.remove('active');
+        if (apkListContainer) apkListContainer.style.display = 'none';
+        if (transfersListContainer) transfersListContainer.style.display = 'flex';
+        renderTransfers();
+        if (apkCountSpan) apkCountSpan.textContent = currentTransfers.length;
+    };
+}
+
 // --- i18n Engine ---
 function setLanguage(lang) {
     currentLang = lang;
@@ -349,8 +484,17 @@ function setLanguage(lang) {
         }
     });
 
+    // Update all elements with data-i18n-title
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+        const key = el.getAttribute('data-i18n-title');
+        if (i18n[lang] && i18n[lang][key]) {
+            el.setAttribute('title', i18n[lang][key]);
+        }
+    });
+
     // Re-render dynamic components
     renderApks();
+    renderTransfers();
     renderDevices();
     renderCapturesList();
 }
@@ -451,7 +595,7 @@ async function loadAdbPairingQr() {
             if (adbPairStatusBadge) adbPairStatusBadge.textContent = data.message || i18n[currentLang].awaiting_scan;
         }
     } catch (e) {
-        if (adbPairStatusBadge) adbPairStatusBadge.textContent = 'Error loading QR';
+        if (adbPairStatusBadge) adbPairStatusBadge.textContent = i18n[currentLang].error_loading_qr;
     }
 }
 
@@ -490,7 +634,7 @@ if (quickPortBtn) {
 
 if (tcpipBtn) {
     tcpipBtn.onclick = async () => {
-        showToast('TCP/IP: 5555...');
+        showToast(i18n[currentLang].toast_tcpip_switching);
         try {
             const res = await fetch('/api/adb/tcpip', {
                 method: 'POST',
@@ -537,8 +681,6 @@ async function fetchDisplaySize(deviceId) {
         if (data && data.width && data.height) {
             phonePhysicalWidth = data.width;
             phonePhysicalHeight = data.height;
-            const resChip = document.getElementById('stream-res-chip');
-            if (resChip) resChip.textContent = `${data.width}x${data.height}`;
         }
     } catch (e) {}
 }
@@ -550,11 +692,15 @@ function initJMuxer() {
     jmuxerInstance = new JMuxer({
         node: 'screen-video',
         mode: 'video',
-        flushingTime: 0,
+        flushingTime: 10,
+        maxDelay: 100,
         fps: 60,
         clearBuffer: true,
         debug: false
     });
+    if (screenVideo) {
+        screenVideo.play().catch(() => {});
+    }
 }
 
 function startWebScreenStream() {
@@ -697,13 +843,13 @@ snapScreenshotBtn.onclick = async () => {
         dataUrl = canvas.toDataURL('image/png');
         blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
     } else {
-        showToast('Capturing...');
+        showToast(i18n[currentLang].toast_capturing);
         try {
             const res = await fetch(`/api/adb/screenshot?deviceId=${encodeURIComponent(target)}&t=${Date.now()}`);
             blob = await res.blob();
             dataUrl = URL.createObjectURL(blob);
         } catch (e) {
-            showToast('Capture error', 'var(--danger)');
+            showToast(i18n[currentLang].toast_capture_error, 'var(--danger)');
             return;
         }
     }
@@ -866,6 +1012,9 @@ function connectWs() {
         if (event.data instanceof ArrayBuffer) {
             if (jmuxerInstance && isWebStreaming) {
                 jmuxerInstance.feed({ video: new Uint8Array(event.data) });
+                if (screenVideo && screenVideo.paused) {
+                    screenVideo.play().catch(() => {});
+                }
             }
             return;
         }
@@ -874,8 +1023,10 @@ function connectWs() {
 
         if (data.type === 'INIT') {
             currentApks = data.apks || [];
+            currentTransfers = data.transfers || [];
             currentDevices = data.devices || [];
             renderApks();
+            renderTransfers();
             renderDevices();
             if (data.config) {
                 watchFolderInput.value = data.config.watchFolder || '';
@@ -894,6 +1045,19 @@ function connectWs() {
             renderApks();
             playChime();
             showToast(`${i18n[currentLang].toast_ready} ${data.apk.name}`, 'var(--success)');
+        } else if (data.type === 'TRANSFER_COMPLETED') {
+            if (data.transfers) currentTransfers = data.transfers;
+            else if (data.transfer) currentTransfers.unshift(data.transfer);
+            renderTransfers();
+            playChime();
+            const filename = (data.transfer && data.transfer.filename) || '';
+            showToast(`${i18n[currentLang].toast_transferred} ${filename}`, 'var(--success)', 4500);
+        } else if (data.type === 'TRANSFER_SAVED') {
+            if (data.transfers) currentTransfers = data.transfers;
+            else if (data.transfer) currentTransfers.unshift(data.transfer);
+            renderTransfers();
+            const filename = (data.transfer && data.transfer.filename) || '';
+            showToast(`${i18n[currentLang].toast_transfer_saved} ${filename}`, 'var(--warning)', 4500);
         } else if (data.type === 'ADB_INSTALL_START') {
             showToast(`${i18n[currentLang].toast_installing} ${data.message}`, 'var(--warning)', 4000);
         } else if (data.type === 'ADB_INSTALL_SUCCESS') {
@@ -939,11 +1103,11 @@ function handleAdbPairStatus(session) {
             quickPortInput.focus();
         }
         playChime();
-        showToast('Pairing OK. Enter port.', 'var(--success)', 5000);
+        showToast(i18n[currentLang].toast_pairing_ok, 'var(--success)', 5000);
     } else if (session.status === 'connected') {
         if (quickPortBox) quickPortBox.style.display = 'none';
         playChime();
-        showToast('Device connected', 'var(--success)', 4000);
+        showToast(i18n[currentLang].toast_device_connected, 'var(--success)', 4000);
         refreshDevices();
     }
 }
@@ -1002,14 +1166,64 @@ function updateHeaderDevicePill() {
     if (currentDevices && currentDevices.length > 0) {
         const cur = currentDevices.find(d => d.id === selectedDevice) || currentDevices[0];
         headerDevicePill.classList.add('connected');
-        headerDeviceText.textContent = `${cur.model || cur.id}`;
+        const displayVal = isPrivacyMode ? maskIdentifier(cur.model || cur.id) : (cur.model || cur.id);
+        headerDeviceText.textContent = displayVal;
     } else {
         headerDevicePill.classList.remove('connected');
         headerDeviceText.textContent = i18n[currentLang].no_device;
     }
 }
 
-// Render ADB Devices with active i18n
+// Render Transferred Files List
+function renderTransfers() {
+    if (activeDeployTab === 'transfers' && apkCountSpan) {
+        apkCountSpan.textContent = currentTransfers.length;
+    }
+    if (!transfersListContainer) return;
+
+    if (!currentTransfers || currentTransfers.length === 0) {
+        transfersListContainer.innerHTML = `
+          <div class="empty-view">
+            <p class="empty-title">${i18n[currentLang].no_transfers}</p>
+            <p class="empty-sub">${i18n[currentLang].no_transfers_sub}</p>
+          </div>
+        `;
+        return;
+    }
+
+    const categoryIcons = {
+        image: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
+        video: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>',
+        audio: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
+        document: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'
+    };
+
+    transfersListContainer.innerHTML = currentTransfers.map(t => {
+        const icon = categoryIcons[t.category] || categoryIcons.document;
+        const targetDev = t.deviceId ? (isPrivacyMode ? maskIdentifier(t.deviceId) : t.deviceId) : '';
+        const statusText = t.status === 'transferred' ? i18n[currentLang].status_transferred : (t.status === 'saved' ? i18n[currentLang].status_saved : i18n[currentLang].status_error);
+        const statusColor = t.status === 'transferred' ? 'var(--success)' : (t.status === 'saved' ? 'var(--warning)' : 'var(--danger)');
+
+        return `
+          <div class="transfer-card">
+            <div class="transfer-left">
+              <div class="transfer-icon">${icon}</div>
+              <div class="transfer-meta">
+                <div class="transfer-name" title="${t.filename}">${t.filename}</div>
+                <div class="transfer-path mono">${t.remotePath || t.targetDir} ${targetDev ? `&bull; ${targetDev}` : ''}</div>
+              </div>
+            </div>
+            <div class="transfer-right">
+              <span class="transfer-tag mono">${t.size}</span>
+              <span class="transfer-tag mono">${t.timestamp}</span>
+              <span class="transfer-status" style="color: ${statusColor};">${statusText}</span>
+            </div>
+          </div>
+        `;
+    }).join('');
+}
+
+// Render ADB Devices with active i18n & Privacy Masking
 function renderDevices() {
     updateHeaderDevicePill();
     if (!devicesList) return;
@@ -1029,34 +1243,46 @@ function renderDevices() {
         selectedDevice = currentDevices[0].id;
     }
 
-    if (activeDeviceIndicator) activeDeviceIndicator.textContent = `${i18n[currentLang].target_prefix} ${selectedDevice}`;
+    if (activeDeviceIndicator) {
+        const masked = isPrivacyMode ? maskIdentifier(selectedDevice) : selectedDevice;
+        activeDeviceIndicator.textContent = `${i18n[currentLang].target_prefix} ${masked}`;
+    }
     if (quickDeviceStatus) {
         const cur = currentDevices.find(d => d.id === selectedDevice) || currentDevices[0];
-        quickDeviceStatus.textContent = `${cur.model} (${cur.id})`;
+        const displayModel = isPrivacyMode ? maskIdentifier(cur.model) : cur.model;
+        const displayId = isPrivacyMode ? maskIdentifier(cur.id) : cur.id;
+        quickDeviceStatus.textContent = `${displayModel} (${displayId})`;
     }
 
-    devicesList.innerHTML = currentDevices.map(d => `
-      <div class="device-card">
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <input type="radio" name="adb-device" value="${d.id}" ${d.id === selectedDevice ? 'checked' : ''} onchange="changeSelectedDevice('${d.id}')">
-          <div>
-            <div style="font-weight: 600; font-size: 13px;">${d.model}</div>
-            <div style="font-size: 11px; color: var(--text-tertiary);" class="mono">${d.id} &bull; ${d.isWifi ? 'Wi-Fi' : 'USB'}</div>
+    devicesList.innerHTML = currentDevices.map(d => {
+        const displayModel = isPrivacyMode ? maskIdentifier(d.model) : d.model;
+        const displayId = isPrivacyMode ? maskIdentifier(d.id) : d.id;
+        return `
+          <div class="device-card">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <input type="radio" name="adb-device" value="${d.id}" ${d.id === selectedDevice ? 'checked' : ''} onchange="changeSelectedDevice('${d.id}')">
+              <div>
+                <div style="font-weight: 600; font-size: 13px;">${displayModel}</div>
+                <div style="font-size: 11px; color: var(--text-tertiary);" class="mono">${displayId} &bull; ${d.isWifi ? 'Wi-Fi' : 'USB'}</div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <button class="btn btn-secondary btn-sm" onclick="disconnectDevice('${d.id}')" title="${i18n[currentLang].disconnect}">
+                ${i18n[currentLang].disconnect}
+              </button>
+              <span class="count-badge" style="color: var(--success);">${i18n[currentLang].ready}</span>
+            </div>
           </div>
-        </div>
-        <div style="display: flex; gap: 6px; align-items: center;">
-          <button class="btn btn-secondary btn-sm" onclick="disconnectDevice('${d.id}')" title="${i18n[currentLang].disconnect}">
-            ${i18n[currentLang].disconnect}
-          </button>
-          <span class="count-badge" style="color: var(--success);">${i18n[currentLang].ready}</span>
-        </div>
-      </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 window.changeSelectedDevice = (id) => {
     selectedDevice = id;
-    if (activeDeviceIndicator) activeDeviceIndicator.textContent = `${i18n[currentLang].target_prefix} ${selectedDevice}`;
+    if (activeDeviceIndicator) {
+        const masked = isPrivacyMode ? maskIdentifier(selectedDevice) : selectedDevice;
+        activeDeviceIndicator.textContent = `${i18n[currentLang].target_prefix} ${masked}`;
+    }
     renderDevices();
     saveSettings();
 };
@@ -1088,7 +1314,7 @@ window.launchApp = async (packageName) => {
             body: JSON.stringify({ deviceId: target, packageName })
         });
         const data = await res.json();
-        showToast(data.success ? `Launched: ${packageName}` : `Failed: ${data.output}`);
+        showToast(data.success ? `${i18n[currentLang].toast_launched} ${packageName}` : `${i18n[currentLang].toast_launch_failed} ${data.output}`);
     } catch (e) {
         showToast(e.message, 'var(--danger)');
     }
@@ -1102,7 +1328,7 @@ window.stopApp = async (packageName) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ deviceId: target, packageName })
     });
-    showToast(`Stopped: ${packageName}`);
+    showToast(`${i18n[currentLang].toast_stopped} ${packageName}`);
 };
 
 window.sendRemoteKey = async (keyCode) => {
@@ -1118,7 +1344,7 @@ window.sendRemoteKey = async (keyCode) => {
 // Settings Save
 saveWatchBtn.onclick = async () => {
     const watchFolder = watchFolderInput.value.trim();
-    showToast('Saving path...');
+    showToast(i18n[currentLang].toast_saving_path);
     const res = await fetch('/api/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1162,11 +1388,13 @@ async function refreshDevices() {
     showToast(i18n[currentLang].toast_device_refreshed);
 }
 
-// Drag & Drop
+// Drag & Drop (Universal File Transfer & APK)
 dropzone.onclick = () => fileInput.click();
 
 fileInput.onchange = () => {
-    if (fileInput.files.length > 0) uploadFile(fileInput.files[0]);
+    if (fileInput.files.length > 0) {
+        Array.from(fileInput.files).forEach(f => uploadFile(f));
+    }
 };
 
 dropzone.ondragover = (e) => {
@@ -1179,24 +1407,40 @@ dropzone.ondragleave = () => dropzone.classList.remove('dragover');
 dropzone.ondrop = (e) => {
     e.preventDefault();
     dropzone.classList.remove('dragover');
-    if (e.dataTransfer.files.length > 0) uploadFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files.length > 0) {
+        Array.from(e.dataTransfer.files).forEach(f => uploadFile(f));
+    }
 };
 
 async function uploadFile(file) {
-    if (!file.name.toLowerCase().endsWith('.apk')) {
-        showToast(i18n[currentLang].toast_only_apk, 'var(--danger)');
-        return;
-    }
-    showToast(`${i18n[currentLang].toast_uploading} ${file.name}...`);
+    const isApk = file.name.toLowerCase().endsWith('.apk');
+    showToast(isApk ? `${i18n[currentLang].toast_uploading} ${file.name}...` : `${i18n[currentLang].toast_transferring} ${file.name}...`);
     const formData = new FormData();
-    formData.append('apk', file);
+    formData.append('file', file);
+    const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
+    if (target) formData.append('deviceId', target);
+
     try {
         const res = await fetch('/api/upload', {
             method: 'POST',
             body: formData
         });
         const data = await res.json();
-        if (data.success) showToast(`${i18n[currentLang].toast_ready} ${file.name}`, 'var(--success)');
+        if (data.success) {
+            playChime();
+            if (data.isApk) {
+                showToast(`${i18n[currentLang].toast_ready} ${file.name}`, 'var(--success)');
+            } else {
+                const dest = (data.transfer && data.transfer.targetDir) || '/sdcard/Download';
+                showToast(`${i18n[currentLang].toast_transferred} ${file.name} → ${dest}`, 'var(--success)', 4500);
+                if (data.transfer) {
+                    currentTransfers.unshift(data.transfer);
+                    renderTransfers();
+                }
+            }
+        } else {
+            showToast(data.error || i18n[currentLang].toast_transfer_error, 'var(--danger)');
+        }
     } catch (e) {
         showToast(e.message, 'var(--danger)');
     }
@@ -1230,7 +1474,7 @@ startLogcatBtn.onclick = () => {
             filter: logcatSearchInput.value.trim()
         }));
         setLogcatRunningUI(true);
-        showToast('Logcat started');
+        showToast(i18n[currentLang].toast_logcat_started);
     }
 };
 
@@ -1239,7 +1483,7 @@ stopLogcatBtn.onclick = () => {
         ws.send(JSON.stringify({ action: 'STOP_LOGCAT' }));
     }
     setLogcatRunningUI(false);
-    showToast('Logcat stopped');
+    showToast(i18n[currentLang].toast_logcat_stopped);
 };
 
 clearLogcatBtn.onclick = () => {
@@ -1360,3 +1604,4 @@ function escapeHtml(str) {
 setLanguage(currentLang);
 connectWs();
 renderCapturesList();
+renderTransfers();
