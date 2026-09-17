@@ -14,6 +14,37 @@ let touchStartX = 0;
 let touchStartY = 0;
 let lastPairedIp = '192.168.137.74';
 
+// Theme Manager (Dark / Light)
+const themeToggleBtn = document.getElementById('theme-toggle-btn');
+const themeIcon = document.getElementById('theme-icon');
+const themeLabel = document.getElementById('theme-label');
+
+function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('apkdrop_theme', theme);
+    if (themeIcon && themeLabel) {
+        if (theme === 'light') {
+            themeIcon.textContent = '🌙';
+            themeLabel.textContent = 'Karanlık Mod';
+        } else {
+            themeIcon.textContent = '☀️';
+            themeLabel.textContent = 'Aydınlık Mod';
+        }
+    }
+}
+
+// Initial theme: saved preference or dark
+const initialTheme = localStorage.getItem('apkdrop_theme') || 'dark';
+applyTheme(initialTheme);
+
+if (themeToggleBtn) {
+    themeToggleBtn.onclick = () => {
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        applyTheme(newTheme);
+    };
+}
+
 // DOM Elements
 const apkListContainer = document.getElementById('apk-list-container');
 const apkCountSpan = document.getElementById('apk-count');
@@ -26,6 +57,8 @@ const autoAdbCheckbox = document.getElementById('auto-adb-checkbox');
 const autoLaunchCheckbox = document.getElementById('auto-launch-checkbox');
 const quickDeviceStatus = document.getElementById('quick-device-status');
 const activeDeviceIndicator = document.getElementById('active-device-indicator');
+const headerDevicePill = document.getElementById('header-device-pill');
+const headerDeviceText = document.getElementById('header-device-text');
 
 // ADB Elements
 const adbQrImg = document.getElementById('adb-qr-img');
@@ -230,6 +263,8 @@ async function fetchDisplaySize(deviceId) {
         if (data && data.width && data.height) {
             phonePhysicalWidth = data.width;
             phonePhysicalHeight = data.height;
+            const resChip = document.getElementById('stream-res-chip');
+            if (resChip) resChip.textContent = `${data.width}x${data.height}`;
         }
     } catch (e) {}
 }
@@ -568,9 +603,11 @@ function renderApks() {
     apkCountSpan.textContent = currentApks.length;
     if (currentApks.length === 0) {
         apkListContainer.innerHTML = `
-          <p style="color: var(--text-muted); font-size: 14px; text-align: center; padding: 32px;">
-            Henüz APK bulunmuyor. Derleme alabilir veya yukarıya bir APK sürükleyebilirsiniz.
-          </p>
+          <div class="empty-state">
+            <div class="empty-icon">📁</div>
+            <p class="empty-title">Henüz Hazır APK Bulunmuyor</p>
+            <p class="empty-desc">Yeni bir APK derlendiğinde veya yukarıya sürüklendiğinde burada listelenecektir.</p>
+          </div>
         `;
         return;
     }
@@ -589,16 +626,16 @@ function renderApks() {
         <div class="apk-pkg">${apk.packageName} • ${apk.name}</div>
 
         <div class="apk-tags">
-          <span class="badge" style="background: rgba(255,255,255,0.06); color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+          <span class="apk-tag-pill">
             🏷️ v${apk.versionName || '1.0'} (${apk.versionCode || '1'})
           </span>
-          <span class="badge" style="background: rgba(255,255,255,0.06); color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+          <span class="apk-tag-pill">
             📦 ${apk.size}
           </span>
-          <span class="badge" style="background: rgba(255,255,255,0.06); color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+          <span class="apk-tag-pill">
             🕒 ${new Date(apk.updatedAt).toLocaleTimeString()}
           </span>
-          <span class="badge" style="background: rgba(255,255,255,0.06); color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+          <span class="apk-tag-pill">
             🎯 SDK ${apk.minSdk || '24'}-${apk.targetSdk || '34'}
           </span>
         </div>
@@ -621,11 +658,25 @@ function renderApks() {
     `).join('');
 }
 
+function updateHeaderDevicePill() {
+    if (!headerDevicePill || !headerDeviceText) return;
+    if (currentDevices && currentDevices.length > 0) {
+        const cur = currentDevices.find(d => d.id === selectedDevice) || currentDevices[0];
+        headerDevicePill.classList.add('connected');
+        headerDeviceText.textContent = `${cur.model || cur.id}`;
+    } else {
+        headerDevicePill.classList.remove('connected');
+        headerDeviceText.textContent = 'Bağlı Cihaz Yok';
+    }
+}
+
 // Render ADB Devices with Disconnect button
 function renderDevices() {
+    updateHeaderDevicePill();
+
     if (!currentDevices || currentDevices.length === 0) {
         devicesList.innerHTML = `
-          <div style="font-size: 13px; color: var(--text-muted); padding: 12px 0;">
+          <div style="font-size: 13px; color: var(--text-muted); padding: 14px 0;">
             ⚠️ Bağlı cihaz yok. Sol taraftaki <b>QR Kodu</b> telefonunuzdan taratarak veya aşağıdan IP:Port girerek bağlayabilirsiniz.
           </div>
         `;
@@ -645,19 +696,19 @@ function renderDevices() {
     }
 
     devicesList.innerHTML = currentDevices.map(d => `
-      <div class="device-item" style="display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid var(--border-color); border-radius: 10px; margin-bottom: 8px; background: rgba(255,255,255,0.02);">
+      <div class="device-card">
         <div style="display: flex; align-items: center; gap: 12px;">
           <input type="radio" name="adb-device" value="${d.id}" ${d.id === selectedDevice ? 'checked' : ''} onchange="changeSelectedDevice('${d.id}')">
           <div>
-            <div style="font-weight: 700; font-size: 14px;">${d.model}</div>
-            <div style="font-size: 12px; color: var(--text-muted);">${d.id} • ${d.isWifi ? '📶 Kablosuz Wi-Fi' : '🔌 USB'}</div>
+            <div style="font-weight: 700; font-size: 13.5px; color: var(--text-main);">${d.model}</div>
+            <div style="font-size: 11.5px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">${d.id} • ${d.isWifi ? '📶 Kablosuz Wi-Fi' : '🔌 USB'}</div>
           </div>
         </div>
         <div style="display: flex; gap: 8px; align-items: center;">
           <button class="btn btn-danger btn-sm" onclick="disconnectDevice('${d.id}')" title="Bağlantıyı Kes / Sil">
             ❌ Bağlantıyı Kes
           </button>
-          <span class="badge" style="font-size: 11px;">Hazır</span>
+          <span class="badge badge-green" style="font-size: 11px;">Hazır</span>
         </div>
       </div>
     `).join('');
