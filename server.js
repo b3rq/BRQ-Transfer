@@ -819,18 +819,15 @@ const SCRCPY_BIN = path.join(SCRCPY_DIR, 'scrcpy.exe');
 let activeScrcpyProcess = null;
 
 function stopScrcpy() {
-    if (activeScrcpyProcess) {
-        console.log('[Scrcpy]: Kapatılıyor PID:', activeScrcpyProcess.pid);
-        try {
-            if (process.platform === 'win32') {
-                exec(`taskkill /pid ${activeScrcpyProcess.pid} /T /F`, () => {});
-            } else {
-                activeScrcpyProcess.kill();
-            }
-        } catch (e) {}
-        activeScrcpyProcess = null;
-        broadcast({ type: 'SCRCPY_STATUS', running: false });
-    }
+    try {
+        if (process.platform === 'win32') {
+            exec('taskkill /im scrcpy.exe /F', () => {});
+        } else if (activeScrcpyProcess) {
+            activeScrcpyProcess.kill();
+        }
+    } catch (e) {}
+    activeScrcpyProcess = null;
+    broadcast({ type: 'SCRCPY_STATUS', running: false });
 }
 
 app.post('/api/adb/scrcpy/start', (req, res) => {
@@ -844,42 +841,17 @@ app.post('/api/adb/scrcpy/start', (req, res) => {
         return res.status(500).json({ error: 'Scrcpy bulunamadı: ' + SCRCPY_BIN });
     }
 
-    stopScrcpy();
-
-    const args = [
-        '-s', targetDevice,
-        '--window-title', `ApkDrop - 60 FPS Canlı Ekran [${targetDevice}]`,
-        '--max-size', '1280',
-        '--video-bit-rate', '8M',
-        '--max-fps', '60',
-        '--stay-awake',
-        '--always-on-top'
-    ];
-
-    console.log('[Scrcpy]: Başlatılıyor:', SCRCPY_BIN, args.join(' '));
-    activeScrcpyProcess = spawn(SCRCPY_BIN, args, {
-        cwd: SCRCPY_DIR,
-        detached: false,
-        env: {
-            ...process.env,
-            ADB: ADB_BIN
+    const batPath = path.join(BASE_DIR, 'start-screen.bat');
+    console.log('[Scrcpy]: Windows Shell ile Başlatılıyor:', batPath);
+    exec(`start "" "${batPath}"`, (err) => {
+        if (err) {
+            console.error('[Scrcpy Başlatma Hatası]:', err.message);
+            broadcast({ type: 'SCRCPY_STATUS', running: false });
         }
     });
 
-    activeScrcpyProcess.on('error', (err) => {
-        console.error('[Scrcpy Hata]:', err.message);
-        activeScrcpyProcess = null;
-        broadcast({ type: 'SCRCPY_STATUS', running: false });
-    });
-
-    activeScrcpyProcess.on('exit', (code) => {
-        console.log('[Scrcpy]: Kapandı, kod:', code);
-        activeScrcpyProcess = null;
-        broadcast({ type: 'SCRCPY_STATUS', running: false });
-    });
-
     broadcast({ type: 'SCRCPY_STATUS', running: true });
-    res.json({ success: true, message: '60 FPS ultra akıcı canlı ekran açıldı!' });
+    res.json({ success: true, message: '60 FPS ultra akıcı canlı ekran penceresi açıldı!' });
 });
 
 app.post('/api/adb/scrcpy/stop', (req, res) => {
