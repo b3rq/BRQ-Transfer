@@ -1,10 +1,11 @@
-﻿{
-  "name": "unity-apk-hub",
+{
+  "name": "i-have-adb",
   "version": "1.0.0",
-  "description": "Local Wi-Fi APK Distribution & Wireless ADB Hub for Unity Mobile Developers",
-  "main": "server.js",
+  "description": "I Have ADB - Wireless Android Cockpit & High-FPS Screen Mirror",
+  "main": "electron.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "desktop": "electron electron.js"
   },
   "dependencies": {
     "chokidar": "^3.6.0",
@@ -13,5 +14,8 @@
     "multer": "^1.4.5-lts.1",
     "qrcode": "^1.5.3",
     "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "electron": "^44.4.1"
   }
 }
