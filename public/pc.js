@@ -1,63 +1,56 @@
+// State
+let ws = null;
 let currentApks = [];
 let currentDevices = [];
 let selectedDevice = '';
 let isSoundEnabled = localStorage.getItem('apkdrop_sound') !== 'false';
-let currentLang = localStorage.getItem('apkdrop_lang') || 'tr';
-let ws = null;
-
-// Logcat State
 let isLogcatRunning = false;
-let logcatEntries = [];
-const MAX_LOGCAT_ENTRIES = 800;
-
-// Screen Mirror State
 let isMirroring = false;
+let mirrorLoopTimeout = null;
 let mirrorFpsCounter = 0;
 let lastFpsTime = Date.now();
-let mirrorLoopTimeout = null;
+let lastPairedIp = '192.168.137.74';
 
 // DOM Elements
-const soundToggleBtn = document.getElementById('sound-toggle-btn');
-const soundStatus = document.getElementById('sound-status');
-const langToggleBtn = document.getElementById('lang-toggle-btn');
-const langLabel = document.getElementById('lang-label');
-const dropzone = document.getElementById('dropzone');
-const fileInput = document.getElementById('file-input');
-const qrImg = document.getElementById('qr-img');
-const mobileUrlLink = document.getElementById('mobile-url-link');
 const apkListContainer = document.getElementById('apk-list-container');
 const apkCountSpan = document.getElementById('apk-count');
-const devicesList = document.getElementById('devices-list');
-const refreshDevicesBtn = document.getElementById('refresh-devices-btn');
-const tcpipBtn = document.getElementById('tcpip-btn');
-const adbIpInput = document.getElementById('adb-ip-input');
-const adbConnectBtn = document.getElementById('adb-connect-btn');
-const autoAdbCheckbox = document.getElementById('auto-adb-checkbox');
-const autoLaunchCheckbox = document.getElementById('auto-launch-checkbox');
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('file-input');
 const watchFolderInput = document.getElementById('watch-folder-input');
 const saveWatchBtn = document.getElementById('save-watch-btn');
 const currentWatchLabel = document.getElementById('current-watch-label');
+const autoAdbCheckbox = document.getElementById('auto-adb-checkbox');
+const autoLaunchCheckbox = document.getElementById('auto-launch-checkbox');
+const quickDeviceStatus = document.getElementById('quick-device-status');
 const activeDeviceIndicator = document.getElementById('active-device-indicator');
-const toast = document.getElementById('toast');
 
-// ADB QR Pairing Elements
+// ADB Elements
 const adbQrImg = document.getElementById('adb-qr-img');
 const adbPairStatusBadge = document.getElementById('adb-pair-status-badge');
 const refreshAdbQrBtn = document.getElementById('refresh-adb-qr-btn');
+const quickPortBox = document.getElementById('quick-port-box');
+const pairedIpLabel = document.getElementById('paired-ip-label');
+const quickPortInput = document.getElementById('quick-port-input');
+const quickPortBtn = document.getElementById('quick-port-btn');
+const devicesList = document.getElementById('devices-list');
+const adbIpInput = document.getElementById('adb-ip-input');
+const adbConnectBtn = document.getElementById('adb-connect-btn');
+const tcpipBtn = document.getElementById('tcpip-btn');
+const refreshDevicesBtn = document.getElementById('refresh-devices-btn');
 
 // Screen Mirror Elements
+const screenMirrorCanvas = document.getElementById('screen-mirror-canvas');
+const screenshotStaticImg = document.getElementById('screenshot-static-img');
+const screenEmptyPlaceholder = document.getElementById('screen-empty-placeholder');
 const startMirrorBtn = document.getElementById('start-mirror-btn');
 const stopMirrorBtn = document.getElementById('stop-mirror-btn');
 const snapScreenshotBtn = document.getElementById('snap-screenshot-btn');
 const saveScreenshotAsBtn = document.getElementById('save-screenshot-as-btn');
-const screenMirrorCanvas = document.getElementById('screen-mirror-canvas');
-const screenshotStaticImg = document.getElementById('screenshot-static-img');
-const screenEmptyPlaceholder = document.getElementById('screen-empty-placeholder');
-const remoteBar = document.getElementById('remote-bar');
 const mirrorFpsBadge = document.getElementById('mirror-fps-badge');
+const remoteBar = document.getElementById('remote-bar');
 
 // Logcat Elements
-const terminalWindow = document.getElementById('terminal-window');
+const logcatStatusBadge = document.getElementById('logcat-status-badge');
 const startLogcatBtn = document.getElementById('start-logcat-btn');
 const stopLogcatBtn = document.getElementById('stop-logcat-btn');
 const clearLogcatBtn = document.getElementById('clear-logcat-btn');
@@ -66,18 +59,23 @@ const exportLogcatBtn = document.getElementById('export-logcat-btn');
 const logcatLevelSelect = document.getElementById('logcat-level-select');
 const logcatSearchInput = document.getElementById('logcat-search-input');
 const logcatAutoscrollCheckbox = document.getElementById('logcat-autoscroll-checkbox');
-const logcatStatusBadge = document.getElementById('logcat-status-badge');
+const terminalWindow = document.getElementById('terminal-window');
 
-// Web Audio Chime
+// Toast & Sound
+const toast = document.getElementById('toast');
+const soundToggleBtn = document.getElementById('sound-toggle-btn');
+const soundStatus = document.getElementById('sound-status');
+
+// Chime generator
 function playChime() {
     if (!isSoundEnabled) return;
     try {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
         const ctx = new AudioContext();
-        const now = ctx.currentTime;
-
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
+        const now = ctx.currentTime;
         osc.type = 'sine';
         osc.frequency.setValueAtTime(587.33, now); // D5
         osc.frequency.exponentialRampToValueAtTime(880.00, now + 0.15); // A5
@@ -101,7 +99,7 @@ function showToast(message, color = 'var(--accent-blue)', duration = 4000) {
 soundToggleBtn.onclick = () => {
     isSoundEnabled = !isSoundEnabled;
     localStorage.setItem('apkdrop_sound', isSoundEnabled);
-    soundStatus.textContent = isSoundEnabled ? 'Ses AÃ§Ä±k' : 'Ses KapalÄ±';
+    soundStatus.textContent = isSoundEnabled ? 'Ses Açık' : 'Ses Kapalı';
     if (isSoundEnabled) playChime();
 };
 
@@ -125,7 +123,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 async function loadAdbPairingQr() {
     if (!adbQrImg) return;
     adbPairStatusBadge.className = 'badge badge-purple';
-    adbPairStatusBadge.textContent = 'â³ Yeni QR kod hazÄ±rlanÄ±yor...';
+    adbPairStatusBadge.textContent = '⏳ Yeni QR kod hazırlanıyor...';
     try {
         const res = await fetch('/api/adb/pairing-qr');
         const data = await res.json();
@@ -134,16 +132,51 @@ async function loadAdbPairingQr() {
             adbPairStatusBadge.textContent = data.message;
         }
     } catch (e) {
-        adbPairStatusBadge.textContent = 'QR oluÅŸturulamadÄ±';
+        adbPairStatusBadge.textContent = 'QR oluşturulamadı';
     }
 }
 
 if (refreshAdbQrBtn) refreshAdbQrBtn.onclick = loadAdbPairingQr;
 
+// Quick Port Connect
+if (quickPortBtn) {
+    quickPortBtn.onclick = async () => {
+        const port = quickPortInput.value.trim();
+        if (!port) {
+            showToast('⚠️ Lütfen telefonunuzda görünen 5 haneli bağlantı portunu yazın!', 'var(--accent-red)');
+            return;
+        }
+        const ip = lastPairedIp || '192.168.137.74';
+        showToast(`⚡ ${ip}:${port} adresine bağlanılıyor...`);
+        try {
+            const res = await fetch('/api/adb/connect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ip, port })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(`🎉 Başarıyla bağlandı! (${ip}:${port})`, 'var(--accent-green)', 6000);
+                playChime();
+                if (quickPortBox) quickPortBox.style.display = 'none';
+                adbPairStatusBadge.className = 'badge';
+                adbPairStatusBadge.style.background = 'rgba(16, 185, 129, 0.2)';
+                adbPairStatusBadge.style.color = '#10b981';
+                adbPairStatusBadge.textContent = `🎉 Bağlandı: ${ip}:${port}`;
+                refreshDevices();
+            } else {
+                showToast(`Bağlantı hatası: ${data.error}`, 'var(--accent-red)', 6000);
+            }
+        } catch (e) {
+            showToast(`Hata: ${e.message}`, 'var(--accent-red)');
+        }
+    };
+}
+
 // USB to TCP/IP
 if (tcpipBtn) {
     tcpipBtn.onclick = async () => {
-        showToast('ğŸ”Œ Cihaz kablosuz moda alÄ±nÄ±yor (port 5555)...');
+        showToast('🔌 Cihaz kablosuz moda alınıyor (port 5555)...');
         try {
             const res = await fetch('/api/adb/tcpip', {
                 method: 'POST',
@@ -152,7 +185,7 @@ if (tcpipBtn) {
             });
             const data = await res.json();
             if (data.success) {
-                showToast(`âœ… ${data.message}`, 'var(--accent-green)', 6000);
+                showToast(`✅ ${data.message}`, 'var(--accent-green)', 6000);
                 refreshDevices();
             } else {
                 showToast(`Hata: ${data.error}`, 'var(--accent-red)');
@@ -165,7 +198,7 @@ if (tcpipBtn) {
 
 // Disconnect Device
 window.disconnectDevice = async (deviceId) => {
-    showToast(`ğŸ”Œ ${deviceId} baÄŸlantÄ±sÄ± kesiliyor...`);
+    showToast(`🔌 ${deviceId} bağlantısı kesiliyor...`);
     try {
         const res = await fetch('/api/adb/disconnect', {
             method: 'POST',
@@ -174,7 +207,7 @@ window.disconnectDevice = async (deviceId) => {
         });
         const data = await res.json();
         if (data.success) {
-            showToast(`âœ… ${deviceId} baÄŸlantÄ±sÄ± sonlandÄ±rÄ±ldÄ±`, 'var(--accent-green)');
+            showToast(`✅ ${deviceId} bağlantısı sonlandırıldı`, 'var(--accent-green)');
             refreshDevices();
         } else {
             showToast(`Hata: ${data.error}`, 'var(--accent-red)');
@@ -199,29 +232,29 @@ function connectWs() {
             renderDevices();
             if (data.config) {
                 watchFolderInput.value = data.config.watchFolder || '';
-                currentWatchLabel.textContent = `Ä°zlenen: ${data.config.watchFolder || 'VarsayÄ±lan'}`;
+                currentWatchLabel.textContent = `İzlenen: ${data.config.watchFolder || 'Varsayılan'}`;
                 autoAdbCheckbox.checked = !!data.config.autoInstallOnAdb;
                 autoLaunchCheckbox.checked = data.config.autoLaunchAfterInstall !== false;
                 selectedDevice = data.config.selectedAdbDevice || '';
             }
             if (data.pairingSession && adbQrImg) {
                 adbQrImg.src = data.pairingSession.qrDataUrl;
-                adbPairStatusBadge.textContent = data.pairingSession.message;
+                handleAdbPairStatus(data.pairingSession);
             }
             setLogcatRunningUI(!!data.isLogcatRunning);
         } else if (data.type === 'NEW_APK') {
             currentApks.unshift(data.apk);
             renderApks();
             playChime();
-            showToast(`ğŸ”¥ ${data.message}`, 'var(--accent-green)');
+            showToast(`🔥 ${data.message}`, 'var(--accent-green)');
         } else if (data.type === 'ADB_INSTALL_START') {
-            showToast(`â³ ${data.message}`, 'var(--accent-orange)', 5000);
+            showToast(`⏳ ${data.message}`, 'var(--accent-orange)', 5000);
         } else if (data.type === 'ADB_INSTALL_SUCCESS') {
-            showToast(`âœ… ${data.apkName} baÅŸarÄ±yla yÃ¼klendi!`, 'var(--accent-green)', 5000);
+            showToast(`✅ ${data.apkName} başarıyla yüklendi!`, 'var(--accent-green)', 5000);
         } else if (data.type === 'ADB_INSTALL_ERROR') {
-            showToast(`âŒ ADB Kurulum HatasÄ±: ${data.error}`, 'var(--accent-red)', 7000);
+            showToast(`❌ ADB Kurulum Hatası: ${data.error}`, 'var(--accent-red)', 7000);
         } else if (data.type === 'DEVICES_UPDATED') {
-            currentDevices = data.devices;
+            currentDevices = data.devices || [];
             renderDevices();
         } else if (data.type === 'ADB_PAIR_STATUS') {
             handleAdbPairStatus(data.session);
@@ -240,37 +273,39 @@ function connectWs() {
 }
 
 function handleAdbPairStatus(session) {
-    if (!adbPairStatusBadge) return;
+    if (!adbPairStatusBadge || !session) return;
     adbPairStatusBadge.textContent = session.message;
+
+    if (session.pairedIp) {
+        lastPairedIp = session.pairedIp;
+        if (pairedIpLabel) pairedIpLabel.textContent = `${session.pairedIp}:`;
+        if (adbIpInput && !adbIpInput.value) adbIpInput.value = `${session.pairedIp}:`;
+    }
 
     if (session.status === 'pairing') {
         adbPairStatusBadge.className = 'badge';
         adbPairStatusBadge.style.background = 'rgba(245, 158, 11, 0.2)';
         adbPairStatusBadge.style.color = '#f59e0b';
-    } else if (session.status === 'connecting') {
-        adbPairStatusBadge.className = 'badge badge-blue';
+    } else if (session.status === 'paired_need_port') {
+        adbPairStatusBadge.className = 'badge';
+        adbPairStatusBadge.style.background = 'rgba(16, 185, 129, 0.2)';
+        adbPairStatusBadge.style.color = '#10b981';
+        if (quickPortBox) {
+            quickPortBox.style.display = 'block';
+            quickPortInput.focus();
+        }
+        playChime();
+        showToast('🎉 Telefon eşleşti! Şimdi ekranda görünen 5 haneli bağlantı portunu girin.', 'var(--accent-green)', 8000);
     } else if (session.status === 'connected') {
+        if (quickPortBox) quickPortBox.style.display = 'none';
         adbPairStatusBadge.className = 'badge';
         adbPairStatusBadge.style.background = 'rgba(16, 185, 129, 0.2)';
         adbPairStatusBadge.style.color = '#10b981';
         playChime();
-        showToast('ğŸ‰ Android cihazÄ±nÄ±z baÅŸarÄ±yla eÅŸleÅŸti ve baÄŸlandÄ±!', 'var(--accent-green)', 6000);
+        showToast('🎉 Android cihazınız başarıyla eşleşti ve bağlandı!', 'var(--accent-green)', 6000);
         refreshDevices();
     } else if (session.status === 'timeout') {
         adbPairStatusBadge.className = 'badge badge-red';
-    }
-}
-
-// Fetch Mobile QR Code
-async function loadQrCode() {
-    try {
-        const res = await fetch('/api/qr');
-        const data = await res.json();
-        qrImg.src = data.qrDataUrl;
-        mobileUrlLink.href = data.url;
-        mobileUrlLink.textContent = data.url;
-    } catch (e) {
-        console.error('QR alma hatasÄ±:', e);
     }
 }
 
@@ -280,7 +315,7 @@ function renderApks() {
     if (currentApks.length === 0) {
         apkListContainer.innerHTML = `
           <p style="color: var(--text-muted); font-size: 14px; text-align: center; padding: 32px;">
-            HenÃ¼z APK bulunmuyor. Derleme alabilir veya yukarÄ±ya bir APK sÃ¼rÃ¼kleyebilirsiniz.
+            Henüz APK bulunmuyor. Derleme alabilir veya yukarıya bir APK sürükleyebilirsiniz.
           </p>
         `;
         return;
@@ -290,42 +325,42 @@ function renderApks() {
       <div class="apk-card">
         <div class="apk-header">
           <div class="apk-title">
-            <span>ğŸ“¦</span> ${apk.label || apk.name}
+            <span>📦</span> ${apk.label || apk.name}
           </div>
           <span class="badge ${apk.source === 'folder-watcher' ? 'badge-purple' : 'badge-blue'}">
-            ${apk.source === 'folder-watcher' ? 'âš¡ Otomatik' : 'ğŸ“¥ Dosya'}
+            ${apk.source === 'folder-watcher' ? '⚡ Otomatik' : '📥 Dosya'}
           </span>
         </div>
 
-        <div class="apk-pkg">${apk.packageName} â€¢ ${apk.name}</div>
+        <div class="apk-pkg">${apk.packageName} • ${apk.name}</div>
 
         <div class="apk-tags">
           <span class="badge" style="background: rgba(255,255,255,0.06); color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
-            ğŸ·ï¸ v${apk.versionName || '1.0'} (${apk.versionCode || '1'})
+            🏷️ v${apk.versionName || '1.0'} (${apk.versionCode || '1'})
           </span>
           <span class="badge" style="background: rgba(255,255,255,0.06); color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
-            ğŸ“¦ ${apk.size}
+            📦 ${apk.size}
           </span>
           <span class="badge" style="background: rgba(255,255,255,0.06); color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
-            ğŸ•’ ${new Date(apk.updatedAt).toLocaleTimeString()}
+            🕒 ${new Date(apk.updatedAt).toLocaleTimeString()}
           </span>
           <span class="badge" style="background: rgba(255,255,255,0.06); color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
-            ğŸ¯ SDK ${apk.minSdk || '24'}-${apk.targetSdk || '34'}
+            🎯 SDK ${apk.minSdk || '24'}-${apk.targetSdk || '34'}
           </span>
         </div>
 
         <div class="apk-actions">
           <button class="btn btn-purple btn-sm" onclick="installViaAdb('${apk.id}', '${apk.name}')">
-            âš¡ Telefona YÃ¼kle & BaÅŸlat
+            ⚡ Telefona Yükle & Başlat
           </button>
-          <button class="btn btn-outline btn-sm" onclick="launchApp('${apk.packageName}')" title="UygulamayÄ± AÃ§">
-            â–¶ï¸ BaÅŸlat
+          <button class="btn btn-outline btn-sm" onclick="launchApp('${apk.packageName}')" title="Uygulamayı Aç">
+            ▶️ Başlat
           </button>
-          <button class="btn btn-outline btn-sm" onclick="stopApp('${apk.packageName}')" title="UygulamayÄ± Kapat">
-            â¹ï¸ Durdur
+          <button class="btn btn-outline btn-sm" onclick="stopApp('${apk.packageName}')" title="Uygulamayı Kapat">
+            ⏹️ Durdur
           </button>
           <a href="${apk.downloadUrl}" class="btn btn-outline btn-sm" download="${apk.name}">
-            â¬‡ï¸ Ä°ndir
+            ⬇️ İndir
           </a>
         </div>
       </div>
@@ -334,36 +369,41 @@ function renderApks() {
 
 // Render ADB Devices with Disconnect button
 function renderDevices() {
-    if (currentDevices.length === 0) {
+    if (!currentDevices || currentDevices.length === 0) {
         devicesList.innerHTML = `
           <div style="font-size: 13px; color: var(--text-muted); padding: 12px 0;">
-            âš ï¸ BaÄŸlÄ± cihaz yok. Sol taraftaki <b>QR Kodu</b> telefonunuzdan taratarak veya aÅŸaÄŸÄ±dan IP:Port girerek baÄŸlayabilirsiniz.
+            ⚠️ Bağlı cihaz yok. Sol taraftaki <b>QR Kodu</b> telefonunuzdan taratarak veya aşağıdan IP:Port girerek bağlayabilirsiniz.
           </div>
         `;
         activeDeviceIndicator.textContent = 'Cihaz: Yok';
+        if (quickDeviceStatus) quickDeviceStatus.textContent = 'Bağlı cihaz yok';
         return;
     }
 
-    if (!selectedDevice && currentDevices.length > 0) {
+    if (!selectedDevice || !currentDevices.some(d => d.id === selectedDevice)) {
         selectedDevice = currentDevices[0].id;
     }
 
     activeDeviceIndicator.textContent = `Cihaz: ${selectedDevice}`;
+    if (quickDeviceStatus) {
+        const cur = currentDevices.find(d => d.id === selectedDevice) || currentDevices[0];
+        quickDeviceStatus.textContent = `✅ ${cur.model} (${cur.id})`;
+    }
 
     devicesList.innerHTML = currentDevices.map(d => `
-      <div class="device-item">
+      <div class="device-item" style="display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid var(--border-color); border-radius: 10px; margin-bottom: 8px; background: rgba(255,255,255,0.02);">
         <div style="display: flex; align-items: center; gap: 12px;">
           <input type="radio" name="adb-device" value="${d.id}" ${d.id === selectedDevice ? 'checked' : ''} onchange="changeSelectedDevice('${d.id}')">
           <div>
             <div style="font-weight: 700; font-size: 14px;">${d.model}</div>
-            <div style="font-size: 12px; color: var(--text-muted);">${d.id} â€¢ ${d.isWifi ? 'ğŸ“¶ Kablosuz Wi-Fi' : 'ğŸ”Œ USB'}</div>
+            <div style="font-size: 12px; color: var(--text-muted);">${d.id} • ${d.isWifi ? '📶 Kablosuz Wi-Fi' : '🔌 USB'}</div>
           </div>
         </div>
         <div style="display: flex; gap: 8px; align-items: center;">
-          <button class="btn btn-danger btn-sm" onclick="disconnectDevice('${d.id}')" title="BaÄŸlantÄ±yÄ± Kes / Sil">
-            âŒ BaÄŸlantÄ±yÄ± Kes
+          <button class="btn btn-danger btn-sm" onclick="disconnectDevice('${d.id}')" title="Bağlantıyı Kes / Sil">
+            ❌ Bağlantıyı Kes
           </button>
-          <span class="badge" style="font-size: 11px;">HazÄ±r</span>
+          <span class="badge" style="font-size: 11px;">Hazır</span>
         </div>
       </div>
     `).join('');
@@ -372,16 +412,17 @@ function renderDevices() {
 window.changeSelectedDevice = (id) => {
     selectedDevice = id;
     activeDeviceIndicator.textContent = `Cihaz: ${selectedDevice}`;
+    renderDevices();
     saveSettings();
 };
 
 window.installViaAdb = async (apkId, apkName) => {
     const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
     if (!target) {
-        showToast('âš ï¸ Ã–nce bir Android cihaz baÄŸlamalÄ±sÄ±nÄ±z!', 'var(--accent-red)');
+        showToast('⚠️ Önce bir Android cihaz bağlamalısınız!', 'var(--accent-red)');
         return;
     }
-    showToast(`âš¡ ${apkName} -> ${target} yÃ¼kleniyor...`);
+    showToast(`⚡ ${apkName} -> ${target} yükleniyor...`);
     try {
         const res = await fetch('/api/adb/install', {
             method: 'POST',
@@ -397,7 +438,7 @@ window.installViaAdb = async (apkId, apkName) => {
 
 window.launchApp = async (packageName) => {
     const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
-    if (!target) return showToast('âš ï¸ Cihaz baÄŸlÄ± deÄŸil', 'var(--accent-red)');
+    if (!target) return showToast('⚠️ Cihaz bağlı değil', 'var(--accent-red)');
     try {
         const res = await fetch('/api/adb/launch', {
             method: 'POST',
@@ -405,7 +446,7 @@ window.launchApp = async (packageName) => {
             body: JSON.stringify({ deviceId: target, packageName })
         });
         const data = await res.json();
-        showToast(data.success ? `â–¶ï¸ ${packageName} baÅŸlatÄ±ldÄ±` : `BaÅŸlatÄ±lamadÄ±: ${data.output}`);
+        showToast(data.success ? `▶️ ${packageName} başlatıldı` : `Başlatılamadı: ${data.output}`);
     } catch (e) {
         showToast(`Hata: ${e.message}`, 'var(--accent-red)');
     }
@@ -413,19 +454,19 @@ window.launchApp = async (packageName) => {
 
 window.stopApp = async (packageName) => {
     const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
-    if (!target) return showToast('âš ï¸ Cihaz baÄŸlÄ± deÄŸil', 'var(--accent-red)');
+    if (!target) return showToast('⚠️ Cihaz bağlı değil', 'var(--accent-red)');
     await fetch('/api/adb/stop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ deviceId: target, packageName })
     });
-    showToast(`â¹ï¸ ${packageName} durduruldu`);
+    showToast(`⏹️ ${packageName} durduruldu`);
 };
 
 // Remote Keycode
 window.sendRemoteKey = async (code) => {
     const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
-    if (!target) return showToast('âš ï¸ Cihaz baÄŸlÄ± deÄŸil', 'var(--accent-red)');
+    if (!target) return showToast('⚠️ Cihaz bağlı değil', 'var(--accent-red)');
     await fetch('/api/adb/keyevent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -458,8 +499,8 @@ saveWatchBtn.onclick = async () => {
         });
         const data = await res.json();
         if (data.success) {
-            currentWatchLabel.textContent = `Ä°zlenen: ${val}`;
-            showToast('âœ… KlasÃ¶r kaydedildi!', 'var(--accent-green)');
+            currentWatchLabel.textContent = `İzlenen: ${val}`;
+            showToast('✅ Klasör kaydedildi!', 'var(--accent-green)');
         } else {
             showToast(`Hata: ${data.error}`, 'var(--accent-red)');
         }
@@ -470,12 +511,12 @@ saveWatchBtn.onclick = async () => {
 
 autoAdbCheckbox.onchange = () => {
     saveSettings();
-    showToast(`Otomatik yÃ¼kleme: ${autoAdbCheckbox.checked ? 'AÃ§Ä±k' : 'KapalÄ±'}`);
+    showToast(`Otomatik yükleme: ${autoAdbCheckbox.checked ? 'Açık' : 'Kapalı'}`);
 };
 
 autoLaunchCheckbox.onchange = () => {
     saveSettings();
-    showToast(`Otomatik oyun baÅŸlatma: ${autoLaunchCheckbox.checked ? 'AÃ§Ä±k' : 'KapalÄ±'}`);
+    showToast(`Otomatik başlatma: ${autoLaunchCheckbox.checked ? 'Açık' : 'Kapalı'}`);
 };
 
 // Connect Wireless ADB Manual
@@ -483,7 +524,7 @@ adbConnectBtn.onclick = async () => {
     const target = adbIpInput.value.trim();
     if (!target) return;
     let [ip, port] = target.split(':');
-    showToast(`ğŸ“¶ ${target} baÄŸlanÄ±lÄ±yor...`);
+    showToast(`📶 ${target} bağlanılıyor...`);
     try {
         const res = await fetch('/api/adb/connect', {
             method: 'POST',
@@ -492,10 +533,10 @@ adbConnectBtn.onclick = async () => {
         });
         const data = await res.json();
         if (data.success) {
-            showToast(`âœ… ${data.result}`, 'var(--accent-green)');
+            showToast(`✅ ${data.result}`, 'var(--accent-green)');
             refreshDevices();
         } else {
-            showToast(`âŒ BaÄŸlantÄ± hatasÄ±: ${data.error}`, 'var(--accent-red)');
+            showToast(`❌ Bağlantı hatası: ${data.error}`, 'var(--accent-red)');
         }
     } catch (e) {
         showToast(`Hata: ${e.message}`, 'var(--accent-red)');
@@ -508,7 +549,7 @@ async function refreshDevices() {
     const res = await fetch('/api/adb/devices');
     currentDevices = await res.json();
     renderDevices();
-    showToast('ğŸ”„ Cihaz listesi gÃ¼ncellendi');
+    showToast('🔄 Cihaz listesi güncellendi');
 }
 
 // Drag and drop upload
@@ -533,10 +574,10 @@ dropzone.ondrop = (e) => {
 
 async function uploadFile(file) {
     if (!file.name.toLowerCase().endsWith('.apk')) {
-        showToast('âš ï¸ LÃ¼tfen yalnÄ±zca .apk dosyasÄ± seÃ§in!', 'var(--accent-red)');
+        showToast('⚠️ Lütfen yalnızca .apk dosyası seçin!', 'var(--accent-red)');
         return;
     }
-    showToast(`ğŸ“¤ ${file.name} yÃ¼kleniyor...`);
+    showToast(`📤 ${file.name} yükleniyor...`);
     const formData = new FormData();
     formData.append('apk', file);
     try {
@@ -545,18 +586,18 @@ async function uploadFile(file) {
             body: formData
         });
         const data = await res.json();
-        if (data.success) showToast(`âœ… ${file.name} hazÄ±rlandÄ±!`, 'var(--accent-green)');
+        if (data.success) showToast(`✅ ${file.name} hazırlandı!`, 'var(--accent-green)');
     } catch (e) {
         showToast(`Hata: ${e.message}`, 'var(--accent-red)');
     }
 }
 
 // ==========================================
-// ğŸ“º CANLI EKRAN YANSITMA (LIVE SCREEN MIRROR)
+// 📺 CANLI EKRAN YANSITMA (LIVE SCREEN MIRROR)
 // ==========================================
 startMirrorBtn.onclick = () => {
     const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
-    if (!target) return showToast('âš ï¸ Ã–nce bir cihaz baÄŸlamalÄ±sÄ±nÄ±z!', 'var(--accent-red)');
+    if (!target) return showToast('⚠️ Önce bir cihaz bağlamalısınız!', 'var(--accent-red)');
 
     isMirroring = true;
     startMirrorBtn.style.display = 'none';
@@ -567,7 +608,7 @@ startMirrorBtn.onclick = () => {
     remoteBar.style.display = 'flex';
     mirrorFpsBadge.style.display = 'inline-flex';
 
-    showToast('ğŸ“º CanlÄ± ekran yayÄ±nÄ± baÅŸlatÄ±ldÄ±');
+    showToast('📺 Canlı ekran yayını başlatıldı');
     updateMirrorFrame();
 };
 
@@ -577,7 +618,7 @@ stopMirrorBtn.onclick = () => {
     startMirrorBtn.style.display = 'inline-flex';
     stopMirrorBtn.style.display = 'none';
     mirrorFpsBadge.style.display = 'none';
-    showToast('â¹ï¸ CanlÄ± yayÄ±n durduruldu');
+    showToast('⏹️ Canlı yayın durduruldu');
 };
 
 function updateMirrorFrame() {
@@ -611,16 +652,16 @@ function updateMirrorFrame() {
     img.onerror = () => {
         if (isMirroring) mirrorLoopTimeout = setTimeout(updateMirrorFrame, 500);
     };
-    img.src = `/api/adb/screenshot?deviceId=${target}&t=${Date.now()}`;
+    img.src = `/api/adb/screenshot?deviceId=${encodeURIComponent(target)}&t=${Date.now()}`;
 }
 
 // High-Res Snapshot Button
 snapScreenshotBtn.onclick = () => {
     const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
-    if (!target) return showToast('âš ï¸ Cihaz baÄŸlÄ± deÄŸil', 'var(--accent-red)');
+    if (!target) return showToast('⚠️ Cihaz bağlı değil', 'var(--accent-red)');
 
-    showToast('ğŸ“¸ Ekran gÃ¶rÃ¼ntÃ¼sÃ¼ alÄ±nÄ±yor...');
-    const url = `/api/adb/screenshot?deviceId=${target}&t=${Date.now()}`;
+    showToast('📸 Ekran görüntüsü alınıyor...');
+    const url = `/api/adb/screenshot?deviceId=${encodeURIComponent(target)}&t=${Date.now()}`;
     screenshotStaticImg.src = url;
     screenshotStaticImg.onload = () => {
         if (isMirroring) stopMirrorBtn.click();
@@ -628,11 +669,11 @@ snapScreenshotBtn.onclick = () => {
         screenMirrorCanvas.style.display = 'none';
         screenshotStaticImg.style.display = 'block';
         remoteBar.style.display = 'flex';
-        showToast('âœ… Ekran gÃ¶rÃ¼ntÃ¼sÃ¼ alÄ±ndÄ±!', 'var(--accent-green)');
+        showToast('✅ Ekran görüntüsü alındı!', 'var(--accent-green)');
     };
 };
 
-// ğŸ’¾ RESMÄ° FARKLI KAYDET (SAVE AS) - DIALOG ASKS WHERE TO SAVE
+// 💾 RESMİ FARKLI KAYDET (SAVE AS) - DIALOG ASKS WHERE TO SAVE
 saveScreenshotAsBtn.onclick = async () => {
     let blob = null;
 
@@ -646,7 +687,7 @@ saveScreenshotAsBtn.onclick = async () => {
     }
 
     if (!blob) {
-        showToast('âš ï¸ Ã–nce ekran gÃ¶rÃ¼ntÃ¼sÃ¼ almalÄ± veya canlÄ± yayÄ±nÄ± baÅŸlatmalÄ±sÄ±nÄ±z!', 'var(--accent-red)');
+        showToast('⚠️ Önce ekran görüntüsü almalı veya canlı yayını başlatmalısınız!', 'var(--accent-red)');
         return;
     }
 
@@ -665,10 +706,10 @@ saveScreenshotAsBtn.onclick = async () => {
             const writable = await handle.createWritable();
             await writable.write(blob);
             await writable.close();
-            showToast('ğŸ’¾ Resim seÃ§tiÄŸiniz konuma baÅŸarÄ±yla kaydedildi!', 'var(--accent-green)');
+            showToast('💾 Resim seçtiğiniz konuma başarıyla kaydedildi!', 'var(--accent-green)');
             return;
         } catch (err) {
-            if (err.name === 'AbortError') return; // User cancelled
+            if (err.name === 'AbortError') return; // User cancelled dialog
         }
     }
 
@@ -681,11 +722,11 @@ saveScreenshotAsBtn.onclick = async () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showToast('ğŸ’¾ Resim Ä°ndirilenler klasÃ¶rÃ¼ne kaydedildi!', 'var(--accent-green)');
+    showToast('💾 Resim İndirilenler klasörüne kaydedildi!', 'var(--accent-green)');
 };
 
 // ==========================================
-// ğŸ“œ RE-ENGINEERED SMART LOGCAT
+// 📜 RE-ENGINEERED SMART LOGCAT
 // ==========================================
 function setLogcatRunningUI(running) {
     isLogcatRunning = running;
@@ -695,7 +736,7 @@ function setLogcatRunningUI(running) {
         logcatStatusBadge.className = 'badge';
         logcatStatusBadge.style.background = 'rgba(16, 185, 129, 0.2)';
         logcatStatusBadge.style.color = '#10b981';
-        logcatStatusBadge.textContent = 'â— CanlÄ± AkÄ±yor';
+        logcatStatusBadge.textContent = '● Canlı Akıyor';
     } else {
         startLogcatBtn.style.display = 'inline-flex';
         stopLogcatBtn.style.display = 'none';
@@ -706,14 +747,17 @@ function setLogcatRunningUI(running) {
 
 startLogcatBtn.onclick = () => {
     const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
-    if (!target) return showToast('âš ï¸ Cihaz baÄŸlÄ± deÄŸil', 'var(--accent-red)');
+    if (!target) return showToast('⚠️ Logcat için bağlı bir Android cihaz seçilmelidir!', 'var(--accent-red)');
+
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({
             action: 'START_LOGCAT',
-            deviceId: target
+            deviceId: target,
+            level: logcatLevelSelect.value,
+            filter: logcatSearchInput.value.trim()
         }));
         setLogcatRunningUI(true);
-        showToast('ğŸ“œ Logcat baÅŸlatÄ±ldÄ±');
+        showToast('📜 Logcat canlı akışı başlatıldı');
     }
 };
 
@@ -722,117 +766,111 @@ stopLogcatBtn.onclick = () => {
         ws.send(JSON.stringify({ action: 'STOP_LOGCAT' }));
     }
     setLogcatRunningUI(false);
-    showToast('â¹ï¸ Logcat tamamen durduruldu');
+    showToast('⏹️ Logcat durduruldu');
 };
 
 clearLogcatBtn.onclick = () => {
-    logcatEntries = [];
     terminalWindow.innerHTML = '';
+    const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
     if (ws && ws.readyState === WebSocket.OPEN) {
-        const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
-        if (target) ws.send(JSON.stringify({ action: 'CLEAR_LOGCAT', deviceId: target }));
+        ws.send(JSON.stringify({ action: 'CLEAR_LOGCAT', deviceId: target }));
     }
-    showToast('ğŸ—‘ï¸ Loglar temizlendi');
+    showToast('🗑️ Log penceresi temizlendi');
 };
 
 copyLogcatBtn.onclick = () => {
-    const text = logcatEntries.map(e => e.raw).join('\n');
-    navigator.clipboard.writeText(text).then(() => {
-        showToast('ğŸ“‹ Loglar panoya kopyalandÄ±!', 'var(--accent-green)');
-    });
+    const text = Array.from(terminalWindow.querySelectorAll('.log-entry'))
+        .map(el => el.innerText)
+        .join('\n');
+    if (!text) return showToast('Kopyalanacak log yok', 'var(--accent-orange)');
+    navigator.clipboard.writeText(text);
+    showToast('📋 Loglar panoya kopyalandı!', 'var(--accent-green)');
 };
 
 exportLogcatBtn.onclick = () => {
-    const text = logcatEntries.map(e => e.raw).join('\n');
+    const text = Array.from(terminalWindow.querySelectorAll('.log-entry'))
+        .map(el => el.innerText)
+        .join('\n');
+    if (!text) return showToast('Dışa aktarılacak log yok', 'var(--accent-orange)');
+
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `logcat_${new Date().toISOString().slice(0,10)}_${Date.now().toString().slice(-4)}.txt`;
+    a.download = `logcat_export_${new Date().toISOString().slice(0, 10)}.txt`;
     a.click();
     URL.revokeObjectURL(url);
-    showToast('ğŸ’¾ Log dosyasÄ± indirildi!', 'var(--accent-green)');
+    showToast('💾 Log dosyası kaydedildi!', 'var(--accent-green)');
 };
 
-// Filter changes
-logcatLevelSelect.onchange = reFilterLogs;
-logcatSearchInput.oninput = reFilterLogs;
+// Filter change reactions
+logcatLevelSelect.onchange = applyLogcatFilter;
+logcatSearchInput.oninput = applyLogcatFilter;
 
-function parseLogLine(raw) {
-    // threadtime format: 09-17 23:45:12.123 1234 5678 I Tag: Message
-    const match = raw.match(/^\S+\s+(\d{2}:\d{2}:\d{2}(?:\.\d+)?)\s+\d+\s+\d+\s+([VDIWEF])\s+([^:]+):\s*(.*)$/);
-    if (match) {
-        return {
-            time: match[1],
-            levelChar: match[2],
-            tag: match[3].trim(),
-            msg: match[4],
-            raw
-        };
-    }
-    // Fallback
-    let levelChar = 'I';
-    if (/ E |FATAL|Exception|Error|CRASH/i.test(raw)) levelChar = 'E';
-    else if (/ W |Warning/i.test(raw)) levelChar = 'W';
-    else if (/ D /i.test(raw)) levelChar = 'D';
+function applyLogcatFilter() {
+    const level = logcatLevelSelect.value;
+    const search = logcatSearchInput.value.toLowerCase().trim();
 
-    return {
-        time: '',
-        levelChar,
-        tag: '',
-        msg: raw,
-        raw
-    };
+    const entries = terminalWindow.querySelectorAll('.log-entry');
+    entries.forEach(entry => {
+        const text = entry.innerText.toLowerCase();
+        let matchesLevel = true;
+
+        if (level === 'ERROR') {
+            matchesLevel = entry.classList.contains('error');
+        } else if (level === 'WARN') {
+            matchesLevel = entry.classList.contains('warn') || entry.classList.contains('error');
+        } else if (level === 'INFO') {
+            matchesLevel = entry.classList.contains('info') || entry.classList.contains('warn') || entry.classList.contains('error');
+        }
+
+        const matchesSearch = !search || text.includes(search);
+        entry.style.display = (matchesLevel && matchesSearch) ? 'block' : 'none';
+    });
 }
 
-function handleLogcatLine(raw) {
-    const parsed = parseLogLine(raw);
-    logcatEntries.push(parsed);
-    if (logcatEntries.length > MAX_LOGCAT_ENTRIES) {
-        logcatEntries.shift();
+function handleLogcatLine(rawLine) {
+    if (!rawLine) return;
+
+    let type = 'debug';
+    if (rawLine.includes(' E ') || rawLine.includes('E/') || rawLine.includes('FATAL') || rawLine.includes('Exception') || rawLine.includes('CRASH')) {
+        type = 'error';
+    } else if (rawLine.includes(' W ') || rawLine.includes('W/')) {
+        type = 'warn';
+    } else if (rawLine.includes(' I ') || rawLine.includes('I/')) {
+        type = 'info';
     }
 
-    if (matchesFilter(parsed)) {
-        renderSingleLog(parsed);
-    }
-}
+    const currentFilterLevel = logcatLevelSelect.value;
+    if (currentFilterLevel === 'ERROR' && type !== 'error') return;
+    if (currentFilterLevel === 'WARN' && type !== 'error' && type !== 'warn') return;
+    if (currentFilterLevel === 'INFO' && type === 'debug') return;
 
-function matchesFilter(item) {
-    const selectedLevel = logcatLevelSelect.value;
-    if (selectedLevel === 'ERROR') {
-        if (item.levelChar !== 'E' && item.levelChar !== 'F') return false;
-    } else if (selectedLevel === 'WARN') {
-        if (item.levelChar !== 'E' && item.levelChar !== 'F' && item.levelChar !== 'W') return false;
-    } else if (selectedLevel === 'INFO') {
-        if (item.levelChar === 'D' || item.levelChar === 'V') return false;
-    }
+    const search = logcatSearchInput.value.toLowerCase().trim();
+    if (search && !rawLine.toLowerCase().includes(search)) return;
 
-    const query = logcatSearchInput.value.trim().toLowerCase();
-    if (query) {
-        const full = `${item.tag} ${item.msg}`.toLowerCase();
-        if (!full.includes(query)) return false;
-    }
-
-    return true;
-}
-
-function renderSingleLog(item) {
     const div = document.createElement('div');
-    div.className = 'log-entry';
+    div.className = `log-entry ${type}`;
 
-    if (item.levelChar === 'E' || item.levelChar === 'F') div.classList.add('error');
-    else if (item.levelChar === 'W') div.classList.add('warn');
-    else div.classList.add('info');
+    const timeMatch = rawLine.match(/^(\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d+)/);
+    const timeStr = timeMatch ? timeMatch[1] : '';
+    const bodyText = timeMatch ? rawLine.substring(timeMatch[1].length).trim() : rawLine;
 
-    let html = '';
-    if (item.time) html += `<span class="log-time">${item.time}</span>`;
-    if (item.tag) html += `<span class="log-tag">[${item.tag}]</span>`;
-    html += `<span class="log-msg">${escapeHtml(item.msg || item.raw)}</span>`;
+    div.innerHTML = `
+      ${timeStr ? `<span class="log-time">${timeStr}</span>` : ''}
+      <span class="badge" style="font-size: 10px; padding: 1px 6px; margin-right: 6px; ${
+          type === 'error' ? 'background: rgba(239, 68, 68, 0.25); color: #f87171;' :
+          type === 'warn' ? 'background: rgba(245, 158, 11, 0.25); color: #fbbf24;' :
+          type === 'info' ? 'background: rgba(56, 189, 248, 0.25); color: #38bdf8;' :
+          'background: rgba(255, 255, 255, 0.05); color: #94a3b8;'
+      }">${type.toUpperCase()}</span>
+      <span>${escapeHtml(bodyText)}</span>
+    `;
 
-    div.innerHTML = html;
     terminalWindow.appendChild(div);
 
-    if (terminalWindow.children.length > MAX_LOGCAT_ENTRIES) {
+    // Limit log lines to 800 to prevent browser slowdown
+    if (terminalWindow.children.length > 800) {
         terminalWindow.removeChild(terminalWindow.firstChild);
     }
 
@@ -841,19 +879,12 @@ function renderSingleLog(item) {
     }
 }
 
-function reFilterLogs() {
-    terminalWindow.innerHTML = '';
-    const filtered = logcatEntries.filter(matchesFilter);
-    for (const item of filtered) {
-        renderSingleLog(item);
-    }
-}
-
 function escapeHtml(str) {
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return (str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
 }
 
-// Init
-loadQrCode();
+// Initialize
 connectWs();
-loadAdbPairingQr();
