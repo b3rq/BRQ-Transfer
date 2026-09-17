@@ -1,7 +1,7 @@
 {
-  "name": "i-have-adb",
+  "name": "brq-transfer",
   "version": "1.0.0",
-  "description": "I Have ADB - Wireless Android Cockpit & High-FPS Screen Mirror",
+  "description": "BRQ Transfer - Too lazy for cables",
   "main": "electron.js",
   "scripts": {
     "start": "node server.js",

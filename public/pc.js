@@ -57,7 +57,12 @@ const i18n = {
         wireless_pairing: "Kablosuz Eşleme",
         enter_port_label: "5 haneli bağlantı portunu girin:",
         connect: "Bağlan",
+        scan_qr_hint: "Telefonunuzdan \"Cihazı QR koduyla eşle\"yi açıp bu kodu tarayın...",
         awaiting_scan: "Telefonun taraması bekleniyor...",
+        pairing_in_progress: "Cihaz algılandı, eşleştiriliyor...",
+        pairing_connecting: "Eşleşme başarılı, bağlanılıyor...",
+        pairing_timeout: "Eşleşme zaman aşımına uğradı. QR kodu yenileyip tekrar deneyin.",
+        or_browse: "veya seçmek için tıklayın",
         generate_new_qr: "Yeni QR Kod Üret",
         attached_devices: "Bağlı Cihazlar",
         usb_to_tcpip: "USB → TCP/IP (5555)",
@@ -202,7 +207,12 @@ const i18n = {
         wireless_pairing: "Wireless Pairing",
         enter_port_label: "Enter 5-digit Wireless Port:",
         connect: "Connect",
+        scan_qr_hint: "On your phone, open 'Pair device with QR code' and scan this code...",
         awaiting_scan: "Awaiting device scan...",
+        pairing_in_progress: "Device detected, pairing...",
+        pairing_connecting: "Pairing successful, connecting...",
+        pairing_timeout: "Pairing timed out. Generate a new QR code and retry.",
+        or_browse: "or click to browse",
         generate_new_qr: "Generate New QR",
         attached_devices: "Attached Devices",
         usb_to_tcpip: "USB → TCP/IP (5555)",
@@ -497,6 +507,7 @@ function setLanguage(lang) {
     renderTransfers();
     renderDevices();
     renderCapturesList();
+    updatePairStatusBadge();
 }
 
 if (langToggleBtn) {
@@ -584,15 +595,51 @@ document.querySelectorAll('.nav-item, .tab-btn').forEach(btn => {
 });
 
 // --- ADB QR & Pairing ---
+let currentPairingSession = null;
+
+function updatePairStatusBadge() {
+    if (!adbPairStatusBadge) return;
+    const dict = i18n[currentLang];
+    if (!currentPairingSession || currentPairingSession.status === 'waiting_for_scan') {
+        adbPairStatusBadge.textContent = dict.scan_qr_hint || dict.awaiting_scan;
+        return;
+    }
+    const ip = currentPairingSession.pairedIp || '';
+    switch (currentPairingSession.status) {
+        case 'pairing':
+            adbPairStatusBadge.textContent = `${dict.pairing_in_progress} ${ip ? `(${ip})` : ''}`.trim();
+            break;
+        case 'paired':
+            adbPairStatusBadge.textContent = `${dict.pairing_connecting} ${ip ? `(${ip})` : ''}`.trim();
+            break;
+        case 'connected':
+            adbPairStatusBadge.textContent = `${dict.toast_device_connected} ${ip ? `(${ip})` : ''}`.trim();
+            break;
+        case 'paired_need_port':
+            adbPairStatusBadge.textContent = `${dict.toast_pairing_ok} ${ip ? `(${ip})` : ''}`.trim();
+            break;
+        case 'timeout':
+            adbPairStatusBadge.textContent = dict.pairing_timeout;
+            break;
+        default:
+            adbPairStatusBadge.textContent = dict.scan_qr_hint || dict.awaiting_scan;
+    }
+}
+
 async function loadAdbPairingQr() {
     if (!adbQrImg) return;
-    if (adbPairStatusBadge) adbPairStatusBadge.textContent = i18n[currentLang].awaiting_scan;
+    currentPairingSession = { status: 'waiting_for_scan' };
+    updatePairStatusBadge();
     try {
         const res = await fetch('/api/adb/pairing-qr');
         const data = await res.json();
         if (data.success) {
             adbQrImg.src = data.qrDataUrl;
-            if (adbPairStatusBadge) adbPairStatusBadge.textContent = data.message || i18n[currentLang].awaiting_scan;
+            currentPairingSession = {
+                status: data.status || 'waiting_for_scan',
+                pairedIp: data.pairedIp
+            };
+            updatePairStatusBadge();
         }
     } catch (e) {
         if (adbPairStatusBadge) adbPairStatusBadge.textContent = i18n[currentLang].error_loading_qr;
@@ -1131,8 +1178,9 @@ function connectWs() {
 }
 
 function handleAdbPairStatus(session) {
-    if (!adbPairStatusBadge || !session) return;
-    adbPairStatusBadge.textContent = session.message;
+    if (!session) return;
+    currentPairingSession = session;
+    updatePairStatusBadge();
 
     if (session.pairedIp) {
         lastPairedIp = session.pairedIp;

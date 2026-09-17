@@ -135,11 +135,25 @@ body {
 .brand {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .brand-logo {
   color: var(--accent);
+  flex-shrink: 0;
+}
+
+.brand-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1.15;
+}
+
+.brand-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .brand-name {
@@ -148,8 +162,15 @@ body {
   letter-spacing: -0.02em;
 }
 
-.tag-version {
+.brand-slogan {
   font-size: 10px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  letter-spacing: 0.01em;
+}
+
+.tag-version {
+  font-size: 9.5px;
   font-weight: 600;
   padding: 1px 5px;
   border-radius: 4px;
