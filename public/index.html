@@ -42,7 +42,22 @@
         <div class="status-indicator" id="header-device-pill">
           <span class="status-dot"></span>
           <span id="header-device-text" class="status-text" data-i18n="no_device">Bağlı Cihaz Yok</span>
+          <span id="header-battery" class="battery-indicator hidden" title="Cihaz Bataryası" data-i18n-title="battery_title">
+            <svg id="battery-icon-svg" class="battery-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="7" width="16" height="10" rx="2" ry="2"/>
+              <line x1="22" y1="11" x2="22" y2="13"/>
+            </svg>
+            <span id="battery-text">--%</span>
+          </span>
         </div>
+
+        <!-- Clipboard Sync (PC <-> Phone) -->
+        <button class="btn-icon" id="clipboard-toggle-btn" title="Pano Eşitleme (PC ↔ Telefon)" data-i18n-title="clipboard_sync" aria-label="Clipboard sync">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+            <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+          </svg>
+        </button>
 
         <!-- Language Switcher -->
         <button class="btn-lang" id="lang-toggle-btn" title="Switch to English" data-i18n-title="lang_title">
