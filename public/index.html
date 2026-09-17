@@ -42,12 +42,20 @@
         </div>
 
         <!-- Language Switcher -->
-        <button class="btn-lang" id="lang-toggle-btn" title="Dili Değiştir / Switch Language">
+        <button class="btn-lang" id="lang-toggle-btn" title="Switch to English" data-i18n-title="lang_title">
           <span id="lang-label">EN</span>
         </button>
 
+        <!-- Privacy / Streamer Mode Toggle -->
+        <button class="btn-icon" id="privacy-toggle-btn" title="Gizlilik Modu (Seri No & IP Gizle)" data-i18n-title="privacy_title" aria-label="Privacy mode toggle">
+          <svg id="privacy-icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+
         <!-- Sound Toggle -->
-        <button class="btn-icon" id="sound-toggle-btn" title="Sesli bildirimleri aç/kapat" aria-label="Audio toggle">
+        <button class="btn-icon" id="sound-toggle-btn" title="Sesli bildirimleri aç/kapat" data-i18n-title="sound_title" aria-label="Audio toggle">
           <svg id="sound-icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
             <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
@@ -56,7 +64,7 @@
         </button>
 
         <!-- Theme Toggle -->
-        <button class="btn-icon" id="theme-toggle-btn" title="Temayı değiştir" aria-label="Theme toggle">
+        <button class="btn-icon" id="theme-toggle-btn" title="Temayı değiştir" data-i18n-title="theme_title" aria-label="Theme toggle">
           <svg id="theme-icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="5"/>
             <line x1="12" y1="1" x2="12" y2="3"/>
@@ -84,17 +92,24 @@
             <!-- Dropzone -->
             <div class="panel">
               <div class="panel-header">
-                <h3 data-i18n="upload_package">APK Yükle</h3>
+                <h3 data-i18n="upload_title">Dosya & Paket Yükle</h3>
               </div>
               <div class="dropzone" id="dropzone">
-                <input type="file" id="file-input" accept=".apk" style="display: none;">
+                <input type="file" id="file-input" accept="*/*" style="display: none;">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" class="dropzone-icon">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                   <polyline points="17 8 12 3 7 8"/>
                   <line x1="12" y1="3" x2="12" y2="15"/>
                 </svg>
-                <div class="dropzone-label" data-i18n="drop_apk_here">APK dosyasını buraya bırakın</div>
+                <div class="dropzone-label" data-i18n="drop_files_here">Dosyaları buraya bırakın</div>
                 <div class="dropzone-sub" data-i18n="or_browse">veya seçmek için tıklayın</div>
+                <div class="dropzone-chips">
+                  <span class="chip">APK</span>
+                  <span class="chip">PNG/JPG</span>
+                  <span class="chip">MP4/MKV</span>
+                  <span class="chip">MP3/WAV</span>
+                  <span class="chip">PDF/ZIP</span>
+                </div>
               </div>
             </div>
 
@@ -134,12 +149,15 @@
             </div>
           </aside>
 
-          <!-- Right Content: Ready APK Packages -->
+          <!-- Right Content: Ready APK Packages & Transfers -->
           <main class="main-panel">
             <div class="panel h-full">
               <div class="panel-header-between">
                 <div class="header-group">
-                  <h3 data-i18n="available_packages">Hazır Paketler</h3>
+                  <div class="segmented-control" id="deploy-tab-segment">
+                    <button class="segment-btn active" id="tab-btn-apks" data-i18n="available_packages">Hazır Paketler</button>
+                    <button class="segment-btn" id="tab-btn-transfers" data-i18n="device_transfers">Dosya Transferleri</button>
+                  </div>
                   <span class="count-badge" id="apk-count">0</span>
                 </div>
                 <span class="device-context" id="active-device-indicator">Hedef: Yok</span>
@@ -149,6 +167,13 @@
                 <div class="empty-view">
                   <p class="empty-title" data-i18n="no_packages_detected">Hazır paket bulunamadı</p>
                   <p class="empty-sub" data-i18n="no_packages_sub">APK sürükleyin veya sol panelden build izleyicisini ayarlayın.</p>
+                </div>
+              </div>
+
+              <div id="transfers-list-container" class="package-list" style="display: none;">
+                <div class="empty-view">
+                  <p class="empty-title" data-i18n="no_transfers">Henüz dosya aktarılmadı</p>
+                  <p class="empty-sub" data-i18n="no_transfers_sub">APK, resim, video, ses veya belge sürükleyip bırakın.</p>
                 </div>
               </div>
             </div>
@@ -229,10 +254,6 @@
                 <span data-i18n="display_stream">Canlı Yayın</span>
                 <span class="badge-status" id="screen-stream-status-badge" data-i18n="idle">Kapalı</span>
               </div>
-              <div class="viewport-metrics">
-                <span class="metric-tag mono" id="stream-res-chip">1440x3040</span>
-                <span class="metric-tag">H.264 HW</span>
-              </div>
               <div class="viewport-actions">
                 <button class="btn btn-primary btn-sm" id="start-web-stream-btn" data-i18n="start_stream">Yayını Başlat</button>
                 <button class="btn btn-danger btn-sm" id="stop-web-stream-btn" style="display: none;" data-i18n="stop_stream">Yayını Durdur</button>
@@ -255,19 +276,19 @@
 
               <!-- Remote Navigation Dock -->
               <div class="remote-dock" id="remote-bar" style="display: none;">
-                <button class="dock-btn" onclick="sendRemoteKey(4)" title="Back">
+                <button class="dock-btn" onclick="sendRemoteKey(4)" title="Geri" data-i18n-title="back">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="15 18 9 12 15 6"/></svg>
                   <span data-i18n="back">Geri</span>
                 </button>
-                <button class="dock-btn" onclick="sendRemoteKey(3)" title="Home">
+                <button class="dock-btn" onclick="sendRemoteKey(3)" title="Ana Ekran" data-i18n-title="home">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="8"/></svg>
                   <span data-i18n="home">Ana Ekran</span>
                 </button>
-                <button class="dock-btn" onclick="sendRemoteKey(187)" title="Recents">
+                <button class="dock-btn" onclick="sendRemoteKey(187)" title="Son Uygulamalar" data-i18n-title="recents">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
                   <span data-i18n="recents">Son Uygulamalar</span>
                 </button>
-                <button class="dock-btn dock-btn-danger" onclick="sendRemoteKey(26)" title="Power">
+                <button class="dock-btn dock-btn-danger" onclick="sendRemoteKey(26)" title="Güç" data-i18n-title="power">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"/></svg>
                   <span data-i18n="power">Güç</span>
                 </button>
@@ -337,7 +358,7 @@
           <!-- Terminal Canvas -->
           <div class="console-box" id="terminal-window">
             <div class="log-entry log-sys">
-              <span class="log-time">[Sistem]</span>
+              <span class="log-time" data-i18n="system_tag">[Sistem]</span>
               <span class="log-tag">INIT</span>
               <span class="log-msg" data-i18n="logcat_ready">Logcat sistemi hazır. Kayda başlamak için bağlı bir cihaz seçin.</span>
             </div>
@@ -351,8 +372,8 @@
   <div id="image-modal" class="modal-backdrop" style="display: none;">
     <div class="modal-box">
       <div class="modal-header">
-        <span id="modal-title" class="modal-title">Görüntü İnceleme</span>
-        <button class="btn-icon" id="modal-close-btn" title="Kapat">✕</button>
+        <span id="modal-title" class="modal-title" data-i18n="modal_preview_title">Görüntü İnceleme</span>
+        <button class="btn-icon" id="modal-close-btn" title="Kapat" data-i18n-title="close">✕</button>
       </div>
       <div class="modal-body">
         <img id="modal-img" class="modal-image" alt="Preview">

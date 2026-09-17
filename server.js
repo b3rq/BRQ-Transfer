@@ -105,8 +105,21 @@ const AAPT_BIN = findBinary('aapt.exe', 'build-tools');
 console.log('ADB:', ADB_BIN);
 console.log('AAPT:', AAPT_BIN);
 
-// In-Memory APK list
+// In-Memory APK list & Universal File Transfers
 let apkList = [];
+let transfersList = [];
+
+function getTargetAndroidDir(filename) {
+    const ext = path.extname(filename).toLowerCase();
+    const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.heic', '.heif'];
+    const videoExts = ['.mp4', '.mkv', '.mov', '.avi', '.webm', '.3gp', '.flv', '.m4v', '.ts'];
+    const audioExts = ['.mp3', '.wav', '.ogg', '.flac', '.m4a', '.aac', '.opus', '.wma', '.mid'];
+
+    if (imageExts.includes(ext)) return { dir: '/sdcard/Pictures', category: 'image', isMedia: true };
+    if (videoExts.includes(ext)) return { dir: '/sdcard/Movies', category: 'video', isMedia: true };
+    if (audioExts.includes(ext)) return { dir: '/sdcard/Music', category: 'audio', isMedia: true };
+    return { dir: '/sdcard/Download', category: 'document', isMedia: false };
+}
 
 function formatBytes(bytes, decimals = 2) {
     if (!+bytes) return '0 Bytes';
@@ -585,9 +598,10 @@ let activeScreenStreamWs = null;
 function stopScreenStream() {
     if (screenStreamProcess) {
         console.log('[Screen Stream]: Durduruluyor PID:', screenStreamProcess.pid);
+        const pid = screenStreamProcess.pid;
         try {
             if (process.platform === 'win32') {
-                exec(`taskkill /pid ${screenStreamProcess.pid} /T /F`, () => {});
+                exec(`taskkill /pid ${pid} /T /F`, () => {});
             } else {
                 screenStreamProcess.kill();
             }
@@ -596,55 +610,65 @@ function stopScreenStream() {
         activeScreenStreamWs = null;
         broadcast({ type: 'SCREEN_STREAM_STATUS', running: false });
     }
+    const targetDevice = config.selectedAdbDevice;
+    if (targetDevice) {
+        exec(`"${ADB_BIN}" -s ${targetDevice} shell "pkill -9 -f screenrecord || true"`, () => {});
+    }
 }
 
 function startScreenStream(targetWs, deviceId) {
-    stopScreenStream();
-
     const targetDevice = deviceId || config.selectedAdbDevice;
     if (!targetDevice) return;
 
-    activeScreenStreamWs = targetWs;
+    stopScreenStream();
+
     const targetArg = targetDevice ? ['-s', targetDevice] : [];
-    const args = [
-        ...targetArg,
-        'exec-out',
-        'screenrecord',
-        '--output-format=h264',
-        '--size', '720x1520',
-        '--bit-rate', '6000000',
-        '--time-limit', '180',
-        '-'
-    ];
+    // Ensure any stuck or lingering screenrecord on the phone is killed first
+    exec(`"${ADB_BIN}" ${targetArg.join(' ')} shell "pkill -9 -f screenrecord || true"`, () => {
+        activeScreenStreamWs = targetWs;
+        const args = [
+            ...targetArg,
+            'exec-out',
+            'screenrecord',
+            '--output-format=h264',
+            '--size', '720x1520',
+            '--bit-rate', '6000000',
+            '--time-limit', '180',
+            '-'
+        ];
 
-    console.log('[Screen Stream H264]: Başlatılıyor:', ADB_BIN, args.join(' '));
-    screenStreamProcess = spawn(ADB_BIN, args);
+        console.log('[Screen Stream H264]: Başlatılıyor:', ADB_BIN, args.join(' '));
+        screenStreamProcess = spawn(ADB_BIN, args);
 
-    broadcast({ type: 'SCREEN_STREAM_STATUS', running: true });
+        // Immediately poke the display so hardware encoder emits the initial IDR keyframe without waiting
+        exec(`"${ADB_BIN}" ${targetArg.join(' ')} shell "input keyevent 224; input tap 1 1"`, () => {});
 
-    screenStreamProcess.stdout.on('data', (chunk) => {
-        if (targetWs && targetWs.readyState === WebSocket.OPEN) {
-            targetWs.send(chunk);
-        }
-    });
+        broadcast({ type: 'SCREEN_STREAM_STATUS', running: true });
 
-    screenStreamProcess.stderr.on('data', (errChunk) => {
-        console.error('[Screen Stream stderr]:', errChunk.toString('utf8').trim());
-    });
+        screenStreamProcess.stdout.on('data', (chunk) => {
+            if (targetWs && targetWs.readyState === WebSocket.OPEN) {
+                targetWs.send(chunk);
+            }
+        });
 
-    screenStreamProcess.on('close', (code) => {
-        console.log('[Screen Stream]: Kapandı, kod:', code);
-        if (screenStreamProcess && targetWs && targetWs.readyState === WebSocket.OPEN) {
-            setTimeout(() => {
-                if (targetWs && targetWs.readyState === WebSocket.OPEN && screenStreamProcess) {
-                    startScreenStream(targetWs, targetDevice);
-                }
-            }, 100);
-        } else {
-            screenStreamProcess = null;
-            activeScreenStreamWs = null;
-            broadcast({ type: 'SCREEN_STREAM_STATUS', running: false });
-        }
+        screenStreamProcess.stderr.on('data', (errChunk) => {
+            console.error('[Screen Stream stderr]:', errChunk.toString('utf8').trim());
+        });
+
+        screenStreamProcess.on('close', (code) => {
+            console.log('[Screen Stream]: Kapandı, kod:', code);
+            if (screenStreamProcess && targetWs && targetWs.readyState === WebSocket.OPEN) {
+                setTimeout(() => {
+                    if (targetWs && targetWs.readyState === WebSocket.OPEN && screenStreamProcess) {
+                        startScreenStream(targetWs, targetDevice);
+                    }
+                }, 100);
+            } else {
+                screenStreamProcess = null;
+                activeScreenStreamWs = null;
+                broadcast({ type: 'SCREEN_STREAM_STATUS', running: false });
+            }
+        });
     });
 }
 
@@ -653,6 +677,7 @@ wss.on('connection', async (ws) => {
     ws.send(JSON.stringify({
         type: 'INIT',
         apks: apkList,
+        transfers: transfersList,
         devices: devices,
         config: config,
         localIp: getPrimaryIp(),
@@ -727,12 +752,67 @@ app.get('/api/apks', (req, res) => {
     res.json(apkList);
 });
 
-app.post('/api/upload', upload.single('apk'), async (req, res) => {
-    if (!req.file) {
+app.get('/api/transfers', (req, res) => {
+    res.json(transfersList);
+});
+
+app.post('/api/upload', upload.any(), async (req, res) => {
+    const file = req.files && req.files[0] ? req.files[0] : req.file;
+    if (!file) {
         return res.status(400).json({ error: 'Dosya yüklenemedi' });
     }
-    const item = await registerApk(req.file.path, 'drag-drop');
-    res.json({ success: true, apk: item });
+
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (ext === '.apk') {
+        const item = await registerApk(file.path, 'drag-drop');
+        return res.json({ success: true, isApk: true, apk: item });
+    }
+
+    // Universal file transfer (images, videos, audio, documents, archives)
+    const meta = getTargetAndroidDir(file.originalname);
+    const devices = await getAdbDevices();
+    const targetDevice = (req.body && req.body.deviceId) || config.selectedAdbDevice || (devices.length > 0 ? devices[0].id : null);
+
+    const record = {
+        id: Date.now(),
+        filename: file.originalname,
+        size: formatBytes(file.size),
+        category: meta.category,
+        targetDir: meta.dir,
+        remotePath: `${meta.dir}/${file.originalname}`,
+        deviceId: targetDevice,
+        timestamp: new Date().toLocaleTimeString(),
+        status: targetDevice ? 'transferring' : 'saved'
+    };
+
+    if (targetDevice) {
+        const targetArg = `-s ${targetDevice}`;
+        const escapedLocal = file.path.replace(/\\/g, '/');
+        const remoteDest = `${meta.dir}/${file.originalname}`;
+
+        exec(`"${ADB_BIN}" ${targetArg} push "${escapedLocal}" "${remoteDest}"`, (pushErr) => {
+            if (pushErr) {
+                console.error('[Universal Transfer Error]:', pushErr.message);
+                record.status = 'error';
+                record.error = pushErr.message;
+            } else {
+                record.status = 'transferred';
+                console.log(`[Universal Transfer]: ${file.originalname} -> ${remoteDest}`);
+                if (meta.isMedia) {
+                    exec(`"${ADB_BIN}" ${targetArg} shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d "file://${remoteDest}"`, () => {});
+                }
+            }
+            transfersList.unshift(record);
+            if (transfersList.length > 60) transfersList.pop();
+            broadcast({ type: 'TRANSFER_COMPLETED', transfer: record, transfers: transfersList });
+        });
+        return res.json({ success: true, isApk: false, transfer: record });
+    } else {
+        transfersList.unshift(record);
+        if (transfersList.length > 60) transfersList.pop();
+        broadcast({ type: 'TRANSFER_SAVED', transfer: record, transfers: transfersList });
+        return res.json({ success: true, isApk: false, transfer: record });
+    }
 });
 
 app.post('/api/config', (req, res) => {
@@ -910,7 +990,7 @@ app.get('/api/adb/display-size', (req, res) => {
         if (match) {
             res.json({ width: parseInt(match[1]), height: parseInt(match[2]) });
         } else {
-            res.json({ width: 1440, height: 3040 });
+            res.json({ width: 1080, height: 2400 });
         }
     });
 });
