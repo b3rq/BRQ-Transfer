@@ -692,13 +692,14 @@ function initJMuxer() {
     jmuxerInstance = new JMuxer({
         node: 'screen-video',
         mode: 'video',
-        flushingTime: 10,
-        maxDelay: 100,
+        flushingTime: 0,
+        maxDelay: 5000,
         fps: 60,
         clearBuffer: true,
         debug: false
     });
     if (screenVideo) {
+        screenVideo.playbackRate = 1.0;
         screenVideo.play().catch(() => {});
     }
 }
@@ -743,6 +744,18 @@ function stopWebScreenStream() {
         screenStreamStatusBadge.textContent = i18n[currentLang].idle;
         screenStreamStatusBadge.style.color = 'var(--text-tertiary)';
     }
+
+    if (screenVideo) {
+        try {
+            screenVideo.pause();
+            screenVideo.removeAttribute('src');
+            screenVideo.load();
+        } catch (e) {}
+        screenVideo.style.display = 'none';
+    }
+    if (screenshotStaticImg) screenshotStaticImg.style.display = 'none';
+    if (screenEmptyPlaceholder) screenEmptyPlaceholder.style.display = 'flex';
+    if (remoteBar) remoteBar.style.display = 'none';
 
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ action: 'STOP_SCREEN_STREAM' }));
@@ -823,6 +836,23 @@ screenVideo.oncontextmenu = (e) => {
     sendRemoteKey(4);
     showToast(i18n[currentLang].toast_back_sent, 'var(--accent)', 1200);
 };
+
+if (screenVideo) {
+    screenVideo.addEventListener('stalled', () => {
+        if (isWebStreaming && screenVideo.buffered && screenVideo.buffered.length > 0) {
+            const bufEnd = screenVideo.buffered.end(screenVideo.buffered.length - 1);
+            if (bufEnd - screenVideo.currentTime > 0.05) {
+                screenVideo.currentTime = bufEnd - 0.01;
+            }
+            screenVideo.play().catch(() => {});
+        }
+    });
+    screenVideo.addEventListener('waiting', () => {
+        if (isWebStreaming && screenVideo.buffered && screenVideo.buffered.length > 0) {
+            screenVideo.play().catch(() => {});
+        }
+    });
+}
 
 // ==========================================
 // 📸 CAPTURES GALLERY & SAVE PROMPT
@@ -1012,8 +1042,21 @@ function connectWs() {
         if (event.data instanceof ArrayBuffer) {
             if (jmuxerInstance && isWebStreaming) {
                 jmuxerInstance.feed({ video: new Uint8Array(event.data) });
-                if (screenVideo && screenVideo.paused) {
-                    screenVideo.play().catch(() => {});
+                if (screenVideo) {
+                    if (screenVideo.paused) {
+                        screenVideo.play().catch(() => {});
+                    }
+                    if (screenVideo.buffered && screenVideo.buffered.length > 0) {
+                        const bufEnd = screenVideo.buffered.end(screenVideo.buffered.length - 1);
+                        const lag = bufEnd - screenVideo.currentTime;
+                        if (lag > 0.25) {
+                            screenVideo.playbackRate = 1.25;
+                        } else if (lag > 0.10) {
+                            screenVideo.playbackRate = 1.10;
+                        } else {
+                            screenVideo.playbackRate = 1.0;
+                        }
+                    }
                 }
             }
             return;
@@ -1031,8 +1074,8 @@ function connectWs() {
             if (data.config) {
                 watchFolderInput.value = data.config.watchFolder || '';
                 currentWatchLabel.textContent = data.config.watchFolder || i18n[currentLang].default_watch_folder;
-                autoAdbCheckbox.checked = !!data.config.autoInstallOnAdb;
-                autoLaunchCheckbox.checked = data.config.autoLaunchAfterInstall !== false;
+                if (autoAdbCheckbox) autoAdbCheckbox.checked = !!data.config.autoInstallOnAdb;
+                if (autoLaunchCheckbox) autoLaunchCheckbox.checked = data.config.autoLaunchAfterInstall !== false;
                 selectedDevice = data.config.selectedAdbDevice || '';
             }
             if (data.pairingSession && adbQrImg) {
@@ -1334,11 +1377,15 @@ window.stopApp = async (packageName) => {
 window.sendRemoteKey = async (keyCode) => {
     const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
     if (!target) return;
-    fetch('/api/adb/key', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deviceId: target, keyCode })
-    });
+    try {
+        await fetch('/api/adb/key', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ deviceId: target, keyCode, code: keyCode })
+        });
+    } catch (e) {
+        console.error('Remote key error:', e);
+    }
 };
 
 // Settings Save
@@ -1350,8 +1397,8 @@ saveWatchBtn.onclick = async () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             watchFolder,
-            autoInstallOnAdb: autoAdbCheckbox.checked,
-            autoLaunchAfterInstall: autoLaunchCheckbox.checked
+            autoInstallOnAdb: autoAdbCheckbox ? autoAdbCheckbox.checked : false,
+            autoLaunchAfterInstall: autoLaunchCheckbox ? autoLaunchCheckbox.checked : true
         })
     });
     const data = await res.json();
@@ -1363,8 +1410,8 @@ saveWatchBtn.onclick = async () => {
     }
 };
 
-autoAdbCheckbox.onchange = saveSettings;
-autoLaunchCheckbox.onchange = saveSettings;
+if (autoAdbCheckbox) autoAdbCheckbox.onchange = saveSettings;
+if (autoLaunchCheckbox) autoLaunchCheckbox.onchange = saveSettings;
 
 async function saveSettings() {
     await fetch('/api/config', {
@@ -1372,8 +1419,8 @@ async function saveSettings() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             watchFolder: watchFolderInput.value.trim(),
-            autoInstallOnAdb: autoAdbCheckbox.checked,
-            autoLaunchAfterInstall: autoLaunchCheckbox.checked,
+            autoInstallOnAdb: autoAdbCheckbox ? autoAdbCheckbox.checked : false,
+            autoLaunchAfterInstall: autoLaunchCheckbox ? autoLaunchCheckbox.checked : true,
             selectedAdbDevice: selectedDevice
         })
     });
