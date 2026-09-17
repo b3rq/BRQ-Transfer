@@ -63,6 +63,7 @@ function waitForServer(url, timeout = 10000) {
 }
 
 async function createWindow() {
+    const icoPath = path.join(__dirname, 'public', 'icon.ico');
     const iconPath = path.join(__dirname, 'public', 'icon.png');
 
     const winOpts = {
@@ -81,7 +82,9 @@ async function createWindow() {
         }
     };
 
-    if (fs.existsSync(iconPath)) {
+    if (fs.existsSync(icoPath)) {
+        winOpts.icon = icoPath;
+    } else if (fs.existsSync(iconPath)) {
         winOpts.icon = iconPath;
     }
 
