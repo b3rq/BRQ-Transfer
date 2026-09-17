@@ -328,6 +328,7 @@ let touchStartX = 0;
 let touchStartY = 0;
 let lastPairedIp = '192.168.137.74';
 let capturedScreenshots = [];
+let currentPairingSession = null;
 
 // DOM References
 const langToggleBtn = document.getElementById('lang-toggle-btn');
@@ -522,9 +523,6 @@ if (langToggleBtn) {
     };
 }
 
-// Apply initial language from localStorage
-setLanguage(currentLang);
-
 // --- Theme Controller ---
 function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
@@ -603,8 +601,6 @@ document.querySelectorAll('.nav-item, .tab-btn').forEach(btn => {
 });
 
 // --- ADB QR & Pairing ---
-let currentPairingSession = null;
-
 function updatePairStatusBadge() {
     if (!adbPairStatusBadge) return;
     const dict = i18n[currentLang];
