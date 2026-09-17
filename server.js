@@ -123,7 +123,7 @@ function extractApkMetadata(apkPath) {
         exec(`"${AAPT_BIN}" dump badging "${apkPath}"`, { maxBuffer: 1024 * 1024 * 5 }, (err, stdout) => {
             if (err || !stdout) {
                 return resolve({
-                    packageName: 'com.game.unity',
+                    packageName: 'com.app.android',
                     versionName: '1.0',
                     versionCode: '1',
                     label: path.basename(apkPath).replace(/\.apk$/i, ''),
@@ -140,7 +140,7 @@ function extractApkMetadata(apkPath) {
             const activityMatch = stdout.match(/launchable-activity:\s*name='([^']+)'/);
 
             resolve({
-                packageName: pkgMatch ? pkgMatch[1] : 'com.game.unity',
+                packageName: pkgMatch ? pkgMatch[1] : 'com.app.android',
                 versionCode: pkgMatch ? pkgMatch[2] : '1',
                 versionName: pkgMatch ? pkgMatch[3] : '1.0',
                 label: labelMatch ? labelMatch[1] : path.basename(apkPath).replace(/\.apk$/i, ''),
@@ -186,7 +186,7 @@ async function registerApk(filePath, source = 'drop') {
         apkList.unshift(apkItem);
         if (apkList.length > 50) apkList = apkList.slice(0, 50);
 
-        console.log(`[Yeni APK]: ${meta.label} (${fileName}) v${meta.versionName} (${apkItem.size}) [Kaynak: ${source}]`);
+        console.log(`[Yeni APK]: ${meta.label} (${fileName}) v${meta.versionName} (${apkItem.size})`);
         broadcast({
             type: 'NEW_APK',
             apk: apkItem,
@@ -245,13 +245,13 @@ function setupWatcher(targetDir) {
 
     currentWatcher.on('add', filePath => {
         if (filePath.toLowerCase().endsWith('.apk')) {
-            registerApk(filePath, 'unity-watcher');
+            registerApk(filePath, 'folder-watcher');
         }
     });
 
     currentWatcher.on('change', filePath => {
         if (filePath.toLowerCase().endsWith('.apk')) {
-            registerApk(filePath, 'unity-watcher');
+            registerApk(filePath, 'folder-watcher');
         }
     });
 }
@@ -481,7 +481,7 @@ async function runPairingLoop(session) {
     }
 }
 
-// WebSocket broadcast & Logcat streaming
+// Re-engineered Logcat streamer with bulletproof termination
 let activeLogcatProcess = null;
 
 function broadcast(data) {
@@ -490,6 +490,61 @@ function broadcast(data) {
         if (client.readyState === WebSocket.OPEN) {
             client.send(payload);
         }
+    });
+}
+
+function stopLogcatStream() {
+    if (activeLogcatProcess) {
+        console.log('[Logcat]: Süreç durduruluyor PID:', activeLogcatProcess.pid);
+        try {
+            if (process.platform === 'win32') {
+                exec(`taskkill /pid ${activeLogcatProcess.pid} /T /F`, () => {});
+            } else {
+                activeLogcatProcess.kill('SIGKILL');
+            }
+        } catch (e) {
+            console.error('Logcat stop error:', e.message);
+        }
+        activeLogcatProcess = null;
+        broadcast({ type: 'LOGCAT_STOPPED' });
+    }
+}
+
+function startLogcatStream(deviceId, filter = '', level = '') {
+    stopLogcatStream();
+
+    const targetArg = deviceId ? ['-s', deviceId] : [];
+    // -v threadtime produces: 09-17 23:45:12.123  1234  5678 I Tag: Message
+    const args = [...targetArg, 'logcat', '-v', 'threadtime'];
+    console.log('[Logcat]: Başlatılıyor:', ADB_BIN, args.join(' '));
+
+    activeLogcatProcess = spawn(ADB_BIN, args);
+    broadcast({ type: 'LOGCAT_STARTED' });
+
+    activeLogcatProcess.stdout.on('data', (chunk) => {
+        const text = chunk.toString('utf8');
+        const lines = text.split('\n');
+        for (const rawLine of lines) {
+            const line = rawLine.trim();
+            if (!line) continue;
+
+            // Optional server-side filter
+            if (filter && !line.toLowerCase().includes(filter.toLowerCase())) continue;
+
+            broadcast({
+                type: 'LOGCAT_LINE',
+                line: line
+            });
+        }
+    });
+
+    activeLogcatProcess.stderr.on('data', (chunk) => {
+        broadcast({ type: 'LOGCAT_LINE', line: `[ADB-STDERR] ${chunk.toString('utf8').trim()}` });
+    });
+
+    activeLogcatProcess.on('close', () => {
+        console.log('[Logcat]: Kapandı');
+        broadcast({ type: 'LOGCAT_STOPPED' });
     });
 }
 
@@ -503,6 +558,7 @@ wss.on('connection', async (ws) => {
         localIp: getPrimaryIp(),
         availableIps: getAllLocalIps(),
         port: PORT,
+        isLogcatRunning: !!activeLogcatProcess,
         pairingSession: currentPairingSession ? {
             qrDataUrl: currentPairingSession.qrDataUrl,
             status: currentPairingSession.status,
@@ -514,53 +570,20 @@ wss.on('connection', async (ws) => {
         try {
             const data = JSON.parse(message);
             if (data.action === 'START_LOGCAT') {
-                startLogcatStream(data.deviceId, data.filter || '');
+                startLogcatStream(data.deviceId, data.filter || '', data.level || '');
             } else if (data.action === 'STOP_LOGCAT') {
                 stopLogcatStream();
             } else if (data.action === 'CLEAR_LOGCAT') {
                 const targetArg = data.deviceId ? `-s ${data.deviceId}` : '';
-                exec(`"${ADB_BIN}" ${targetArg} logcat -c`);
+                exec(`"${ADB_BIN}" ${targetArg} logcat -c`, () => {
+                    broadcast({ type: 'LOGCAT_CLEARED' });
+                });
             }
         } catch (e) {
-            console.error('WS message parse error:', e);
+            console.error('WS message error:', e);
         }
     });
 });
-
-function startLogcatStream(deviceId, filter) {
-    stopLogcatStream();
-    const targetArg = deviceId ? ['-s', deviceId] : [];
-    const args = [...targetArg, 'logcat', '-v', 'time'];
-    activeLogcatProcess = spawn(ADB_BIN, args);
-
-    activeLogcatProcess.stdout.on('data', (chunk) => {
-        const text = chunk.toString('utf8');
-        const lines = text.split('\n');
-        for (const line of lines) {
-            if (!line.trim()) continue;
-            if (filter && !line.toLowerCase().includes(filter.toLowerCase())) continue;
-            broadcast({
-                type: 'LOGCAT_LINE',
-                line: line.trim()
-            });
-        }
-    });
-
-    activeLogcatProcess.stderr.on('data', (chunk) => {
-        broadcast({ type: 'LOGCAT_LINE', line: `[STDERR] ${chunk.toString('utf8').trim()}` });
-    });
-
-    activeLogcatProcess.on('close', () => {
-        broadcast({ type: 'LOGCAT_STOPPED' });
-    });
-}
-
-function stopLogcatStream() {
-    if (activeLogcatProcess) {
-        try { activeLogcatProcess.kill(); } catch (e) {}
-        activeLogcatProcess = null;
-    }
-}
 
 // Middleware
 app.use(cors());
@@ -583,7 +606,8 @@ app.get('/api/status', async (req, res) => {
         port: PORT,
         devices,
         config,
-        apkCount: apkList.length
+        apkCount: apkList.length,
+        isLogcatRunning: !!activeLogcatProcess
     });
 });
 
@@ -596,16 +620,6 @@ app.post('/api/upload', upload.single('apk'), async (req, res) => {
         return res.status(400).json({ error: 'Dosya yüklenemedi' });
     }
     const item = await registerApk(req.file.path, 'drag-drop');
-    res.json({ success: true, apk: item });
-});
-
-app.post('/api/unity-build-done', async (req, res) => {
-    const { apkPath } = req.body;
-    if (!apkPath || !fs.existsSync(apkPath)) {
-        return res.status(400).json({ error: 'Geçersiz APK yolu' });
-    }
-    console.log('[Unity Webhook]: Yeni build tamamlandı:', apkPath);
-    const item = await registerApk(apkPath, 'unity-build-hook');
     res.json({ success: true, apk: item });
 });
 
@@ -681,6 +695,21 @@ app.post('/api/adb/connect', async (req, res) => {
     }
 });
 
+// Disconnect / Remove Device
+app.post('/api/adb/disconnect', async (req, res) => {
+    const { deviceId } = req.body;
+    if (!deviceId) return res.status(400).json({ error: 'Cihaz ID gerekli' });
+    exec(`"${ADB_BIN}" disconnect ${deviceId}`, async (err, stdout, stderr) => {
+        const devices = await getAdbDevices();
+        if (config.selectedAdbDevice === deviceId) {
+            config.selectedAdbDevice = devices.length > 0 ? devices[0].id : '';
+            saveConfig();
+        }
+        broadcast({ type: 'DEVICES_UPDATED', devices });
+        res.json({ success: true, message: `${deviceId} bağlantısı sonlandırıldı`, devices });
+    });
+});
+
 app.post('/api/adb/pair', async (req, res) => {
     const { ip, port, code } = req.body;
     if (!ip || !port || !code) return res.status(400).json({ error: 'IP, Port ve Eşleşme kodu gereklidir' });
@@ -724,17 +753,24 @@ app.post('/api/adb/uninstall', (req, res) => {
     });
 });
 
+// Remote Key Events (Back=4, Home=3, AppSwitch=187, Power=26)
+app.post('/api/adb/keyevent', (req, res) => {
+    const { deviceId, code } = req.body;
+    const targetArg = deviceId ? `-s ${deviceId}` : '';
+    exec(`"${ADB_BIN}" ${targetArg} shell input keyevent ${code}`, (err) => {
+        res.json({ success: !err });
+    });
+});
+
 app.get('/api/adb/screenshot', (req, res) => {
     const { deviceId } = req.query;
     const targetArg = deviceId ? ['-s', deviceId] : [];
     const proc = spawn(ADB_BIN, [...targetArg, 'exec-out', 'screencap', '-p']);
 
     res.setHeader('Content-Type', 'image/png');
-    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     proc.stdout.pipe(res);
-    proc.stderr.on('data', (chunk) => {
-        console.error('Screenshot error:', chunk.toString());
-    });
+    proc.stderr.on('data', () => {});
 });
 
 app.get('/download/:id', (req, res) => {
@@ -754,7 +790,7 @@ app.get('/download-companion', (req, res) => {
         return res.status(404).send('Companion APK bulunamadı');
     }
     res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-    res.setHeader('Content-Disposition', 'attachment; filename="UnityCompanion.apk"');
+    res.setHeader('Content-Disposition', 'attachment; filename="ApkDropCompanion.apk"');
     const stream = fs.createReadStream(companionPath);
     stream.pipe(res);
 });
@@ -782,13 +818,13 @@ app.get('/api/qr', async (req, res) => {
 server.listen(PORT, '0.0.0.0', () => {
     const ip = getPrimaryIp();
     console.log('==================================================');
-    console.log(`🚀 UnityDrop Hub & Wireless ADB V2`);
+    console.log(`🚀 ApkDrop Hub & Wireless ADB V3`);
     console.log(`💻 PC Yönetim Paneli : http://localhost:${PORT}`);
     console.log(`📱 Telefon Linki    : http://${ip}:${PORT}/mobile`);
     console.log(`📂 İzlenen Klasör   : ${config.watchFolder}`);
     console.log('==================================================');
 
     setupWatcher(config.watchFolder);
-    scanFolder(config.watchFolder, 'unity-watcher');
+    scanFolder(config.watchFolder, 'folder-watcher');
     scanFolder(UPLOADS_DIR, 'upload');
 });
