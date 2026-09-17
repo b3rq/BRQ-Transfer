@@ -284,9 +284,34 @@ function setupWatcher(targetDir) {
 }
 
 // ADB Management functions
+function getAdbBattery(deviceId) {
+    return new Promise((resolve) => {
+        if (!deviceId) return resolve(null);
+        exec(`"${ADB_BIN}" -s ${deviceId} shell dumpsys battery`, { timeout: 2500 }, (err, stdout) => {
+            if (err || !stdout) return resolve(null);
+            const levelMatch = stdout.match(/level:\s*(\d+)/i);
+            const scaleMatch = stdout.match(/scale:\s*(\d+)/i);
+            const acMatch = stdout.match(/AC powered:\s*true/i);
+            const usbMatch = stdout.match(/USB powered:\s*true/i);
+            const wirelessMatch = stdout.match(/Wireless powered:\s*true/i);
+            const statusMatch = stdout.match(/status:\s*(\d+)/i);
+
+            const level = levelMatch ? parseInt(levelMatch[1], 10) : 0;
+            const scale = scaleMatch ? parseInt(scaleMatch[1], 10) : 100;
+            const percentage = scale > 0 ? Math.round((level / scale) * 100) : level;
+            const isCharging = !!(acMatch || usbMatch || wirelessMatch || (statusMatch && parseInt(statusMatch[1], 10) === 2));
+
+            resolve({
+                level: percentage,
+                isCharging
+            });
+        });
+    });
+}
+
 function getAdbDevices() {
     return new Promise((resolve) => {
-        exec(`"${ADB_BIN}" devices -l`, (err, stdout, stderr) => {
+        exec(`"${ADB_BIN}" devices -l`, async (err, stdout, stderr) => {
             if (err) {
                 console.error('ADB devices error:', stderr || err.message);
                 return resolve([]);
@@ -307,6 +332,15 @@ function getAdbDevices() {
                     devices.push({ id, state, model, isWifi });
                 }
             }
+
+            try {
+                await Promise.all(devices.map(async (d) => {
+                    if (d.state === 'device') {
+                        d.battery = await getAdbBattery(d.id);
+                    }
+                }));
+            } catch (e) {}
+
             resolve(devices);
         });
     });
@@ -1164,6 +1198,101 @@ app.post('/api/adb/scrcpy/stop', (req, res) => {
 
 app.get('/api/adb/scrcpy/status', (req, res) => {
     res.json({ running: !!activeScrcpyProcess });
+});
+
+// Battery Info API
+app.get('/api/adb/battery', async (req, res) => {
+    const deviceId = req.query.deviceId || config.selectedAdbDevice;
+    if (!deviceId) return res.json({ success: false, battery: null });
+    const battery = await getAdbBattery(deviceId);
+    res.json({ success: true, battery });
+});
+
+// Two-Way Clipboard Synchronization
+let activeClipboardProcess = null;
+let activeClipboardDevice = null;
+
+function stopClipboardSync() {
+    if (activeClipboardProcess) {
+        try {
+            activeClipboardProcess.kill();
+        } catch (e) {}
+        activeClipboardProcess = null;
+        activeClipboardDevice = null;
+    }
+    broadcast({ type: 'CLIPBOARD_SYNC_STATUS', active: false });
+}
+
+function startClipboardSync(deviceId) {
+    if (!deviceId || !fs.existsSync(SCRCPY_BIN)) return false;
+    stopClipboardSync();
+
+    try {
+        console.log(`[Clipboard Sync]: Başlatılıyor -> ${deviceId}`);
+        activeClipboardProcess = spawn(SCRCPY_BIN, [
+            '-s', deviceId,
+            '--no-video',
+            '--no-audio',
+            '--no-window'
+        ], {
+            windowsHide: true,
+            stdio: ['ignore', 'ignore', 'pipe']
+        });
+
+        activeClipboardDevice = deviceId;
+
+        activeClipboardProcess.stderr.on('data', (data) => {
+            const msg = data.toString();
+            if (msg.includes('ERROR') || msg.includes('Aborted')) {
+                console.warn('[Clipboard Sync]:', msg.trim());
+            }
+        });
+
+        activeClipboardProcess.on('exit', (code) => {
+            console.log(`[Clipboard Sync]: Durdu (kod: ${code})`);
+            activeClipboardProcess = null;
+            activeClipboardDevice = null;
+            broadcast({ type: 'CLIPBOARD_SYNC_STATUS', active: false });
+        });
+
+        broadcast({ type: 'CLIPBOARD_SYNC_STATUS', active: true, deviceId });
+        return true;
+    } catch (err) {
+        console.error('[Clipboard Sync Error]:', err.message);
+        return false;
+    }
+}
+
+app.post('/api/clipboard/sync/start', (req, res) => {
+    const { deviceId } = req.body;
+    const target = deviceId || config.selectedAdbDevice;
+    if (!target) return res.status(400).json({ error: 'Bağlı cihaz bulunamadı' });
+    const success = startClipboardSync(target);
+    res.json({ success, active: !!activeClipboardProcess, deviceId: target });
+});
+
+app.post('/api/clipboard/sync/stop', (req, res) => {
+    stopClipboardSync();
+    res.json({ success: true, active: false });
+});
+
+app.get('/api/clipboard/sync/status', (req, res) => {
+    res.json({ active: !!activeClipboardProcess, deviceId: activeClipboardDevice });
+});
+
+app.post('/api/clipboard/send-text', (req, res) => {
+    const { text, deviceId } = req.body;
+    const target = deviceId || config.selectedAdbDevice;
+    if (!target) return res.status(400).json({ error: 'Bağlı cihaz bulunamadı' });
+    if (!text) return res.status(400).json({ error: 'Metin gerekli' });
+
+    const safeText = text.replace(/ /g, '%s').replace(/"/g, '\\"');
+    exec(`"${ADB_BIN}" -s ${target} shell input text "${safeText}"`, (err) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.json({ success: true });
+    });
 });
 
 app.get('/download/:id', (req, res) => {

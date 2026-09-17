@@ -14,6 +14,9 @@ const i18n = {
         // Topbar
         brand_slogan: "Kablolar için fazla üşengeç",
         no_device: "Bağlı Cihaz Yok",
+        clipboard_sync: "Pano Eşitleme (PC ↔ Telefon)",
+        battery_title: "Cihaz Bataryası",
+        charging: "Şarj Oluyor",
         sound_on: "Ses Açık",
         sound_off: "Ses Kapalı",
         sound_title: "Sesli bildirimleri aç/kapat",
@@ -153,7 +156,10 @@ const i18n = {
         toast_logcat_stopped: "Logcat durduruldu",
         toast_tcpip_switching: "TCP/IP moduna geçiriliyor (5555)...",
         toast_privacy_on: "Gizlilik modu aktif (Bilgiler gizlendi)",
-        toast_privacy_off: "Gizlilik modu kapalı"
+        toast_privacy_off: "Gizlilik modu kapalı",
+        toast_clipboard_started: "Pano eşitleme aktif (PC ↔ Telefon)",
+        toast_clipboard_stopped: "Pano eşitleme durduruldu",
+        toast_connect_first: "Lütfen önce bir cihaz bağlayın"
     },
     en: {
         // Navigation
@@ -165,6 +171,9 @@ const i18n = {
         // Topbar
         brand_slogan: "Too lazy for cables",
         no_device: "No Device",
+        clipboard_sync: "Clipboard Sync (PC ↔ Phone)",
+        battery_title: "Device Battery",
+        charging: "Charging",
         sound_on: "Audio On",
         sound_off: "Audio Off",
         sound_title: "Toggle audio feedback",
@@ -304,7 +313,10 @@ const i18n = {
         toast_logcat_stopped: "Logcat stopped",
         toast_tcpip_switching: "Switching to TCP/IP (5555)...",
         toast_privacy_on: "Privacy mode enabled (Identifiers masked)",
-        toast_privacy_off: "Privacy mode disabled"
+        toast_privacy_off: "Privacy mode disabled",
+        toast_clipboard_started: "Clipboard sync enabled (PC ↔ Phone)",
+        toast_clipboard_stopped: "Clipboard sync stopped",
+        toast_connect_first: "Please connect a device first"
     }
 };
 
@@ -329,6 +341,8 @@ let touchStartY = 0;
 let lastPairedIp = '192.168.137.74';
 let capturedScreenshots = [];
 let currentPairingSession = null;
+let isClipboardSyncActive = false;
+let currentBattery = null;
 
 // DOM References
 const langToggleBtn = document.getElementById('lang-toggle-btn');
@@ -339,6 +353,10 @@ const soundToggleBtn = document.getElementById('sound-toggle-btn');
 const soundStatus = document.getElementById('sound-status');
 const headerDevicePill = document.getElementById('header-device-pill');
 const headerDeviceText = document.getElementById('header-device-text');
+const headerBattery = document.getElementById('header-battery');
+const batteryText = document.getElementById('battery-text');
+const batteryIconSvg = document.getElementById('battery-icon-svg');
+const clipboardToggleBtn = document.getElementById('clipboard-toggle-btn');
 
 const tabBtnApks = document.getElementById('tab-btn-apks');
 const tabBtnTransfers = document.getElementById('tab-btn-transfers');
@@ -514,6 +532,7 @@ function setLanguage(lang) {
     renderDevices();
     renderCapturesList();
     updatePairStatusBadge();
+    updateClipboardSyncUI(isClipboardSyncActive);
 }
 
 if (langToggleBtn) {
@@ -1161,6 +1180,8 @@ function connectWs() {
         } else if (data.type === 'DEVICES_UPDATED') {
             currentDevices = data.devices || [];
             renderDevices();
+        } else if (data.type === 'CLIPBOARD_SYNC_STATUS') {
+            updateClipboardSyncUI(data.active);
         } else if (data.type === 'ADB_PAIR_STATUS') {
             handleAdbPairStatus(data.session);
         } else if (data.type === 'SCREEN_STREAM_STATUS') {
@@ -1316,6 +1337,128 @@ function renderTransfers() {
           </div>
         `;
     }).join('');
+}
+
+// --- Battery Indicator & Header Pill ---
+function updateBatteryUI(battery) {
+    if (!headerBattery || !batteryText) return;
+    if (!battery || battery.level === undefined || battery.level === null) {
+        headerBattery.classList.add('hidden');
+        return;
+    }
+
+    currentBattery = battery;
+    headerBattery.classList.remove('hidden', 'battery-high', 'battery-med', 'battery-low', 'battery-charging');
+
+    const lvl = battery.level;
+    const isChg = !!battery.isCharging;
+
+    if (isChg) {
+        headerBattery.classList.add('battery-charging');
+        batteryText.textContent = `${lvl}% ⚡`;
+        headerBattery.title = `${i18n[currentLang].battery_title}: ${lvl}% (${i18n[currentLang].charging})`;
+    } else {
+        batteryText.textContent = `${lvl}%`;
+        headerBattery.title = `${i18n[currentLang].battery_title}: ${lvl}%`;
+        if (lvl > 50) {
+            headerBattery.classList.add('battery-high');
+        } else if (lvl > 20) {
+            headerBattery.classList.add('battery-med');
+        } else {
+            headerBattery.classList.add('battery-low');
+        }
+    }
+}
+
+function updateHeaderDevicePill() {
+    if (!headerDevicePill || !headerDeviceText) return;
+    const onlineDev = currentDevices.find(d => d.id === selectedDevice) || currentDevices[0];
+    if (onlineDev && onlineDev.state === 'device') {
+        headerDevicePill.classList.add('connected');
+        const displayModel = isPrivacyMode ? maskIdentifier(onlineDev.model) : onlineDev.model;
+        headerDeviceText.textContent = displayModel;
+        headerDevicePill.title = `${onlineDev.model} (${onlineDev.id})`;
+        if (onlineDev.battery) {
+            updateBatteryUI(onlineDev.battery);
+        } else {
+            fetchBattery(onlineDev.id);
+        }
+    } else {
+        headerDevicePill.classList.remove('connected');
+        headerDeviceText.textContent = i18n[currentLang].no_device;
+        headerDevicePill.title = i18n[currentLang].no_device;
+        updateBatteryUI(null);
+    }
+}
+
+async function fetchBattery(deviceId) {
+    const target = deviceId || selectedDevice || (currentDevices[0] && currentDevices[0].id);
+    if (!target) return updateBatteryUI(null);
+    try {
+        const res = await fetch(`/api/adb/battery?deviceId=${encodeURIComponent(target)}`);
+        const data = await res.json();
+        if (data.success && data.battery) {
+            updateBatteryUI(data.battery);
+        }
+    } catch (e) {}
+}
+
+// Periodic Battery Poller (Every 20 seconds)
+setInterval(() => {
+    if (selectedDevice || (currentDevices[0] && currentDevices[0].id)) {
+        fetchBattery();
+    }
+}, 20000);
+
+// --- Two-Way Clipboard Sync Controller ---
+function updateClipboardSyncUI(active) {
+    isClipboardSyncActive = !!active;
+    if (!clipboardToggleBtn) return;
+    if (isClipboardSyncActive) {
+        clipboardToggleBtn.classList.add('active');
+        clipboardToggleBtn.title = `${i18n[currentLang].clipboard_sync} (${i18n[currentLang].active})`;
+    } else {
+        clipboardToggleBtn.classList.remove('active');
+        clipboardToggleBtn.title = i18n[currentLang].clipboard_sync;
+    }
+}
+
+if (clipboardToggleBtn) {
+    clipboardToggleBtn.onclick = async () => {
+        const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
+        if (!target) {
+            showToast(i18n[currentLang].toast_connect_first, 'var(--danger)');
+            return;
+        }
+
+        if (isClipboardSyncActive) {
+            try {
+                await fetch('/api/clipboard/sync/stop', { method: 'POST' });
+                updateClipboardSyncUI(false);
+                showToast(i18n[currentLang].toast_clipboard_stopped);
+            } catch (e) {
+                showToast(e.message, 'var(--danger)');
+            }
+        } else {
+            try {
+                showToast(i18n[currentLang].clipboard_sync + '...');
+                const res = await fetch('/api/clipboard/sync/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ deviceId: target })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    updateClipboardSyncUI(true);
+                    showToast(i18n[currentLang].toast_clipboard_started, 'var(--success)');
+                } else {
+                    showToast(data.error || 'Sync başlatılamadı', 'var(--danger)');
+                }
+            } catch (e) {
+                showToast(e.message, 'var(--danger)');
+            }
+        }
+    };
 }
 
 // Render ADB Devices with active i18n & Privacy Masking
