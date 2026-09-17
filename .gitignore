@@ -6,3 +6,4 @@ android-companion/build/
 .DS_Store
 Thumbs.db
 config.json
+tools/
