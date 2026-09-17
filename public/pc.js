@@ -1,3 +1,7 @@
+// ==========================================================================
+// ApkDrop Engineering Console - Client Controller
+// ==========================================================================
+
 // State
 let ws = null;
 let currentApks = [];
@@ -14,7 +18,7 @@ let touchStartX = 0;
 let touchStartY = 0;
 let lastPairedIp = '192.168.137.74';
 
-// Theme Manager (Dark / Light)
+// Theme Controller (Dark / Light)
 const themeToggleBtn = document.getElementById('theme-toggle-btn');
 const themeIcon = document.getElementById('theme-icon');
 const themeLabel = document.getElementById('theme-label');
@@ -22,18 +26,8 @@ const themeLabel = document.getElementById('theme-label');
 function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('apkdrop_theme', theme);
-    if (themeIcon && themeLabel) {
-        if (theme === 'light') {
-            themeIcon.textContent = '🌙';
-            themeLabel.textContent = 'Karanlık Mod';
-        } else {
-            themeIcon.textContent = '☀️';
-            themeLabel.textContent = 'Aydınlık Mod';
-        }
-    }
 }
 
-// Initial theme: saved preference or dark
 const initialTheme = localStorage.getItem('apkdrop_theme') || 'dark';
 applyTheme(initialTheme);
 
@@ -74,7 +68,7 @@ const adbConnectBtn = document.getElementById('adb-connect-btn');
 const tcpipBtn = document.getElementById('tcpip-btn');
 const refreshDevicesBtn = document.getElementById('refresh-devices-btn');
 
-// In-Browser Screen Stream Elements
+// Mirror Elements
 const screenVideo = document.getElementById('screen-video');
 const screenshotStaticImg = document.getElementById('screenshot-static-img');
 const screenEmptyPlaceholder = document.getElementById('screen-empty-placeholder');
@@ -83,6 +77,7 @@ const stopWebStreamBtn = document.getElementById('stop-web-stream-btn');
 const snapScreenshotBtn = document.getElementById('snap-screenshot-btn');
 const saveScreenshotAsBtn = document.getElementById('save-screenshot-as-btn');
 const screenStreamStatusBadge = document.getElementById('screen-stream-status-badge');
+const streamDot = document.getElementById('stream-dot');
 const remoteBar = document.getElementById('remote-bar');
 
 // Logcat Elements
@@ -102,7 +97,6 @@ const toast = document.getElementById('toast');
 const soundToggleBtn = document.getElementById('sound-toggle-btn');
 const soundStatus = document.getElementById('sound-status');
 
-// Chime generator
 function playChime() {
     if (!isSoundEnabled) return;
     try {
@@ -114,17 +108,18 @@ function playChime() {
         const now = ctx.currentTime;
         osc.type = 'sine';
         osc.frequency.setValueAtTime(587.33, now);
-        osc.frequency.exponentialRampToValueAtTime(880.00, now + 0.15);
-        gain.gain.setValueAtTime(0.2, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+        osc.frequency.exponentialRampToValueAtTime(880.00, now + 0.12);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.start(now);
-        osc.stop(now + 0.5);
+        osc.stop(now + 0.35);
     } catch (e) {}
 }
 
-function showToast(message, color = 'var(--accent-blue)', duration = 4000) {
+function showToast(message, color = 'var(--border-focus)', duration = 3500) {
+    if (!toast) return;
     toast.textContent = message;
     toast.style.borderColor = color;
     toast.style.display = 'block';
@@ -132,21 +127,29 @@ function showToast(message, color = 'var(--accent-blue)', duration = 4000) {
 }
 
 // Sound toggle
-soundToggleBtn.onclick = () => {
-    isSoundEnabled = !isSoundEnabled;
-    localStorage.setItem('apkdrop_sound', isSoundEnabled);
-    soundStatus.textContent = isSoundEnabled ? 'Ses Açık' : 'Ses Kapalı';
-    if (isSoundEnabled) playChime();
-};
+if (soundToggleBtn) {
+    soundToggleBtn.onclick = () => {
+        isSoundEnabled = !isSoundEnabled;
+        localStorage.setItem('apkdrop_sound', isSoundEnabled);
+        if (soundStatus) soundStatus.textContent = isSoundEnabled ? 'Ses Açık' : 'Ses Kapalı';
+        soundToggleBtn.style.opacity = isSoundEnabled ? '1' : '0.4';
+        if (isSoundEnabled) playChime();
+    };
+    soundToggleBtn.style.opacity = isSoundEnabled ? '1' : '0.4';
+}
 
-// Tabs Switching
-document.querySelectorAll('.tab-btn').forEach(btn => {
+// Navigation Tabs
+document.querySelectorAll('.nav-item, .tab-btn').forEach(btn => {
     btn.onclick = () => {
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+        document.querySelectorAll('.nav-item, .tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => {
+            c.classList.remove('active');
+            c.style.display = 'none';
+        });
         btn.classList.add('active');
         const target = document.getElementById(btn.getAttribute('data-tab'));
         if (target) {
+            target.classList.add('active');
             target.style.display = 'block';
             if (btn.getAttribute('data-tab') === 'tab-adb') {
                 loadAdbPairingQr();
@@ -158,17 +161,16 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 // Load ADB Pairing QR
 async function loadAdbPairingQr() {
     if (!adbQrImg) return;
-    adbPairStatusBadge.className = 'badge badge-purple';
-    adbPairStatusBadge.textContent = '⏳ Yeni QR kod hazırlanıyor...';
+    if (adbPairStatusBadge) adbPairStatusBadge.textContent = 'Generating pairing QR...';
     try {
         const res = await fetch('/api/adb/pairing-qr');
         const data = await res.json();
         if (data.success) {
             adbQrImg.src = data.qrDataUrl;
-            adbPairStatusBadge.textContent = data.message;
+            if (adbPairStatusBadge) adbPairStatusBadge.textContent = data.message || 'Scan QR from Wireless Debugging screen.';
         }
     } catch (e) {
-        adbPairStatusBadge.textContent = 'QR oluşturulamadı';
+        if (adbPairStatusBadge) adbPairStatusBadge.textContent = 'Failed to generate QR';
     }
 }
 
@@ -179,11 +181,11 @@ if (quickPortBtn) {
     quickPortBtn.onclick = async () => {
         const port = quickPortInput.value.trim();
         if (!port) {
-            showToast('⚠️ Lütfen telefonunuzda görünen 5 haneli bağlantı portunu yazın!', 'var(--accent-red)');
+            showToast('Enter 5-digit wireless port', 'var(--danger)');
             return;
         }
         const ip = lastPairedIp || '192.168.137.74';
-        showToast(`⚡ ${ip}:${port} adresine bağlanılıyor...`);
+        showToast(`Connecting to ${ip}:${port}...`);
         try {
             const res = await fetch('/api/adb/connect', {
                 method: 'POST',
@@ -192,19 +194,16 @@ if (quickPortBtn) {
             });
             const data = await res.json();
             if (data.success) {
-                showToast(`🎉 Başarıyla bağlandı! (${ip}:${port})`, 'var(--accent-green)', 6000);
+                showToast(`Connected: ${ip}:${port}`, 'var(--success)');
                 playChime();
                 if (quickPortBox) quickPortBox.style.display = 'none';
-                adbPairStatusBadge.className = 'badge';
-                adbPairStatusBadge.style.background = 'rgba(16, 185, 129, 0.2)';
-                adbPairStatusBadge.style.color = '#10b981';
-                adbPairStatusBadge.textContent = `🎉 Bağlandı: ${ip}:${port}`;
+                if (adbPairStatusBadge) adbPairStatusBadge.textContent = `Connected: ${ip}:${port}`;
                 refreshDevices();
             } else {
-                showToast(`Bağlantı hatası: ${data.error}`, 'var(--accent-red)', 6000);
+                showToast(`Connection failed: ${data.error}`, 'var(--danger)', 5000);
             }
         } catch (e) {
-            showToast(`Hata: ${e.message}`, 'var(--accent-red)');
+            showToast(`Error: ${e.message}`, 'var(--danger)');
         }
     };
 }
@@ -212,7 +211,7 @@ if (quickPortBtn) {
 // USB to TCP/IP
 if (tcpipBtn) {
     tcpipBtn.onclick = async () => {
-        showToast('🔌 Cihaz kablosuz moda alınıyor (port 5555)...');
+        showToast('Enabling TCP/IP on port 5555...');
         try {
             const res = await fetch('/api/adb/tcpip', {
                 method: 'POST',
@@ -221,20 +220,20 @@ if (tcpipBtn) {
             });
             const data = await res.json();
             if (data.success) {
-                showToast(`✅ ${data.message}`, 'var(--accent-green)', 6000);
+                showToast(data.message, 'var(--success)');
                 refreshDevices();
             } else {
-                showToast(`Hata: ${data.error}`, 'var(--accent-red)');
+                showToast(`Error: ${data.error}`, 'var(--danger)');
             }
         } catch (e) {
-            showToast(`Hata: ${e.message}`, 'var(--accent-red)');
+            showToast(`Error: ${e.message}`, 'var(--danger)');
         }
     };
 }
 
 // Disconnect Device
 window.disconnectDevice = async (deviceId) => {
-    showToast(`🔌 ${deviceId} bağlantısı kesiliyor...`);
+    showToast(`Disconnecting ${deviceId}...`);
     try {
         const res = await fetch('/api/adb/disconnect', {
             method: 'POST',
@@ -243,18 +242,18 @@ window.disconnectDevice = async (deviceId) => {
         });
         const data = await res.json();
         if (data.success) {
-            showToast(`✅ ${deviceId} bağlantısı sonlandırıldı`, 'var(--accent-green)');
+            showToast(`Disconnected: ${deviceId}`, 'var(--success)');
             refreshDevices();
         } else {
-            showToast(`Hata: ${data.error}`, 'var(--accent-red)');
+            showToast(`Error: ${data.error}`, 'var(--danger)');
         }
     } catch (e) {
-        showToast(`Hata: ${e.message}`, 'var(--accent-red)');
+        showToast(`Error: ${e.message}`, 'var(--danger)');
     }
 };
 
 // ==========================================
-// 📺 TARAYICI İÇİ 60 FPS CANLI EKRAN (JMUXER)
+// 📺 60 FPS SCREEN STREAM (JMUXER)
 // ==========================================
 async function fetchDisplaySize(deviceId) {
     try {
@@ -285,7 +284,7 @@ function initJMuxer() {
 
 function startWebScreenStream() {
     const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
-    if (!target) return showToast('⚠️ Önce bir Android cihaz bağlamalısınız!', 'var(--accent-red)');
+    if (!target) return showToast('No device connected', 'var(--danger)');
 
     fetchDisplaySize(target);
 
@@ -296,10 +295,11 @@ function startWebScreenStream() {
     screenshotStaticImg.style.display = 'none';
     screenVideo.style.display = 'block';
     remoteBar.style.display = 'flex';
-    screenStreamStatusBadge.className = 'badge';
-    screenStreamStatusBadge.style.background = 'rgba(16, 185, 129, 0.2)';
-    screenStreamStatusBadge.style.color = '#10b981';
-    screenStreamStatusBadge.textContent = '🟢 60 FPS Canlı Akıyor';
+    if (streamDot) streamDot.classList.add('active');
+    if (screenStreamStatusBadge) {
+        screenStreamStatusBadge.textContent = 'Live (60 FPS)';
+        screenStreamStatusBadge.style.color = 'var(--success)';
+    }
 
     initJMuxer();
 
@@ -310,15 +310,18 @@ function startWebScreenStream() {
         }));
     }
 
-    showToast('📺 Tarayıcı içi 60 FPS canlı ekran başlatıldı', 'var(--accent-green)');
+    showToast('Mirror stream active', 'var(--success)');
 }
 
 function stopWebScreenStream() {
     isWebStreaming = false;
     startWebStreamBtn.style.display = 'inline-flex';
     stopWebStreamBtn.style.display = 'none';
-    screenStreamStatusBadge.className = 'badge badge-purple';
-    screenStreamStatusBadge.textContent = 'Durduruldu';
+    if (streamDot) streamDot.classList.remove('active');
+    if (screenStreamStatusBadge) {
+        screenStreamStatusBadge.textContent = 'Idle';
+        screenStreamStatusBadge.style.color = 'var(--text-tertiary)';
+    }
 
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ action: 'STOP_SCREEN_STREAM' }));
@@ -329,13 +332,13 @@ function stopWebScreenStream() {
         jmuxerInstance = null;
     }
 
-    showToast('⏹️ Canlı yayın durduruldu');
+    showToast('Stream stopped');
 }
 
 if (startWebStreamBtn) startWebStreamBtn.onclick = startWebScreenStream;
 if (stopWebStreamBtn) stopWebStreamBtn.onclick = stopWebScreenStream;
 
-// Interactive Touch & Drag on Video element
+// Touch & Drag on Video
 function getScaledTouchCoords(e) {
     const rect = screenVideo.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
@@ -351,7 +354,7 @@ function getScaledTouchCoords(e) {
 }
 
 screenVideo.onmousedown = (e) => {
-    if (e.button !== 0) return; // Only left click
+    if (e.button !== 0) return;
     isTouchDown = true;
     const coords = getScaledTouchCoords(e);
     touchStartX = coords.x;
@@ -368,7 +371,6 @@ screenVideo.onmouseup = (e) => {
     if (!target) return;
 
     if (dist < 18) {
-        // Simple Tap
         fetch('/api/adb/touch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -380,7 +382,6 @@ screenVideo.onmouseup = (e) => {
             })
         });
     } else {
-        // Swipe / Drag
         fetch('/api/adb/touch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -398,15 +399,14 @@ screenVideo.onmouseup = (e) => {
 
 screenVideo.oncontextmenu = (e) => {
     e.preventDefault();
-    // Right click = Back key
     sendRemoteKey(4);
-    showToast('◀ Geri (Back)', 'var(--accent-blue)', 1500);
+    showToast('Back key sent', 'var(--accent)', 1200);
 };
 
 // Snapshot from Video
 snapScreenshotBtn.onclick = () => {
     const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
-    if (!target) return showToast('⚠️ Cihaz bağlı değil', 'var(--accent-red)');
+    if (!target) return showToast('No device connected', 'var(--danger)');
 
     if (isWebStreaming && screenVideo.style.display !== 'none' && screenVideo.videoWidth > 0) {
         const canvas = document.createElement('canvas');
@@ -420,9 +420,9 @@ snapScreenshotBtn.onclick = () => {
         screenVideo.style.display = 'none';
         screenshotStaticImg.style.display = 'block';
         remoteBar.style.display = 'flex';
-        showToast('✅ Fotoğraf anında yakalandı!', 'var(--accent-green)');
+        showToast('Frame captured', 'var(--success)');
     } else {
-        showToast('📸 Ekran görüntüsü alınıyor...');
+        showToast('Capturing screenshot...');
         const url = `/api/adb/screenshot?deviceId=${encodeURIComponent(target)}&t=${Date.now()}`;
         screenshotStaticImg.src = url;
         screenshotStaticImg.onload = () => {
@@ -431,12 +431,12 @@ snapScreenshotBtn.onclick = () => {
             screenVideo.style.display = 'none';
             screenshotStaticImg.style.display = 'block';
             remoteBar.style.display = 'flex';
-            showToast('✅ Ekran görüntüsü alındı!', 'var(--accent-green)');
+            showToast('Screenshot ready', 'var(--success)');
         };
     }
 };
 
-// 💾 Save As File Dialog
+// Save As File Dialog
 saveScreenshotAsBtn.onclick = async () => {
     let blob = null;
 
@@ -451,29 +451,34 @@ saveScreenshotAsBtn.onclick = async () => {
         canvas.height = screenVideo.videoHeight;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(screenVideo, 0, 0, canvas.width, canvas.height);
-        blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+        blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    } else {
+        const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
+        if (!target) return showToast('No device connected', 'var(--danger)');
+        try {
+            showToast('Generating snapshot...');
+            const res = await fetch(`/api/adb/screenshot?deviceId=${encodeURIComponent(target)}&t=${Date.now()}`);
+            blob = await res.blob();
+        } catch (e) {}
     }
 
-    if (!blob) {
-        showToast('⚠️ Önce fotoğraf çekmeli veya yayını başlatmalısınız!', 'var(--accent-red)');
-        return;
-    }
+    if (!blob) return showToast('No frame available to save', 'var(--danger)');
 
-    const defaultFilename = `Ekran_${new Date().toISOString().slice(0,10)}_${Date.now().toString().slice(-4)}.png`;
+    const defaultFilename = `screenshot_${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
 
     if (window.showSaveFilePicker) {
         try {
             const handle = await window.showSaveFilePicker({
                 suggestedName: defaultFilename,
                 types: [{
-                    description: 'PNG Resmi',
+                    description: 'PNG Image',
                     accept: { 'image/png': ['.png'] }
                 }]
             });
             const writable = await handle.createWritable();
             await writable.write(blob);
             await writable.close();
-            showToast('💾 Resim seçtiğiniz konuma başarıyla kaydedildi!', 'var(--accent-green)');
+            showToast('Snapshot saved', 'var(--success)');
             return;
         } catch (err) {
             if (err.name === 'AbortError') return;
@@ -488,22 +493,53 @@ saveScreenshotAsBtn.onclick = async () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showToast('💾 Resim İndirilenler klasörüne kaydedildi!', 'var(--accent-green)');
+    showToast('Snapshot downloaded', 'var(--success)');
 };
+
+// Direct IP Connect
+if (adbConnectBtn) {
+    adbConnectBtn.onclick = async () => {
+        const target = adbIpInput.value.trim();
+        if (!target) return showToast('Enter IP:Port', 'var(--danger)');
+        const parts = target.split(':');
+        const ip = parts[0];
+        const port = parts[1] || '5555';
+
+        showToast(`Connecting to ${ip}:${port}...`);
+        try {
+            const res = await fetch('/api/adb/connect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ip, port })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(`Connected: ${ip}:${port}`, 'var(--success)');
+                playChime();
+                refreshDevices();
+            } else {
+                showToast(`Error: ${data.error}`, 'var(--danger)', 5000);
+            }
+        } catch (e) {
+            showToast(`Error: ${e.message}`, 'var(--danger)');
+        }
+    };
+}
 
 // WebSocket Connection
 function connectWs() {
-    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    ws = new WebSocket(`${protocol}//${location.host}`);
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(`${protocol}//${window.location.host}`);
     ws.binaryType = 'arraybuffer';
 
+    ws.onopen = () => {
+        console.log('[WebSocket] Connected');
+    };
+
     ws.onmessage = (event) => {
-        // Handle binary H.264 video chunks for jMuxer
         if (event.data instanceof ArrayBuffer) {
             if (jmuxerInstance && isWebStreaming) {
-                jmuxerInstance.feed({
-                    video: new Uint8Array(event.data)
-                });
+                jmuxerInstance.feed({ video: new Uint8Array(event.data) });
             }
             return;
         }
@@ -517,7 +553,7 @@ function connectWs() {
             renderDevices();
             if (data.config) {
                 watchFolderInput.value = data.config.watchFolder || '';
-                currentWatchLabel.textContent = `İzlenen: ${data.config.watchFolder || 'Varsayılan'}`;
+                currentWatchLabel.textContent = data.config.watchFolder || 'Default watch folder';
                 autoAdbCheckbox.checked = !!data.config.autoInstallOnAdb;
                 autoLaunchCheckbox.checked = data.config.autoLaunchAfterInstall !== false;
                 selectedDevice = data.config.selectedAdbDevice || '';
@@ -531,13 +567,13 @@ function connectWs() {
             currentApks.unshift(data.apk);
             renderApks();
             playChime();
-            showToast(`🔥 ${data.message}`, 'var(--accent-green)');
+            showToast(`Package indexed: ${data.apk.name}`, 'var(--success)');
         } else if (data.type === 'ADB_INSTALL_START') {
-            showToast(`⏳ ${data.message}`, 'var(--accent-orange)', 5000);
+            showToast(`Installing: ${data.message}`, 'var(--warning)', 4000);
         } else if (data.type === 'ADB_INSTALL_SUCCESS') {
-            showToast(`✅ ${data.apkName} başarıyla yüklendi!`, 'var(--accent-green)', 5000);
+            showToast(`Installed: ${data.apkName}`, 'var(--success)', 4000);
         } else if (data.type === 'ADB_INSTALL_ERROR') {
-            showToast(`❌ ADB Kurulum Hatası: ${data.error}`, 'var(--accent-red)', 7000);
+            showToast(`Install error: ${data.error}`, 'var(--danger)', 6000);
         } else if (data.type === 'DEVICES_UPDATED') {
             currentDevices = data.devices || [];
             renderDevices();
@@ -571,42 +607,29 @@ function handleAdbPairStatus(session) {
         if (adbIpInput && !adbIpInput.value) adbIpInput.value = `${session.pairedIp}:`;
     }
 
-    if (session.status === 'pairing') {
-        adbPairStatusBadge.className = 'badge';
-        adbPairStatusBadge.style.background = 'rgba(245, 158, 11, 0.2)';
-        adbPairStatusBadge.style.color = '#f59e0b';
-    } else if (session.status === 'paired_need_port') {
-        adbPairStatusBadge.className = 'badge';
-        adbPairStatusBadge.style.background = 'rgba(16, 185, 129, 0.2)';
-        adbPairStatusBadge.style.color = '#10b981';
+    if (session.status === 'paired_need_port') {
         if (quickPortBox) {
             quickPortBox.style.display = 'block';
             quickPortInput.focus();
         }
         playChime();
-        showToast('🎉 Telefon eşleşti! Şimdi ekranda görünen 5 haneli bağlantı portunu girin.', 'var(--accent-green)', 8000);
+        showToast('Pairing recognized. Enter 5-digit port.', 'var(--success)', 6000);
     } else if (session.status === 'connected') {
         if (quickPortBox) quickPortBox.style.display = 'none';
-        adbPairStatusBadge.className = 'badge';
-        adbPairStatusBadge.style.background = 'rgba(16, 185, 129, 0.2)';
-        adbPairStatusBadge.style.color = '#10b981';
         playChime();
-        showToast('🎉 Android cihazınız başarıyla eşleşti ve bağlandı!', 'var(--accent-green)', 6000);
+        showToast('Device paired and connected', 'var(--success)', 4000);
         refreshDevices();
-    } else if (session.status === 'timeout') {
-        adbPairStatusBadge.className = 'badge badge-red';
     }
 }
 
 // Render APKs
 function renderApks() {
-    apkCountSpan.textContent = currentApks.length;
+    if (apkCountSpan) apkCountSpan.textContent = currentApks.length;
     if (currentApks.length === 0) {
         apkListContainer.innerHTML = `
-          <div class="empty-state">
-            <div class="empty-icon">📁</div>
-            <p class="empty-title">Henüz Hazır APK Bulunmuyor</p>
-            <p class="empty-desc">Yeni bir APK derlendiğinde veya yukarıya sürüklendiğinde burada listelenecektir.</p>
+          <div class="empty-view">
+            <p class="empty-title">No packages detected</p>
+            <p class="empty-sub">Drop an APK file or configure the build watcher on the left.</p>
           </div>
         `;
         return;
@@ -615,43 +638,31 @@ function renderApks() {
     apkListContainer.innerHTML = currentApks.map(apk => `
       <div class="apk-card">
         <div class="apk-header">
-          <div class="apk-title">
-            <span>📦</span> ${apk.label || apk.name}
-          </div>
-          <span class="badge ${apk.source === 'folder-watcher' ? 'badge-purple' : 'badge-blue'}">
-            ${apk.source === 'folder-watcher' ? '⚡ Otomatik' : '📥 Dosya'}
-          </span>
+          <div class="apk-title">${apk.label || apk.name}</div>
+          <span class="tag-version">${apk.source === 'folder-watcher' ? 'Watcher' : 'Upload'}</span>
         </div>
 
-        <div class="apk-pkg">${apk.packageName} • ${apk.name}</div>
+        <div class="apk-pkg mono">${apk.packageName} &bull; ${apk.name}</div>
 
         <div class="apk-tags">
-          <span class="apk-tag-pill">
-            🏷️ v${apk.versionName || '1.0'} (${apk.versionCode || '1'})
-          </span>
-          <span class="apk-tag-pill">
-            📦 ${apk.size}
-          </span>
-          <span class="apk-tag-pill">
-            🕒 ${new Date(apk.updatedAt).toLocaleTimeString()}
-          </span>
-          <span class="apk-tag-pill">
-            🎯 SDK ${apk.minSdk || '24'}-${apk.targetSdk || '34'}
-          </span>
+          <span class="apk-tag-pill">v${apk.versionName || '1.0'} (${apk.versionCode || '1'})</span>
+          <span class="apk-tag-pill">${apk.size}</span>
+          <span class="apk-tag-pill">SDK ${apk.minSdk || '24'}-${apk.targetSdk || '34'}</span>
+          <span class="apk-tag-pill">${new Date(apk.updatedAt).toLocaleTimeString()}</span>
         </div>
 
         <div class="apk-actions">
-          <button class="btn btn-purple btn-sm" onclick="installViaAdb('${apk.id}', '${apk.name}')">
-            ⚡ Telefona Yükle & Başlat
+          <button class="btn btn-primary btn-sm" onclick="installViaAdb('${apk.id}', '${apk.name}')">
+            Install & Launch
           </button>
-          <button class="btn btn-outline btn-sm" onclick="launchApp('${apk.packageName}')" title="Uygulamayı Aç">
-            ▶️ Başlat
+          <button class="btn btn-secondary btn-sm" onclick="launchApp('${apk.packageName}')" title="Launch app">
+            Launch
           </button>
-          <button class="btn btn-outline btn-sm" onclick="stopApp('${apk.packageName}')" title="Uygulamayı Kapat">
-            ⏹️ Durdur
+          <button class="btn btn-secondary btn-sm" onclick="stopApp('${apk.packageName}')" title="Force stop app">
+            Stop
           </button>
-          <a href="${apk.downloadUrl}" class="btn btn-outline btn-sm" download="${apk.name}">
-            ⬇️ İndir
+          <a href="${apk.downloadUrl}" class="btn btn-secondary btn-sm" download="${apk.name}">
+            Download
           </a>
         </div>
       </div>
@@ -666,22 +677,22 @@ function updateHeaderDevicePill() {
         headerDeviceText.textContent = `${cur.model || cur.id}`;
     } else {
         headerDevicePill.classList.remove('connected');
-        headerDeviceText.textContent = 'Bağlı Cihaz Yok';
+        headerDeviceText.textContent = 'No Device';
     }
 }
 
-// Render ADB Devices with Disconnect button
+// Render ADB Devices
 function renderDevices() {
     updateHeaderDevicePill();
 
     if (!currentDevices || currentDevices.length === 0) {
         devicesList.innerHTML = `
-          <div style="font-size: 13px; color: var(--text-muted); padding: 14px 0;">
-            ⚠️ Bağlı cihaz yok. Sol taraftaki <b>QR Kodu</b> telefonunuzdan taratarak veya aşağıdan IP:Port girerek bağlayabilirsiniz.
+          <div class="loading-state">
+            No devices attached. Scan QR code or enter IP:Port below.
           </div>
         `;
-        activeDeviceIndicator.textContent = 'Cihaz: Yok';
-        if (quickDeviceStatus) quickDeviceStatus.textContent = 'Bağlı cihaz yok';
+        if (activeDeviceIndicator) activeDeviceIndicator.textContent = 'Target: None';
+        if (quickDeviceStatus) quickDeviceStatus.textContent = 'None';
         return;
     }
 
@@ -689,26 +700,26 @@ function renderDevices() {
         selectedDevice = currentDevices[0].id;
     }
 
-    activeDeviceIndicator.textContent = `Cihaz: ${selectedDevice}`;
+    if (activeDeviceIndicator) activeDeviceIndicator.textContent = `Target: ${selectedDevice}`;
     if (quickDeviceStatus) {
         const cur = currentDevices.find(d => d.id === selectedDevice) || currentDevices[0];
-        quickDeviceStatus.textContent = `✅ ${cur.model} (${cur.id})`;
+        quickDeviceStatus.textContent = `${cur.model} (${cur.id})`;
     }
 
     devicesList.innerHTML = currentDevices.map(d => `
       <div class="device-card">
-        <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
           <input type="radio" name="adb-device" value="${d.id}" ${d.id === selectedDevice ? 'checked' : ''} onchange="changeSelectedDevice('${d.id}')">
           <div>
-            <div style="font-weight: 700; font-size: 13.5px; color: var(--text-main);">${d.model}</div>
-            <div style="font-size: 11.5px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">${d.id} • ${d.isWifi ? '📶 Kablosuz Wi-Fi' : '🔌 USB'}</div>
+            <div style="font-weight: 600; font-size: 13px;">${d.model}</div>
+            <div style="font-size: 11px; color: var(--text-tertiary);" class="mono">${d.id} &bull; ${d.isWifi ? 'Wi-Fi' : 'USB'}</div>
           </div>
         </div>
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <button class="btn btn-danger btn-sm" onclick="disconnectDevice('${d.id}')" title="Bağlantıyı Kes / Sil">
-            ❌ Bağlantıyı Kes
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <button class="btn btn-secondary btn-sm" onclick="disconnectDevice('${d.id}')" title="Disconnect device">
+            Disconnect
           </button>
-          <span class="badge badge-green" style="font-size: 11px;">Hazır</span>
+          <span class="count-badge" style="color: var(--success);">Ready</span>
         </div>
       </div>
     `).join('');
@@ -716,18 +727,15 @@ function renderDevices() {
 
 window.changeSelectedDevice = (id) => {
     selectedDevice = id;
-    activeDeviceIndicator.textContent = `Cihaz: ${selectedDevice}`;
+    if (activeDeviceIndicator) activeDeviceIndicator.textContent = `Target: ${selectedDevice}`;
     renderDevices();
     saveSettings();
 };
 
 window.installViaAdb = async (apkId, apkName) => {
     const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
-    if (!target) {
-        showToast('⚠️ Önce bir Android cihaz bağlamalısınız!', 'var(--accent-red)');
-        return;
-    }
-    showToast(`⚡ ${apkName} -> ${target} yükleniyor...`);
+    if (!target) return showToast('No device connected', 'var(--danger)');
+    showToast(`Deploying ${apkName}...`);
     try {
         const res = await fetch('/api/adb/install', {
             method: 'POST',
@@ -735,15 +743,15 @@ window.installViaAdb = async (apkId, apkName) => {
             body: JSON.stringify({ deviceId: target, apkId })
         });
         const data = await res.json();
-        if (!data.success) showToast(`Hata: ${data.error}`, 'var(--accent-red)');
+        if (!data.success) showToast(`Error: ${data.error}`, 'var(--danger)');
     } catch (e) {
-        showToast(`Hata: ${e.message}`, 'var(--accent-red)');
+        showToast(`Error: ${e.message}`, 'var(--danger)');
     }
 };
 
 window.launchApp = async (packageName) => {
     const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
-    if (!target) return showToast('⚠️ Cihaz bağlı değil', 'var(--accent-red)');
+    if (!target) return showToast('No device connected', 'var(--danger)');
     try {
         const res = await fetch('/api/adb/launch', {
             method: 'POST',
@@ -751,35 +759,58 @@ window.launchApp = async (packageName) => {
             body: JSON.stringify({ deviceId: target, packageName })
         });
         const data = await res.json();
-        showToast(data.success ? `▶️ ${packageName} başlatıldı` : `Başlatılamadı: ${data.output}`);
+        showToast(data.success ? `Launched: ${packageName}` : `Failed: ${data.output}`);
     } catch (e) {
-        showToast(`Hata: ${e.message}`, 'var(--accent-red)');
+        showToast(`Error: ${e.message}`, 'var(--danger)');
     }
 };
 
 window.stopApp = async (packageName) => {
     const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
-    if (!target) return showToast('⚠️ Cihaz bağlı değil', 'var(--accent-red)');
+    if (!target) return showToast('No device connected', 'var(--danger)');
     await fetch('/api/adb/stop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ deviceId: target, packageName })
     });
-    showToast(`⏹️ ${packageName} durduruldu`);
+    showToast(`Stopped: ${packageName}`);
 };
 
-// Remote Keycode
-window.sendRemoteKey = async (code) => {
+window.sendRemoteKey = async (keyCode) => {
     const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
-    if (!target) return showToast('⚠️ Cihaz bağlı değil', 'var(--accent-red)');
-    await fetch('/api/adb/keyevent', {
+    if (!target) return;
+    fetch('/api/adb/key', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deviceId: target, code })
+        body: JSON.stringify({ deviceId: target, keyCode })
     });
 };
 
-// Settings
+// Settings Save
+saveWatchBtn.onclick = async () => {
+    const watchFolder = watchFolderInput.value.trim();
+    showToast('Saving watcher path...');
+    const res = await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            watchFolder,
+            autoInstallOnAdb: autoAdbCheckbox.checked,
+            autoLaunchAfterInstall: autoLaunchCheckbox.checked
+        })
+    });
+    const data = await res.json();
+    if (data.success) {
+        showToast('Watcher updated', 'var(--success)');
+        currentWatchLabel.textContent = watchFolder || 'Default watch folder';
+    } else {
+        showToast(`Failed: ${data.error}`, 'var(--danger)');
+    }
+};
+
+autoAdbCheckbox.onchange = saveSettings;
+autoLaunchCheckbox.onchange = saveSettings;
+
 async function saveSettings() {
     await fetch('/api/config', {
         method: 'POST',
@@ -793,68 +824,13 @@ async function saveSettings() {
     });
 }
 
-saveWatchBtn.onclick = async () => {
-    const val = watchFolderInput.value.trim();
-    if (!val) return;
-    try {
-        const res = await fetch('/api/config', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ watchFolder: val })
-        });
-        const data = await res.json();
-        if (data.success) {
-            currentWatchLabel.textContent = `İzlenen: ${val}`;
-            showToast('✅ Klasör kaydedildi!', 'var(--accent-green)');
-        } else {
-            showToast(`Hata: ${data.error}`, 'var(--accent-red)');
-        }
-    } catch (e) {
-        showToast(`Hata: ${e.message}`, 'var(--accent-red)');
-    }
-};
-
-autoAdbCheckbox.onchange = () => {
-    saveSettings();
-    showToast(`Otomatik yükleme: ${autoAdbCheckbox.checked ? 'Açık' : 'Kapalı'}`);
-};
-
-autoLaunchCheckbox.onchange = () => {
-    saveSettings();
-    showToast(`Otomatik başlatma: ${autoLaunchCheckbox.checked ? 'Açık' : 'Kapalı'}`);
-};
-
-// Connect Wireless ADB Manual
-adbConnectBtn.onclick = async () => {
-    const target = adbIpInput.value.trim();
-    if (!target) return;
-    let [ip, port] = target.split(':');
-    showToast(`📶 ${target} bağlanılıyor...`);
-    try {
-        const res = await fetch('/api/adb/connect', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ip, port: port || 5555 })
-        });
-        const data = await res.json();
-        if (data.success) {
-            showToast(`✅ ${data.result}`, 'var(--accent-green)');
-            refreshDevices();
-        } else {
-            showToast(`❌ Bağlantı hatası: ${data.error}`, 'var(--accent-red)');
-        }
-    } catch (e) {
-        showToast(`Hata: ${e.message}`, 'var(--accent-red)');
-    }
-};
-
 refreshDevicesBtn.onclick = refreshDevices;
 
 async function refreshDevices() {
     const res = await fetch('/api/adb/devices');
     currentDevices = await res.json();
     renderDevices();
-    showToast('🔄 Cihaz listesi güncellendi');
+    showToast('Device list refreshed');
 }
 
 // Drag and drop upload
@@ -879,10 +855,10 @@ dropzone.ondrop = (e) => {
 
 async function uploadFile(file) {
     if (!file.name.toLowerCase().endsWith('.apk')) {
-        showToast('⚠️ Lütfen yalnızca .apk dosyası seçin!', 'var(--accent-red)');
+        showToast('Only .apk files allowed', 'var(--danger)');
         return;
     }
-    showToast(`📤 ${file.name} yükleniyor...`);
+    showToast(`Uploading ${file.name}...`);
     const formData = new FormData();
     formData.append('apk', file);
     try {
@@ -891,35 +867,33 @@ async function uploadFile(file) {
             body: formData
         });
         const data = await res.json();
-        if (data.success) showToast(`✅ ${file.name} hazırlandı!`, 'var(--accent-green)');
+        if (data.success) showToast(`Package ready: ${file.name}`, 'var(--success)');
     } catch (e) {
-        showToast(`Hata: ${e.message}`, 'var(--accent-red)');
+        showToast(`Error: ${e.message}`, 'var(--danger)');
     }
 }
 
 // ==========================================
-// 📜 RE-ENGINEERED SMART LOGCAT
+// 📜 LOGCAT CONTROLLER
 // ==========================================
 function setLogcatRunningUI(running) {
     isLogcatRunning = running;
     if (running) {
         startLogcatBtn.style.display = 'none';
         stopLogcatBtn.style.display = 'inline-flex';
-        logcatStatusBadge.className = 'badge';
-        logcatStatusBadge.style.background = 'rgba(16, 185, 129, 0.2)';
-        logcatStatusBadge.style.color = '#10b981';
-        logcatStatusBadge.textContent = '● Canlı Akıyor';
+        logcatStatusBadge.textContent = 'Streaming';
+        logcatStatusBadge.style.color = 'var(--success)';
     } else {
         startLogcatBtn.style.display = 'inline-flex';
         stopLogcatBtn.style.display = 'none';
-        logcatStatusBadge.className = 'badge badge-purple';
-        logcatStatusBadge.textContent = 'Durduruldu';
+        logcatStatusBadge.textContent = 'Idle';
+        logcatStatusBadge.style.color = 'var(--text-tertiary)';
     }
 }
 
 startLogcatBtn.onclick = () => {
     const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
-    if (!target) return showToast('⚠️ Logcat için bağlı bir Android cihaz seçilmelidir!', 'var(--accent-red)');
+    if (!target) return showToast('No device connected for Logcat', 'var(--danger)');
 
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({
@@ -929,7 +903,7 @@ startLogcatBtn.onclick = () => {
             filter: logcatSearchInput.value.trim()
         }));
         setLogcatRunningUI(true);
-        showToast('📜 Logcat canlı akışı başlatıldı');
+        showToast('Logcat stream started');
     }
 };
 
@@ -938,7 +912,7 @@ stopLogcatBtn.onclick = () => {
         ws.send(JSON.stringify({ action: 'STOP_LOGCAT' }));
     }
     setLogcatRunningUI(false);
-    showToast('⏹️ Logcat durduruldu');
+    showToast('Logcat stopped');
 };
 
 clearLogcatBtn.onclick = () => {
@@ -947,35 +921,34 @@ clearLogcatBtn.onclick = () => {
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ action: 'CLEAR_LOGCAT', deviceId: target }));
     }
-    showToast('🗑️ Log penceresi temizlendi');
+    showToast('Buffer cleared');
 };
 
 copyLogcatBtn.onclick = () => {
     const text = Array.from(terminalWindow.querySelectorAll('.log-entry'))
         .map(el => el.innerText)
         .join('\n');
-    if (!text) return showToast('Kopyalanacak log yok', 'var(--accent-orange)');
+    if (!text) return showToast('Buffer empty', 'var(--warning)');
     navigator.clipboard.writeText(text);
-    showToast('📋 Loglar panoya kopyalandı!', 'var(--accent-green)');
+    showToast('Copied to clipboard', 'var(--success)');
 };
 
 exportLogcatBtn.onclick = () => {
     const text = Array.from(terminalWindow.querySelectorAll('.log-entry'))
         .map(el => el.innerText)
         .join('\n');
-    if (!text) return showToast('Dışa aktarılacak log yok', 'var(--accent-orange)');
+    if (!text) return showToast('Buffer empty', 'var(--warning)');
 
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `logcat_export_${new Date().toISOString().slice(0, 10)}.txt`;
+    a.download = `logcat_${new Date().toISOString().slice(0, 10)}.txt`;
     a.click();
     URL.revokeObjectURL(url);
-    showToast('💾 Log dosyası kaydedildi!', 'var(--accent-green)');
+    showToast('Log file exported', 'var(--success)');
 };
 
-// Filter change reactions
 logcatLevelSelect.onchange = applyLogcatFilter;
 logcatSearchInput.oninput = applyLogcatFilter;
 
@@ -997,7 +970,7 @@ function applyLogcatFilter() {
         }
 
         const matchesSearch = !search || text.includes(search);
-        entry.style.display = (matchesLevel && matchesSearch) ? 'block' : 'none';
+        entry.style.display = (matchesLevel && matchesSearch) ? 'flex' : 'none';
     });
 }
 
@@ -1005,12 +978,16 @@ function handleLogcatLine(rawLine) {
     if (!rawLine) return;
 
     let type = 'debug';
+    let tag = 'DBG';
     if (rawLine.includes(' E ') || rawLine.includes('E/') || rawLine.includes('FATAL') || rawLine.includes('Exception') || rawLine.includes('CRASH')) {
         type = 'error';
+        tag = 'ERR';
     } else if (rawLine.includes(' W ') || rawLine.includes('W/')) {
         type = 'warn';
+        tag = 'WRN';
     } else if (rawLine.includes(' I ') || rawLine.includes('I/')) {
         type = 'info';
+        tag = 'INF';
     }
 
     const currentFilterLevel = logcatLevelSelect.value;
@@ -1030,18 +1007,13 @@ function handleLogcatLine(rawLine) {
 
     div.innerHTML = `
       ${timeStr ? `<span class="log-time">${timeStr}</span>` : ''}
-      <span class="badge" style="font-size: 10px; padding: 1px 6px; margin-right: 6px; ${
-          type === 'error' ? 'background: rgba(239, 68, 68, 0.25); color: #f87171;' :
-          type === 'warn' ? 'background: rgba(245, 158, 11, 0.25); color: #fbbf24;' :
-          type === 'info' ? 'background: rgba(56, 189, 248, 0.25); color: #38bdf8;' :
-          'background: rgba(255, 255, 255, 0.05); color: #94a3b8;'
-      }">${type.toUpperCase()}</span>
-      <span>${escapeHtml(bodyText)}</span>
+      <span class="log-tag">${tag}</span>
+      <span class="log-msg">${escapeHtml(bodyText)}</span>
     `;
 
     terminalWindow.appendChild(div);
 
-    if (terminalWindow.children.length > 800) {
+    if (terminalWindow.children.length > 900) {
         terminalWindow.removeChild(terminalWindow.firstChild);
     }
 
@@ -1057,5 +1029,5 @@ function escapeHtml(str) {
         .replace(/>/g, '&gt;');
 }
 
-// Initialize
+// Start
 connectWs();
