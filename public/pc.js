@@ -12,6 +12,7 @@ const i18n = {
         nav_logcat: "Logcat",
 
         // Topbar
+        brand_slogan: "Kablolar için fazla üşengeç",
         no_device: "Bağlı Cihaz Yok",
         sound_on: "Ses Açık",
         sound_off: "Ses Kapalı",
@@ -162,6 +163,7 @@ const i18n = {
         nav_logcat: "Logcat",
 
         // Topbar
+        brand_slogan: "Too lazy for cables",
         no_device: "No Device",
         sound_on: "Audio On",
         sound_off: "Audio Off",
@@ -470,6 +472,9 @@ function setLanguage(lang) {
     currentLang = lang;
     localStorage.setItem('apkdrop_lang', lang);
     document.documentElement.lang = lang;
+    if (i18n[lang] && i18n[lang].brand_slogan) {
+        document.title = `BRQ Transfer - ${i18n[lang].brand_slogan}`;
+    }
 
     if (langLabel) {
         langLabel.textContent = lang === 'tr' ? 'EN' : 'TR';
@@ -516,6 +521,9 @@ if (langToggleBtn) {
         setLanguage(nextLang);
     };
 }
+
+// Apply initial language from localStorage
+setLanguage(currentLang);
 
 // --- Theme Controller ---
 function applyTheme(theme) {
