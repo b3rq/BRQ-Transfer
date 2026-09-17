@@ -1,100 +1,126 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="tr" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ApkDrop - Evrensel Android Dağıtım & Canlı Test Hub'ı</title>
+  <title>ApkDrop - Modern Android Dağıtım & Canlı Test Hub'ı</title>
+  
+  <!-- Google Fonts: Inter (UI) & JetBrains Mono (Code/Terminal) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
   <link rel="stylesheet" href="app.css">
   <script src="jmuxer.min.js"></script>
 </head>
 <body>
   <div class="container">
     <!-- Header -->
-    <header>
+    <header class="app-header">
       <div class="brand">
-        <div class="brand-icon">📦</div>
+        <div class="brand-icon">
+          <span>📦</span>
+        </div>
         <div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <h1 style="font-size: 1.45rem; font-weight: 800; letter-spacing: -0.5px;">ApkDrop</h1>
-            <span class="badge badge-purple" style="font-size: 10px;">Universal v3.0</span>
+          <div class="brand-title-wrap">
+            <h1 class="brand-title">ApkDrop</h1>
+            <span class="badge badge-accent">Universal v4.0</span>
+            <div class="device-pill" id="header-device-pill">
+              <span class="pulse-dot"></span>
+              <span id="header-device-text">Cihaz Aranıyor...</span>
+            </div>
           </div>
-          <p style="font-size: 0.85rem; color: var(--text-muted);">
-            Tüm Android APK'ları (Unity, Flutter, Android Studio, Unreal, Godot vb.) için Yerel Dağıtım & Canlı Test Hub'ı
+          <p class="brand-subtitle">
+            Tüm Android APK'ları (Unity, Flutter, Unreal, Android Studio) için Yerel Dağıtım & 60 FPS Canlı Test Hub'ı
           </p>
         </div>
       </div>
-      <div style="display: flex; gap: 10px; align-items: center;">
-        <button class="btn btn-outline btn-sm" id="sound-toggle-btn" title="Bildirim Sesi">
-          🔔 <span id="sound-status">Ses Açık</span>
+      <div class="header-actions">
+        <button class="btn btn-outline btn-sm" id="sound-toggle-btn" title="Bildirim Sesi Aç/Kapat">
+          <span id="sound-icon">🔔</span> <span id="sound-status">Ses Açık</span>
+        </button>
+        <button class="btn btn-outline btn-sm theme-btn" id="theme-toggle-btn" title="Temayı Değiştir (Aydınlık / Karanlık)">
+          <span id="theme-icon">☀️</span> <span id="theme-label">Aydınlık Mod</span>
         </button>
       </div>
     </header>
 
     <!-- Nav Tabs -->
-    <div class="nav-tabs">
+    <nav class="nav-tabs">
       <button class="tab-btn active" data-tab="tab-deploy">
-        📦 Builds & Dağıtım
+        <span class="tab-icon">📦</span> Builds & Dağıtım
       </button>
       <button class="tab-btn" data-tab="tab-adb">
-        ⚡ Kablosuz ADB & Cihazlar
+        <span class="tab-icon">⚡</span> Kablosuz ADB & Cihazlar
       </button>
       <button class="tab-btn" data-tab="tab-screen">
-        📺 Tarayıcı İçi Canlı Ekran (60 FPS)
+        <span class="tab-icon">📺</span> Canlı Ekran (60 FPS)
       </button>
       <button class="tab-btn" data-tab="tab-logcat">
-        📜 Akıllı Logcat & Hatalar
+        <span class="tab-icon">📜</span> Akıllı Logcat & Hatalar
       </button>
-    </div>
+    </nav>
 
     <!-- TAB 1: DEPLOY & BUILDS -->
-    <div id="tab-deploy" class="tab-content">
+    <main id="tab-deploy" class="tab-content">
       <div class="grid-layout">
         <!-- Left Column: Dropzone & Watcher -->
-        <div>
-          <!-- Drag & Drop -->
-          <div class="card">
-            <h2>📤 APK Sürükle & Bırak</h2>
+        <div class="sidebar-col">
+          <!-- Drag & Drop Card -->
+          <div class="card dropzone-card">
+            <div class="card-header">
+              <h2>📤 APK Yükle & Dağıt</h2>
+            </div>
             <div class="dropzone" id="dropzone">
               <input type="file" id="file-input" accept=".apk" style="display: none;">
-              <div class="dropzone-icon">📥</div>
-              <p style="font-weight: 600; margin-bottom: 4px;">APK Dosyasını Buraya Bırakın</p>
-              <p style="font-size: 13px; color: var(--text-muted);">veya dosya seçmek için tıklayın</p>
+              <div class="dropzone-icon-wrap">
+                <span class="dropzone-icon">📥</span>
+              </div>
+              <p class="dropzone-title">APK Dosyasını Buraya Bırakın</p>
+              <p class="dropzone-desc">veya dosya seçmek için tıklayın</p>
+              <span class="badge badge-subtle">Otomatik İmzalama & Hizalama</span>
             </div>
           </div>
 
-          <!-- Watcher Setting -->
+          <!-- Watcher Setting Card -->
           <div class="card">
-            <h2>📁 Otomatik Build / APK Klasörü İzleyici</h2>
-            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+            <div class="card-header">
+              <h2>📁 Otomatik Build Klasörü İzleyici</h2>
+            </div>
+            <p class="card-desc">
               Derleme aldığınız klasörü seçin (Unity, Android Studio, Flutter vb.); yeni APK çıktığında otomatik hazır olur:
             </p>
             <div class="input-group">
               <input type="text" id="watch-folder-input" placeholder="C:\Projelerim\Oyunum\Builds">
-              <button class="btn btn-outline" id="save-watch-btn">Kaydet</button>
+              <button class="btn btn-primary" id="save-watch-btn">Kaydet</button>
             </div>
-            <div style="margin-top: 10px; font-size: 12px; color: var(--accent-blue);" id="current-watch-label">
+            <div class="status-info-text" id="current-watch-label">
               İzlenen: Yükleniyor...
             </div>
           </div>
 
           <!-- Active Device & Quick Actions Card -->
           <div class="card">
-            <h2>⚡ Hızlı Cihaz Durumu</h2>
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-              <span id="quick-device-status" style="font-size: 13px; font-weight: 600; color: var(--accent-blue);">
+            <div class="card-header">
+              <h2>⚡ Hızlı Cihaz Durumu</h2>
+            </div>
+            <div class="device-quick-row">
+              <span id="quick-device-status" class="device-status-text">
                 Cihaz taranıyor...
               </span>
               <button class="btn btn-outline btn-sm" onclick="document.querySelector('[data-tab=\'tab-adb\']').click()">
-                Cihaz Yönetimi →
+                Cihazlar →
               </button>
             </div>
-            <div style="display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--border-color); padding-top: 12px;">
-              <label style="display: flex; align-items: center; gap: 10px; font-size: 13px; cursor: pointer;">
+            <div class="checkbox-group">
+              <label class="custom-checkbox">
                 <input type="checkbox" id="auto-adb-checkbox">
+                <span class="checkbox-indicator"></span>
                 <span>Yeni build çıktığında cihaza <b>otomatik yükle</b></span>
               </label>
-              <label style="display: flex; align-items: center; gap: 10px; font-size: 13px; cursor: pointer;">
+              <label class="custom-checkbox">
                 <input type="checkbox" id="auto-launch-checkbox">
+                <span class="checkbox-indicator"></span>
                 <span>Yükleme sonrası oyunu <b>otomatik başlat</b></span>
               </label>
             </div>
@@ -102,65 +128,69 @@
         </div>
 
         <!-- Right Column: APK Cards List -->
-        <div>
+        <div class="main-col">
           <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div class="card-header-between">
               <h2>📦 Hazır APK'lar (<span id="apk-count">0</span>)</h2>
-              <div style="font-size: 12px; color: var(--text-muted);">
+              <div class="card-header-badge">
                 <span id="active-device-indicator">Cihaz: Aranıyor...</span>
               </div>
             </div>
-            <div id="apk-list-container">
-              <p style="color: var(--text-muted); font-size: 14px; text-align: center; padding: 32px;">
-                Henüz APK bulunmuyor. Derleme alabilir veya yukarıya bir APK sürükleyebilirsiniz.
-              </p>
+            <div id="apk-list-container" class="apk-list-container">
+              <div class="empty-state">
+                <div class="empty-icon">📁</div>
+                <p class="empty-title">Henüz Hazır APK Bulunmuyor</p>
+                <p class="empty-desc">Yeni bir APK derlendiğinde veya yukarıya sürüklendiğinde burada listelenecektir.</p>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </main>
 
     <!-- TAB 2: WIRELESS ADB & DEVICES -->
-    <div id="tab-adb" class="tab-content" style="display: none;">
-      <div class="grid-layout" style="grid-template-columns: 380px 1fr; margin-bottom: 24px;">
+    <main id="tab-adb" class="tab-content" style="display: none;">
+      <div class="grid-layout adb-grid">
         <!-- Left: ADB QR Code Pairing -->
-        <div class="card qr-section" style="margin-bottom: 0;">
-          <h2 style="font-size: 1.1rem; color: var(--accent-blue);">📱 QR ile Kablosuz Eşle (Android 11+)</h2>
-          <ol style="font-size: 12px; color: var(--text-muted); line-height: 1.6; margin: 8px 0 12px 18px; text-align: left;">
+        <div class="card qr-section-card">
+          <div class="card-header">
+            <h2>📱 QR ile Kablosuz Eşle (Android 11+)</h2>
+          </div>
+          <ol class="step-guide">
             <li>Telefonunuzda <b>Geliştirici Seçenekleri</b> &gt; <b>Kablosuz Hata Ayıklama</b>'yı açın.</li>
-            <li><b>"Cihazı QR koduyla eşle"</b>ye basıp aşağıdaki kodu telefon kamerasıyla okutun:</li>
+            <li><b>"Cihazı QR koduyla eşle"</b> seçeneğine dokunun ve aşağıdaki kodu okutun:</li>
           </ol>
-          <div class="qr-wrapper" style="margin: 8px 0;">
-            <img id="adb-qr-img" class="qr-image" style="width: 210px; height: 210px;" alt="ADB Eşleme QR">
+          <div class="qr-box">
+            <img id="adb-qr-img" class="qr-image" alt="ADB Eşleme QR Kodu">
           </div>
 
           <!-- Quick Port Input Box -->
-          <div id="quick-port-box" style="display: none; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 12px; padding: 14px; margin: 10px 0; text-align: left; width: 100%;">
-            <div style="font-weight: 700; color: #10b981; font-size: 13px; margin-bottom: 4px;">
+          <div id="quick-port-box" class="quick-port-card" style="display: none;">
+            <div class="quick-port-title">
               🎉 QR Eşleşmesi Başarılı!
             </div>
-            <p style="font-size: 11px; color: #cbd5e1; line-height: 1.4; margin-bottom: 8px;">
-              Telefonunuzun "Kablosuz Hata Ayıklama" ana ekranında yazan <b>5 haneli Bağlantı Portu</b>nu girin:
+            <p class="quick-port-desc">
+              Telefonun ekranında yazan <b>5 haneli Bağlantı Portunu</b> girin:
             </p>
             <div class="input-group">
-              <span style="font-family: var(--font-mono); font-size: 12px; padding: 8px 10px; background: rgba(15, 23, 42, 0.9); border: 1px solid var(--border-color); border-radius: 8px; color: #38bdf8; display: flex; align-items: center;" id="paired-ip-label">192.168.137.74:</span>
-              <input type="text" id="quick-port-input" placeholder="Port" style="max-width: 90px; padding: 6px 10px; font-size: 13px;">
+              <span class="input-prefix" id="paired-ip-label">192.168.137.74:</span>
+              <input type="text" id="quick-port-input" placeholder="Port" style="max-width: 90px;">
               <button class="btn btn-success btn-sm" id="quick-port-btn">⚡ Bağlan</button>
             </div>
           </div>
 
-          <div id="adb-pair-status-badge" class="badge badge-purple" style="margin-bottom: 12px; font-size: 11px; text-align: center; width: 100%; justify-content: center;">
+          <div id="adb-pair-status-badge" class="badge badge-purple status-pill-wide">
             ⏳ Telefonun taraması bekleniyor...
           </div>
           <button class="btn btn-outline btn-sm" id="refresh-adb-qr-btn">🔄 Yeni Eşleme QR'ı Üret</button>
         </div>
 
         <!-- Right: Connected Devices, Manual Connect & Settings -->
-        <div>
+        <div class="main-col">
           <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-              <h2>⚡ Bağlı Cihazlar</h2>
-              <div style="display: flex; gap: 8px;">
+            <div class="card-header-between">
+              <h2>⚡ Bağlı Android Cihazlar</h2>
+              <div class="action-buttons-wrap">
                 <button class="btn btn-outline btn-sm" id="tcpip-btn" title="Kablo ile takılı cihazı kablosuz moda alır">
                   🔌 USB'den Kablosuza Al (tcpip 5555)
                 </button>
@@ -169,117 +199,155 @@
             </div>
 
             <!-- List of Devices with Disconnect/Remove button -->
-            <div id="devices-list" style="margin-bottom: 20px;">
-              <p style="font-size: 13px; color: var(--text-muted);">Cihazlar taranıyor...</p>
+            <div id="devices-list" class="devices-list-container">
+              <p class="loading-text">Cihazlar taranıyor...</p>
             </div>
 
             <!-- Manual IP Form (Direct Connect) -->
-            <div style="background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; margin-bottom: 18px;">
-              <h3 style="font-size: 13px; margin-bottom: 6px;">⌨️ Manuel IP:Port ile Bağlan</h3>
-              <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">
+            <div class="inner-panel">
+              <h3 class="inner-panel-title">⌨️ Manuel IP:Port ile Doğrudan Bağlan</h3>
+              <p class="inner-panel-desc">
                 Telefonunuz daha önce eşleştirildiyse, "Kablosuz Hata Ayıklama" ekranındaki IP ve Port'u girip doğrudan bağlanabilirsiniz:
               </p>
               <div class="input-group">
                 <input type="text" id="adb-ip-input" placeholder="Örn: 192.168.137.74:39145">
-                <button class="btn btn-purple btn-sm" id="adb-connect-btn">Bağlan</button>
+                <button class="btn btn-primary" id="adb-connect-btn">Bağlan</button>
               </div>
             </div>
 
             <!-- Helpful Hints -->
-            <div style="border-top: 1px solid var(--border-color); padding-top: 14px; font-size: 12px; color: var(--text-muted); line-height: 1.6;">
+            <div class="hint-box">
               <p>💡 <b>İpucu:</b> Telefon ve bilgisayarınız aynı Wi-Fi ağına (veya mobil etkin noktaya) bağlı olmalıdır.</p>
-              <p>💡 Bir kez eşleştikten sonra telefonunuz listede kayıtlı kalır, sadece Wi-Fi'ye bağlıyken doğrudan bağlanabilirsiniz.</p>
+              <p>💡 Bir kez eşleştikten sonra telefonunuz sistemde kayıtlı kalır, sadece Wi-Fi açıkken anında bağlanabilirsiniz.</p>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </main>
 
     <!-- TAB 3: IN-BROWSER 60 FPS SCREEN STREAM & TOUCH -->
-    <div id="tab-screen" class="tab-content" style="display: none;">
-      <div class="grid-layout" style="grid-template-columns: 1fr 340px;">
-        <!-- Left: Pure HTML5 Video Stream & Controls -->
-        <div class="card" style="margin-bottom: 0;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
-            <div style="display: flex; align-items: center; gap: 10px;">
+    <main id="tab-screen" class="tab-content" style="display: none;">
+      <div class="grid-layout screen-grid">
+        <!-- Left: Pure HTML5 Video Stream inside Phone Frame -->
+        <div class="card screen-card">
+          <div class="card-header-between">
+            <div class="stream-header-left">
               <h2>📺 Tarayıcı İçi Canlı Ekran</h2>
               <span class="badge badge-purple" id="screen-stream-status-badge">Durduruldu</span>
             </div>
-            <div style="display: flex; gap: 8px; align-items: center;">
+            <div class="stream-header-actions">
               <button class="btn btn-success" id="start-web-stream-btn">▶️ Canlı Ekranı Başlat</button>
               <button class="btn btn-danger" id="stop-web-stream-btn" style="display: none;">⏹️ Yayını Durdur</button>
-              <button class="btn btn-purple btn-sm" id="snap-screenshot-btn">📸 Fotoğraf Çek</button>
+              <button class="btn btn-primary btn-sm" id="snap-screenshot-btn">📸 Fotoğraf Çek</button>
             </div>
           </div>
 
-          <!-- Video Wrapper -->
-          <div class="screen-mirror-wrapper" style="position: relative; min-height: 520px;">
-            <video id="screen-video" class="screen-canvas" autoplay muted playsinline style="display: none; cursor: pointer; background: #000;"></video>
-            <img id="screenshot-static-img" class="screen-canvas" style="display: none;" alt="Ekran Görüntüsü">
-            
-            <div id="screen-empty-placeholder" style="text-align: center; color: var(--text-muted); padding: 50px 20px;">
-              <div style="font-size: 56px; margin-bottom: 14px;">📱</div>
-              <p style="font-weight: 700; font-size: 16px; color: #fff; margin-bottom: 6px;">Tarayıcı İçi Canlı Ekran Kapalı</p>
-              <p style="font-size: 13px; max-width: 440px; margin: 0 auto 18px; line-height: 1.6;">
-                Dışarıda hiçbir exe veya program çalıştırmadan, doğrudan bu web sayfasında <b>60 FPS donanım hızlandırmalı</b> canlı video izlemek ve fareyle dokunarak kontrol etmek için başlatın:
-              </p>
-              <button class="btn btn-success" onclick="document.getElementById('start-web-stream-btn').click()">
-                ▶️ Canlı Ekranı Başlat
-              </button>
-            </div>
+          <!-- Smartphone Mockup Container -->
+          <div class="phone-mockup-wrapper">
+            <div class="phone-device-frame">
+              <!-- Phone Top Notch / Speaker -->
+              <div class="phone-notch-bar">
+                <div class="phone-camera-lens"></div>
+                <div class="phone-speaker-grille"></div>
+              </div>
 
-            <!-- Remote Phone Control Bar -->
-            <div class="remote-nav-bar" id="remote-bar" style="display: none;">
-              <button class="btn btn-outline btn-sm" onclick="sendRemoteKey(4)" title="Geri (Back)">◀ Geri</button>
-              <button class="btn btn-outline btn-sm" onclick="sendRemoteKey(3)" title="Ana Ekran (Home)">⭘ Home</button>
-              <button class="btn btn-outline btn-sm" onclick="sendRemoteKey(187)" title="Son Uygulamalar (Recents)">◽ Son Uygulamalar</button>
-              <button class="btn btn-outline btn-sm" onclick="sendRemoteKey(26)" title="Ekran Kilidi (Power)">🔒 Güç</button>
+              <!-- Stream Info Chips Overlay -->
+              <div class="phone-stream-overlay">
+                <span class="phone-chip" id="stream-fps-chip">⚡ 60 FPS</span>
+                <span class="phone-chip" id="stream-res-chip">1440x3040</span>
+                <span class="phone-chip">H.264 GPU</span>
+              </div>
+
+              <!-- Video Content Wrapper -->
+              <div class="phone-screen-display">
+                <video id="screen-video" class="screen-canvas" autoplay muted playsinline style="display: none; cursor: pointer;"></video>
+                <img id="screenshot-static-img" class="screen-canvas" style="display: none;" alt="Ekran Görüntüsü">
+                
+                <div id="screen-empty-placeholder" class="screen-idle-placeholder">
+                  <div class="idle-phone-icon">📱</div>
+                  <p class="idle-title">Canlı Yayın Kapalı</p>
+                  <p class="idle-desc">
+                    Harici hiçbir exe açmadan, doğrudan bu tarayıcı penceresinde <b>60 FPS donanım hızlandırmalı</b> canlı video izlemek ve fareyle tıklayarak kontrol etmek için başlatın:
+                  </p>
+                  <button class="btn btn-success btn-lg" onclick="document.getElementById('start-web-stream-btn').click()">
+                    ▶️ Canlı Ekranı Başlat
+                  </button>
+                </div>
+              </div>
+
+              <!-- Android Bottom Navigation Bar -->
+              <div class="phone-nav-bar" id="remote-bar" style="display: none;">
+                <button class="phone-nav-btn" onclick="sendRemoteKey(4)" title="Geri (Back)">
+                  <span>◀</span> Geri
+                </button>
+                <button class="phone-nav-btn" onclick="sendRemoteKey(3)" title="Ana Ekran (Home)">
+                  <span>⭘</span> Home
+                </button>
+                <button class="phone-nav-btn" onclick="sendRemoteKey(187)" title="Son Uygulamalar (Recents)">
+                  <span>◽</span> Recents
+                </button>
+                <button class="phone-nav-btn phone-nav-power" onclick="sendRemoteKey(26)" title="Ekran Kilidi (Power)">
+                  <span>🔒</span> Güç
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
         <!-- Right: Touch Guide & Save Options -->
-        <div>
+        <div class="sidebar-col">
           <div class="card">
-            <h2>🖱️ Canlı Etkileşim & Kontrol</h2>
-            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">
-              Tarayıcı içindeki videoya doğrudan fareyle tıklayarak telefonu yönetebilirsiniz:
+            <div class="card-header">
+              <h2>🖱️ Canlı Etkileşim & Kontrol</h2>
+            </div>
+            <p class="card-desc">
+              Tarayıcı içindeki videoya doğrudan farenizle dokunarak telefonu kontrol edebilirsiniz:
             </p>
 
-            <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px; margin-bottom: 16px;">
-              <div style="font-size: 12px; color: #cbd5e1; line-height: 2;">
-                <div>👆 <b>Fare Sol Tık:</b> Ekrana anında dokunur (Tap)</div>
-                <div>↔️ <b>Fareyi Sürükle:</b> Ekranda kaydırır (Swipe / Drag)</div>
-                <div>🔙 <b>Fare Sağ Tık:</b> Telefonun Geri (Back) tuşudur</div>
-                <div>🎮 <b>Unity Oyun Testi:</b> Menülere ve butonlara PC'den tıkla</div>
+            <div class="guide-box">
+              <div class="guide-item">
+                <div class="guide-icon">👆</div>
+                <div class="guide-text"><b>Fare Sol Tık:</b> Ekrana anında dokunur (Tap)</div>
+              </div>
+              <div class="guide-item">
+                <div class="guide-icon">↔️</div>
+                <div class="guide-text"><b>Fareyi Sürükle:</b> Ekranda kaydırır (Swipe / Drag)</div>
+              </div>
+              <div class="guide-item">
+                <div class="guide-icon">🔙</div>
+                <div class="guide-text"><b>Fare Sağ Tık:</b> Donanımsal Geri (Back) tuşudur</div>
+              </div>
+              <div class="guide-item">
+                <div class="guide-icon">🎮</div>
+                <div class="guide-text"><b>Mobil Oyun Testi:</b> Menülere ve butonlara PC'den tıkla</div>
               </div>
             </div>
 
-            <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-bottom: 16px;">
-              <h3 style="font-size: 13px; margin-bottom: 10px;">💾 Ekran Görüntüsü Kaydet</h3>
-              <button class="btn btn-success" id="save-screenshot-as-btn" style="width: 100%; justify-content: center; padding: 12px; font-size: 13px;">
+            <div class="action-divider">
+              <h3 class="inner-title">💾 Ekran Görüntüsü Kaydet</h3>
+              <button class="btn btn-success btn-full" id="save-screenshot-as-btn">
                 💾 Resmi Farklı Kaydet (Save As)
               </button>
             </div>
 
-            <div style="border-top: 1px solid var(--border-color); padding-top: 14px; font-size: 11px; color: var(--text-muted); line-height: 1.6;">
-              <p>💡 <b>Nasıl çalışıyor?</b> Telefonunuzun GPU'su H.264 video üretir; web sayfası HTML5 Media Source Extensions ve donanım video çözücü ile doğrudan tarayıcı içinde 60 FPS oynatır.</p>
+            <div class="hint-box">
+              <p>⚡ <b>Donanımsal Hızlandırma:</b> Telefonun grafik çipi H.264 video üretir; web sayfası HTML5 Media Source Extensions ve tarayıcının GPU çözücüsü ile sıfır gecikmeli 60 FPS oynatır.</p>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </main>
 
     <!-- TAB 4: RE-ENGINEERED SMART LOGCAT -->
-    <div id="tab-logcat" class="tab-content" style="display: none;">
-      <div class="card">
+    <main id="tab-logcat" class="tab-content" style="display: none;">
+      <div class="card logcat-card">
         <!-- Top Toolbar -->
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
-          <div style="display: flex; align-items: center; gap: 10px;">
+        <div class="card-header-between">
+          <div class="logcat-title-wrap">
             <h2>📜 Akıllı Logcat & Canlı Hata Takibi</h2>
             <span class="badge badge-purple" id="logcat-status-badge">Durduruldu</span>
           </div>
-          <div style="display: flex; gap: 8px; align-items: center;">
+          <div class="logcat-actions">
             <button class="btn btn-success btn-sm" id="start-logcat-btn">▶️ Logcat'i Başlat</button>
             <button class="btn btn-danger btn-sm" id="stop-logcat-btn" style="display: none;">⏹️ Durdur</button>
             <button class="btn btn-outline btn-sm" id="clear-logcat-btn">🗑️ Temizle</button>
@@ -289,21 +357,27 @@
         </div>
 
         <!-- Filter Bar -->
-        <div style="display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; align-items: center;">
+        <div class="logcat-toolbar">
           <!-- Level Select -->
-          <select id="logcat-level-select" style="max-width: 200px;">
-            <option value="ALL">Tüm Seviyeler</option>
-            <option value="ERROR" selected>🔴 Sadece Hatalar (Error / Crash)</option>
-            <option value="WARN">🟡 Uyarılar (Warn & Error)</option>
-            <option value="INFO">🔵 Bilgi ve Üzeri</option>
-          </select>
+          <div class="select-wrapper">
+            <select id="logcat-level-select">
+              <option value="ALL">Tüm Seviyeler</option>
+              <option value="ERROR" selected>🔴 Sadece Hatalar (Error / Crash)</option>
+              <option value="WARN">🟡 Uyarılar (Warn & Error)</option>
+              <option value="INFO">🔵 Bilgi ve Üzeri</option>
+            </select>
+          </div>
 
           <!-- Search filter -->
-          <input type="text" id="logcat-search-input" placeholder="Kelime veya Paket Adı Filtrele (Örn: Crash, Exception, Unity, Flutter, Fatal)..." style="flex: 1; min-width: 260px;">
+          <div class="search-input-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="logcat-search-input" placeholder="Kelime veya Paket Adı Filtrele (Crash, Exception, Unity, Fatal)...">
+          </div>
 
           <!-- Auto-scroll checkbox -->
-          <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); cursor: pointer; white-space: nowrap;">
+          <label class="custom-checkbox autoscroll-toggle">
             <input type="checkbox" id="logcat-autoscroll-checkbox" checked>
+            <span class="checkbox-indicator"></span>
             <span>Otomatik Kaydır</span>
           </label>
         </div>
@@ -312,11 +386,12 @@
         <div class="terminal-window" id="terminal-window">
           <div class="log-entry info">
             <span class="log-time">[Sistem]</span>
+            <span class="log-badge badge-info">INFO</span>
             <span>Akıllı Logcat hazır. Cihazınızı seçip "Logcat'i Başlat" butonuna tıklayın.</span>
           </div>
         </div>
       </div>
-    </div>
+    </main>
   </div>
 
   <div id="toast" class="toast"></div>
