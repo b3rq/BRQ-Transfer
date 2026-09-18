@@ -62,27 +62,28 @@ BRQ Transfer runs locally on your Wi-Fi router (LAN). It directly connects your 
 
 ### Installation & Run
 
-1. Clone the repository:
+#### Option A: Quick Start (Windows)
+1. Download or clone the repository:
    ```bash
    git clone https://github.com/b3rq/BRQ-Transfer.git
    cd BRQ-Transfer
    ```
+2. Double-click **`start.bat`** (or **`launch.vbs`** for windowless background run).
+   - On the first run, it automatically installs required packages and launches the native desktop app window!
 
+#### Option B: Manual CLI
+1. Clone and enter directory:
+   ```bash
+   git clone https://github.com/b3rq/BRQ-Transfer.git
+   cd BRQ-Transfer
+   ```
 2. Install dependencies:
    ```bash
    npm install
    ```
-
-3. Start the hub:
-   ```bash
-   npm start
-   ```
-   *Windows shortcut:* Double-click `start-hub.bat` or `launch.vbs` (runs quietly in background).
-
-4. Open the PC dashboard at:
-   ```
-   http://localhost:4500
-   ```
+3. Start the application:
+   - Desktop App: `npm run desktop`
+   - Headless Web Server: `npm start` (Dashboard opens at `http://localhost:4500`)
 
 5. Connect your phone to the same Wi-Fi network and scan the QR code displayed on the dashboard.
 
@@ -136,14 +137,16 @@ flowchart TD
 ## Repository Structure
 
 ```
-unity-apk-hub/
+BRQ-Transfer/
 ├── android-companion/    # Optional lightweight Android companion app source
 ├── public/               # PC & Mobile web dashboards (HTML, CSS, JS)
 ├── tools/                # Clipboard sync and platform helper binaries
 ├── unity-package/        # Optional Unity Editor integration script
 ├── server.js             # Core Node.js server, WebSocket, ADB manager
-├── start-hub.bat         # Windows launch script
-└── launch.vbs            # Background launcher (no console window)
+├── electron.js           # Native desktop application wrapper
+├── start.bat             # Windows one-click auto-installer & desktop launcher
+├── start-hub.bat         # Windows console launcher shortcut
+└── launch.vbs            # Silent background launcher (no console window)
 ```
 
 ---
