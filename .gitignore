@@ -6,4 +6,8 @@ android-companion/build/
 .DS_Store
 Thumbs.db
 config.json
-tools/
+tools/*
+!tools/clip.jar
+!tools/clipwatch.exe
+!tools/ClipWatch.cs
+!tools/scrcpy/
