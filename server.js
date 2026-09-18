@@ -146,6 +146,103 @@ function formatBytes(bytes, decimals = 2) {
     return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
 
+// --- Transfers Persistence & Disk Synchronization ---
+const TRANSFERS_FILE = path.join(BASE_DIR, 'transfers.json');
+
+function saveTransfers() {
+    try {
+        fs.writeFileSync(TRANSFERS_FILE, JSON.stringify(transfersList, null, 2), 'utf8');
+    } catch (e) {
+        console.error('Transfers save error:', e.message);
+    }
+}
+
+function syncTransfersWithDisk() {
+    let saved = [];
+    if (fs.existsSync(TRANSFERS_FILE)) {
+        try {
+            saved = JSON.parse(fs.readFileSync(TRANSFERS_FILE, 'utf8'));
+            if (!Array.isArray(saved)) saved = [];
+        } catch (e) {
+            console.error('Transfers read error:', e.message);
+            saved = [];
+        }
+    }
+
+    // Filter out records whose files have been deleted from disk
+    saved = saved.filter(t => {
+        if (t.direction === 'mobile-to-pc') {
+            const filePath = t.localPath || path.join(RECEIVED_DIR, t.filename);
+            return fs.existsSync(filePath);
+        }
+        if (t.localPath) {
+            return fs.existsSync(t.localPath);
+        }
+        return true;
+    });
+
+    // Scan RECEIVED_DIR to auto-discover any files that physically exist on disk
+    if (fs.existsSync(RECEIVED_DIR)) {
+        try {
+            const files = fs.readdirSync(RECEIVED_DIR);
+            for (const file of files) {
+                const fullPath = path.join(RECEIVED_DIR, file);
+                try {
+                    const stats = fs.statSync(fullPath);
+                    if (!stats.isFile()) continue;
+
+                    const alreadyInList = saved.some(t => 
+                        t.filename === file || t.localPath === fullPath
+                    );
+
+                    if (!alreadyInList) {
+                        const meta = getTargetAndroidDir(file);
+                        saved.push({
+                            id: Date.now() + Math.random().toString(36).substr(2, 5),
+                            filename: file,
+                            originalName: file,
+                            size: formatBytes(stats.size),
+                            rawSize: stats.size,
+                            category: meta.category,
+                            direction: 'mobile-to-pc',
+                            localPath: fullPath,
+                            timestamp: new Date(stats.mtime).toLocaleTimeString(),
+                            mtime: stats.mtime,
+                            status: 'transferred'
+                        });
+                    }
+                } catch (e) {}
+            }
+        } catch (e) {
+            console.error('Scan received folder error:', e.message);
+        }
+    }
+
+    // Sort by mtime / timestamp descending (most recent first)
+    saved.sort((a, b) => {
+        const timeA = a.mtime ? new Date(a.mtime).getTime() : (typeof a.id === 'number' ? a.id : 0);
+        const timeB = b.mtime ? new Date(b.mtime).getTime() : (typeof b.id === 'number' ? b.id : 0);
+        return timeB - timeA;
+    });
+
+    transfersList = saved.slice(0, 100);
+    saveTransfers();
+    return transfersList;
+}
+
+// Watch RECEIVED_DIR for file deletions so UI updates live
+if (fs.existsSync(RECEIVED_DIR)) {
+    const receivedWatcher = chokidar.watch(RECEIVED_DIR, {
+        ignoreInitial: true,
+        persistent: true
+    });
+    receivedWatcher.on('unlink', (filePath) => {
+        console.log('[Received Klasörü]: Dosya silindi:', path.basename(filePath));
+        syncTransfersWithDisk();
+        broadcast({ type: 'TRANSFERS_UPDATED', transfers: transfersList });
+    });
+}
+
 // Parse APK Badging via aapt
 function extractApkMetadata(apkPath) {
     return new Promise((resolve) => {
@@ -758,6 +855,7 @@ function startScreenStream(targetWs, deviceId) {
 }
 
 wss.on('connection', async (ws) => {
+    syncTransfersWithDisk();
     const devices = await getAdbDevices();
     ws.send(JSON.stringify({
         type: 'INIT',
@@ -860,7 +958,26 @@ app.get('/api/apks', (req, res) => {
 });
 
 app.get('/api/transfers', (req, res) => {
+    syncTransfersWithDisk();
     res.json(transfersList);
+});
+
+// Delete Transfer and associated local file if exists
+app.post('/api/transfers/delete', (req, res) => {
+    const { id } = req.body;
+    const target = transfersList.find(t => String(t.id) === String(id));
+    if (target) {
+        if (target.direction === 'mobile-to-pc') {
+            const filePath = target.localPath || path.join(RECEIVED_DIR, target.filename);
+            if (fs.existsSync(filePath)) {
+                try { fs.unlinkSync(filePath); } catch (e) {}
+            }
+        }
+        transfersList = transfersList.filter(t => String(t.id) !== String(id));
+        saveTransfers();
+        broadcast({ type: 'TRANSFERS_UPDATED', transfers: transfersList });
+    }
+    res.json({ success: true, transfers: transfersList });
 });
 
 // PC to Phone Upload & Push
@@ -888,6 +1005,7 @@ app.post('/api/upload', upload.any(), async (req, res) => {
         size: formatBytes(file.size),
         category: meta.category,
         direction: 'pc-to-phone',
+        localPath: file.path,
         targetDir: meta.dir,
         remotePath: `${meta.dir}/${file.originalname}`,
         deviceId: targetDevice,
@@ -913,13 +1031,15 @@ app.post('/api/upload', upload.any(), async (req, res) => {
                 }
             }
             transfersList.unshift(record);
-            if (transfersList.length > 60) transfersList.pop();
+            if (transfersList.length > 100) transfersList.pop();
+            saveTransfers();
             broadcast({ type: 'TRANSFER_COMPLETED', transfer: record, transfers: transfersList });
         });
         return res.json({ success: true, isApk, apk: registeredApk, transfer: record });
     } else {
         transfersList.unshift(record);
-        if (transfersList.length > 60) transfersList.pop();
+        if (transfersList.length > 100) transfersList.pop();
+        saveTransfers();
         broadcast({ type: 'TRANSFER_SAVED', transfer: record, transfers: transfersList });
         return res.json({ success: true, isApk, apk: registeredApk, transfer: record });
     }
@@ -956,15 +1076,18 @@ app.post('/api/upload/mobile-to-pc', uploadReceived.array('files', 50), async (r
                 direction: 'mobile-to-pc',
                 localPath: file.path,
                 timestamp: new Date().toLocaleTimeString(),
+                mtime: new Date(),
                 status: 'transferred'
             };
 
             transfersList.unshift(record);
-            if (transfersList.length > 60) transfersList.pop();
+            if (transfersList.length > 100) transfersList.pop();
             savedRecords.push(record);
 
             console.log(`[Mobil -> PC]: ${file.filename} (${record.size}) kaydedildi -> ${file.path}`);
         }
+
+        saveTransfers();
 
         broadcast({
             type: 'FILE_RECEIVED_FROM_PHONE',
@@ -1616,6 +1739,7 @@ server.listen(PORT, '0.0.0.0', () => {
     setupWatcher(config.watchFolder);
     scanFolder(config.watchFolder, 'folder-watcher');
     scanFolder(UPLOADS_DIR, 'upload');
+    syncTransfersWithDisk();
 });
 
 // Graceful Cleanup

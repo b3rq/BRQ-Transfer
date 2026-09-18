@@ -1404,6 +1404,12 @@ body {
   color: var(--text-primary);
 }
 
+.btn-transfer-delete:hover {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: var(--danger);
+}
+
 /* Mobile Transfer QR Card (Tab 1 Sidebar) */
 .mobile-transfer-panel {
   border-color: rgba(37, 99, 235, 0.28);
