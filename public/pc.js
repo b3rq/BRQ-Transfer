@@ -1378,38 +1378,52 @@ function renderApks() {
         return;
     }
 
-    apkListContainer.innerHTML = currentApks.map(apk => `
+    apkListContainer.innerHTML = currentApks.map(apk => {
+        const safeTitle = escapeHtml(apk.label || apk.name);
+        const safePkg = escapeHtml(apk.packageName || '');
+        const safeName = escapeHtml(apk.name || '');
+        const safeVersionName = escapeHtml(apk.versionName || '1.0');
+        const safeVersionCode = escapeHtml(apk.versionCode || '1');
+        const safeSize = escapeHtml(apk.size || '');
+        const safeMinSdk = escapeHtml(apk.minSdk || '24');
+        const safeTargetSdk = escapeHtml(apk.targetSdk || '34');
+        const safeId = escapeHtml(apk.id || '');
+        const safeDownloadUrl = escapeHtml(apk.downloadUrl || '');
+        const timeStr = apk.updatedAt ? new Date(apk.updatedAt).toLocaleTimeString() : '';
+
+        return `
       <div class="apk-card">
         <div class="apk-header">
-          <div class="apk-title">${apk.label || apk.name}</div>
+          <div class="apk-title">${safeTitle}</div>
           <span class="tag-version">${apk.source === 'folder-watcher' ? i18n[currentLang].source_watcher : i18n[currentLang].source_upload}</span>
         </div>
 
-        <div class="apk-pkg mono">${apk.packageName} &bull; ${apk.name}</div>
+        <div class="apk-pkg mono">${safePkg} &bull; ${safeName}</div>
 
         <div class="apk-tags">
-          <span class="apk-tag-pill">v${apk.versionName || '1.0'} (${apk.versionCode || '1'})</span>
-          <span class="apk-tag-pill">${apk.size}</span>
-          <span class="apk-tag-pill">SDK ${apk.minSdk || '24'}-${apk.targetSdk || '34'}</span>
-          <span class="apk-tag-pill">${new Date(apk.updatedAt).toLocaleTimeString()}</span>
+          <span class="apk-tag-pill">v${safeVersionName} (${safeVersionCode})</span>
+          <span class="apk-tag-pill">${safeSize}</span>
+          <span class="apk-tag-pill">SDK ${safeMinSdk}-${safeTargetSdk}</span>
+          <span class="apk-tag-pill">${timeStr}</span>
         </div>
 
         <div class="apk-actions">
-          <button class="btn btn-primary btn-sm" onclick="installViaAdb('${apk.id}', '${apk.name}')">
+          <button class="btn btn-primary btn-sm btn-apk-install" data-id="${safeId}" data-name="${safeName}">
             ${i18n[currentLang].install_and_launch}
           </button>
-          <button class="btn btn-secondary btn-sm" onclick="launchApp('${apk.packageName}')" title="${i18n[currentLang].launch}">
+          <button class="btn btn-secondary btn-sm btn-apk-launch" data-pkg="${safePkg}" title="${i18n[currentLang].launch}">
             ${i18n[currentLang].launch}
           </button>
-          <button class="btn btn-secondary btn-sm" onclick="stopApp('${apk.packageName}')" title="${i18n[currentLang].stop}">
+          <button class="btn btn-secondary btn-sm btn-apk-stop" data-pkg="${safePkg}" title="${i18n[currentLang].stop}">
             ${i18n[currentLang].stop}
           </button>
-          <a href="${apk.downloadUrl}" class="btn btn-secondary btn-sm" download="${apk.name}">
+          <a href="${safeDownloadUrl}" class="btn btn-secondary btn-sm" download="${safeName}">
             ${i18n[currentLang].download}
           </a>
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
 }
 
 // Render Transferred Files List
@@ -1465,27 +1479,28 @@ function renderTransfers() {
         }
 
         const pathDisplay = isMobileToPc
-            ? (t.localPath ? t.localPath.replace(/\\/g, '/') : 'received/')
-            : `${t.remotePath || t.targetDir} ${targetDev ? `&bull; ${targetDev}` : ''}`;
+            ? (t.localPath ? escapeHtml(t.localPath.replace(/\\/g, '/')) : 'received/')
+            : `${escapeHtml(t.remotePath || t.targetDir || '')} ${targetDev ? `&bull; ${escapeHtml(targetDev)}` : ''}`;
 
-        const safeFilename = escapeHtml(t.filename);
-        const safeLocalPath = escapeHtml((t.localPath || '').replace(/\\/g, '\\\\'));
+        const safeFilename = escapeHtml(t.filename || '');
+        const safeLocalPath = escapeHtml(t.localPath || '');
+        const safeId = escapeHtml(String(t.id || ''));
 
         const actionsHtml = isMobileToPc ? `
-          <button class="btn-transfer-action" onclick="openReceivedFile('${safeFilename}', '${safeLocalPath}')" title="${dict.open_file}">
+          <button class="btn-transfer-action btn-transfer-open" data-filename="${safeFilename}" data-path="${safeLocalPath}" title="${dict.open_file}">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
             ${dict.open_file}
           </button>
-          <button class="btn-transfer-action" onclick="openReceivedFolder('${safeFilename}', '${safeLocalPath}')" title="${dict.show_in_folder}">
+          <button class="btn-transfer-action btn-transfer-folder" data-filename="${safeFilename}" data-path="${safeLocalPath}" title="${dict.show_in_folder}">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
             ${dict.show_in_folder}
           </button>
-          <button class="btn-transfer-action btn-transfer-delete" onclick="deleteTransfer('${t.id}')" title="${dict.delete}">
+          <button class="btn-transfer-action btn-transfer-delete" data-id="${safeId}" title="${dict.delete}">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             ${dict.delete}
           </button>
         ` : `
-          <button class="btn-transfer-action btn-transfer-delete" onclick="deleteTransfer('${t.id}')" title="${dict.delete}">
+          <button class="btn-transfer-action btn-transfer-delete" data-id="${safeId}" title="${dict.delete}">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             ${dict.delete}
           </button>
@@ -1502,8 +1517,8 @@ function renderTransfers() {
             </div>
             <div class="transfer-right">
               ${dirBadge}
-              <span class="transfer-tag mono">${t.size}</span>
-              <span class="transfer-tag mono">${t.timestamp}</span>
+              <span class="transfer-tag mono">${escapeHtml(t.size || '')}</span>
+              <span class="transfer-tag mono">${escapeHtml(t.timestamp || '')}</span>
               <span class="transfer-status" style="color: ${statusColor};">${statusText}</span>
               ${actionsHtml}
             </div>
@@ -1557,7 +1572,56 @@ window.deleteTransfer = async (id) => {
     }
 };
 
-// Wire Open Received Folder button
+// Safe Event Delegation for APK Actions
+if (apkListContainer) {
+    apkListContainer.addEventListener('click', (e) => {
+        const installBtn = e.target.closest('.btn-apk-install');
+        if (installBtn) {
+            const id = installBtn.getAttribute('data-id');
+            const name = installBtn.getAttribute('data-name');
+            if (id && window.installViaAdb) window.installViaAdb(id, name);
+            return;
+        }
+        const launchBtn = e.target.closest('.btn-apk-launch');
+        if (launchBtn) {
+            const pkg = launchBtn.getAttribute('data-pkg');
+            if (pkg && window.launchApp) window.launchApp(pkg);
+            return;
+        }
+        const stopBtn = e.target.closest('.btn-apk-stop');
+        if (stopBtn) {
+            const pkg = stopBtn.getAttribute('data-pkg');
+            if (pkg && window.stopApp) window.stopApp(pkg);
+            return;
+        }
+    });
+}
+
+// Safe Event Delegation for Transfer Actions
+if (transfersListContainer) {
+    transfersListContainer.addEventListener('click', (e) => {
+        const openBtn = e.target.closest('.btn-transfer-open');
+        if (openBtn) {
+            const filename = openBtn.getAttribute('data-filename');
+            const filePath = openBtn.getAttribute('data-path');
+            window.openReceivedFile(filename, filePath);
+            return;
+        }
+        const folderBtn = e.target.closest('.btn-transfer-folder');
+        if (folderBtn) {
+            const filename = folderBtn.getAttribute('data-filename');
+            const filePath = folderBtn.getAttribute('data-path');
+            window.openReceivedFolder(filename, filePath);
+            return;
+        }
+        const deleteBtn = e.target.closest('.btn-transfer-delete');
+        if (deleteBtn) {
+            const id = deleteBtn.getAttribute('data-id');
+            if (id) window.deleteTransfer(id);
+            return;
+        }
+    });
+}
 
 if (openReceivedFolderBtn) {
     openReceivedFolderBtn.onclick = async () => {

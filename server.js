@@ -289,11 +289,24 @@ if (fs.existsSync(RECEIVED_DIR)) {
     });
 }
 
-// Parse APK Badging via aapt
 function extractApkMetadata(apkPath) {
     return new Promise((resolve) => {
-        exec(`"${AAPT_BIN}" dump badging "${apkPath}"`, { maxBuffer: 1024 * 1024 * 5 }, (err, stdout) => {
-            if (err || !stdout) {
+        let stdout = '';
+        const proc = spawn(AAPT_BIN, ['dump', 'badging', apkPath]);
+        proc.stdout.on('data', d => { stdout += d.toString('utf8'); });
+        proc.on('error', () => {
+            resolve({
+                packageName: 'com.app.android',
+                versionName: '1.0',
+                versionCode: '1',
+                label: path.basename(apkPath).replace(/\.apk$/i, ''),
+                minSdk: '24',
+                targetSdk: '34',
+                launchableActivity: ''
+            });
+        });
+        proc.on('close', (code) => {
+            if (code !== 0 || !stdout) {
                 return resolve({
                     packageName: 'com.app.android',
                     versionName: '1.0',
@@ -511,35 +524,59 @@ function verifyDeviceConnected(deviceIdOrIp) {
 
 function adbConnect(ip, port = 5555) {
     return new Promise((resolve, reject) => {
-        exec(`"${ADB_BIN}" connect ${ip}:${port}`, (err, stdout, stderr) => {
-            const out = (stdout || '') + (stderr || '');
-            if (err || out.includes('cannot connect') || out.includes('failed to connect')) {
+        if (!/^[a-zA-Z0-9.:_-]+$/.test(ip) || !/^\d+$/.test(String(port))) {
+            return reject(new Error('Geçersiz IP veya port parametresi'));
+        }
+        const proc = spawn(ADB_BIN, ['connect', `${ip}:${port}`]);
+        let out = '';
+        proc.stdout.on('data', d => { out += d.toString('utf8'); });
+        proc.stderr.on('data', d => { out += d.toString('utf8'); });
+        proc.on('close', () => {
+            if (out.includes('cannot connect') || out.includes('failed to connect')) {
                 return reject(new Error(out.trim() || 'Bağlantı kurulamadı'));
             }
             resolve(out.trim());
         });
+        proc.on('error', err => reject(err));
     });
 }
 
 function adbPair(ip, port, code) {
     return new Promise((resolve, reject) => {
-        exec(`"${ADB_BIN}" pair ${ip}:${port} ${code}`, (err, stdout, stderr) => {
-            const out = (stdout || '') + (stderr || '');
-            if (err || out.includes('Failed') || out.includes('error')) {
+        if (!/^[a-zA-Z0-9.:_-]+$/.test(ip) || !/^\d+$/.test(String(port)) || !/^\d+$/.test(String(code))) {
+            return reject(new Error('Geçersiz IP, port veya eşleştirme kodu'));
+        }
+        const proc = spawn(ADB_BIN, ['pair', `${ip}:${port}`, String(code)]);
+        let out = '';
+        proc.stdout.on('data', d => { out += d.toString('utf8'); });
+        proc.stderr.on('data', d => { out += d.toString('utf8'); });
+        proc.on('close', () => {
+            if (out.includes('Failed') || out.includes('error')) {
                 return reject(new Error(out.trim() || 'Eşleştirme başarısız'));
             }
             resolve(out.trim());
         });
+        proc.on('error', err => reject(err));
     });
 }
 
 function launchAppViaAdb(deviceId, packageName) {
     return new Promise((resolve) => {
-        const targetArg = deviceId ? `-s ${deviceId}` : '';
-        const cmd = `"${ADB_BIN}" ${targetArg} shell monkey -p ${packageName} -c android.intent.category.LAUNCHER 1`;
-        exec(cmd, (err, stdout) => {
-            resolve({ success: !err, output: stdout });
+        if (!/^[a-zA-Z0-9._-]+$/.test(packageName)) {
+            return resolve({ success: false, error: 'Geçersiz paket adı' });
+        }
+        const args = [];
+        if (deviceId && /^[a-zA-Z0-9.:_-]+$/.test(deviceId)) {
+            args.push('-s', deviceId);
+        }
+        args.push('shell', 'monkey', '-p', packageName, '-c', 'android.intent.category.LAUNCHER', '1');
+        const proc = spawn(ADB_BIN, args);
+        let stdout = '';
+        proc.stdout.on('data', d => { stdout += d.toString('utf8'); });
+        proc.on('close', (code) => {
+            resolve({ success: code === 0, output: stdout });
         });
+        proc.on('error', err => resolve({ success: false, error: err.message }));
     });
 }
 
@@ -551,13 +588,22 @@ function installApkViaAdb(deviceId, apkPath, apkMeta = null) {
         message: `${path.basename(apkPath)} cihaza aktarılıyor ve kuruluyor...`
     });
 
-    const targetArg = deviceId ? `-s ${deviceId}` : '';
-    const cmd = `"${ADB_BIN}" ${targetArg} install -r -d -t "${apkPath}"`;
+    const args = [];
+    if (deviceId && /^[a-zA-Z0-9.:_-]+$/.test(deviceId)) {
+        args.push('-s', deviceId);
+    }
+    args.push('install', '-r', '-d', '-t', apkPath);
 
-    console.log('[ADB Kurulum Başladı]:', cmd);
-    exec(cmd, async (err, stdout, stderr) => {
-        if (err || (stdout && stdout.includes('Failure'))) {
-            const errorMsg = stdout || stderr || (err ? err.message : 'Bilinmeyen hata');
+    console.log('[ADB Kurulum Başladı]:', ADB_BIN, args.join(' '));
+    const proc = spawn(ADB_BIN, args);
+    let stdout = '';
+    let stderr = '';
+    proc.stdout.on('data', d => { stdout += d.toString('utf8'); });
+    proc.stderr.on('data', d => { stderr += d.toString('utf8'); });
+
+    proc.on('close', async (code) => {
+        if (code !== 0 || (stdout && stdout.includes('Failure'))) {
+            const errorMsg = stdout || stderr || 'Kurulum başarısız';
             console.error('[ADB Kurulum Hatası]:', errorMsg);
             broadcast({
                 type: 'ADB_INSTALL_ERROR',
@@ -966,9 +1012,22 @@ app.use(express.static(PUBLIC_DIR));
 // Multer Storage for PC Drag & Drop (uploads folder)
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, UPLOADS_DIR),
-    filename: (req, file, cb) => cb(null, file.originalname)
+    filename: (req, file, cb) => {
+        let safeName = path.basename(file.originalname).replace(/[/\\?%*:|"<>]/g, '_');
+        if (!safeName) safeName = `upload_${Date.now()}`;
+        const targetPath = path.join(UPLOADS_DIR, safeName);
+        if (fs.existsSync(targetPath)) {
+            const ext = path.extname(safeName);
+            const nameWithoutExt = path.basename(safeName, ext);
+            safeName = `${nameWithoutExt}_${Date.now()}${ext}`;
+        }
+        cb(null, safeName);
+    }
 });
-const upload = multer({ storage });
+const upload = multer({
+    storage,
+    limits: { fileSize: 2000 * 1024 * 1024 } // 2GB
+});
 
 // Multer Storage for Mobile to PC Transfers (received folder)
 const storageReceived = multer.diskStorage({
@@ -1159,15 +1218,24 @@ app.post('/api/transfers/open', (req, res) => {
     const { filename, filePath } = req.body;
     let target = filePath;
     if (!target && filename) {
-        target = path.join(RECEIVED_DIR, filename);
+        target = path.join(RECEIVED_DIR, path.basename(filename));
     }
-    if (!target || !fs.existsSync(target)) {
-        return res.status(404).json({ error: 'Dosya bulunamadı' });
+    if (!target) {
+        return res.status(400).json({ error: 'Dosya belirtilmedi' });
     }
-    exec(`start "" "${target}"`, (err) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true });
-    });
+
+    const resolved = path.resolve(target);
+    const resolvedRec = path.resolve(RECEIVED_DIR);
+    const resolvedUp = path.resolve(UPLOADS_DIR);
+    const isAllowed = resolved.startsWith(resolvedRec + path.sep) || resolved.startsWith(resolvedUp + path.sep);
+
+    if (!isAllowed || !fs.existsSync(resolved)) {
+        return res.status(403).json({ error: 'Erişim reddedildi veya dosya bulunamadı' });
+    }
+
+    const proc = spawn('cmd.exe', ['/c', 'start', '""', resolved], { windowsHide: true });
+    proc.on('error', (err) => res.status(500).json({ error: err.message }));
+    res.json({ success: true });
 });
 
 // Show Received File in Windows Explorer
@@ -1175,15 +1243,20 @@ app.post('/api/transfers/open-folder', (req, res) => {
     const { filename, filePath } = req.body;
     let target = filePath;
     if (!target && filename) {
-        target = path.join(RECEIVED_DIR, filename);
+        target = path.join(RECEIVED_DIR, path.basename(filename));
     }
-    if (target && fs.existsSync(target)) {
-        exec(`explorer.exe /select,"${target}"`, () => {});
-        return res.json({ success: true });
-    } else {
-        exec(`explorer.exe "${RECEIVED_DIR}"`, () => {});
-        return res.json({ success: true });
+
+    if (target) {
+        const resolved = path.resolve(target);
+        const resolvedRec = path.resolve(RECEIVED_DIR);
+        const resolvedUp = path.resolve(UPLOADS_DIR);
+        if ((resolved.startsWith(resolvedRec + path.sep) || resolved.startsWith(resolvedUp + path.sep)) && fs.existsSync(resolved)) {
+            spawn('explorer.exe', [`/select,${resolved}`], { windowsHide: true });
+            return res.json({ success: true });
+        }
     }
+    spawn('explorer.exe', [path.resolve(RECEIVED_DIR)], { windowsHide: true });
+    return res.json({ success: true });
 });
 
 // Pull Latest Screenshot from Connected Android Device via ADB
@@ -1363,8 +1436,11 @@ app.post('/api/adb/connect', async (req, res) => {
 // Disconnect / Remove Device
 app.post('/api/adb/disconnect', async (req, res) => {
     const { deviceId } = req.body;
-    if (!deviceId) return res.status(400).json({ error: 'Cihaz ID gerekli' });
-    exec(`"${ADB_BIN}" disconnect ${deviceId}`, async (err, stdout, stderr) => {
+    if (!deviceId || !/^[a-zA-Z0-9.:_-]+$/.test(deviceId)) {
+        return res.status(400).json({ error: 'Geçersiz cihaz ID' });
+    }
+    const proc = spawn(ADB_BIN, ['disconnect', deviceId]);
+    proc.on('close', async () => {
         const devices = await getAdbDevices();
         if (config.selectedAdbDevice === deviceId) {
             config.selectedAdbDevice = devices.length > 0 ? devices[0].id : '';
@@ -1400,37 +1476,60 @@ app.post('/api/adb/install', async (req, res) => {
 
 app.post('/api/adb/launch', async (req, res) => {
     const { deviceId, packageName } = req.body;
-    if (!packageName) return res.status(400).json({ error: 'Paket adı gerekli' });
+    if (!packageName || !/^[a-zA-Z0-9._-]+$/.test(packageName)) {
+        return res.status(400).json({ error: 'Geçersiz paket adı' });
+    }
     const result = await launchAppViaAdb(deviceId, packageName);
     res.json(result);
 });
 
 app.post('/api/adb/stop', (req, res) => {
     const { deviceId, packageName } = req.body;
-    const targetArg = deviceId ? `-s ${deviceId}` : '';
-    exec(`"${ADB_BIN}" ${targetArg} shell am force-stop ${packageName}`, (err, stdout) => {
-        res.json({ success: !err, output: stdout });
-    });
+    if (!packageName || !/^[a-zA-Z0-9._-]+$/.test(packageName)) {
+        return res.status(400).json({ error: 'Geçersiz paket adı' });
+    }
+    const args = [];
+    if (deviceId && /^[a-zA-Z0-9.:_-]+$/.test(deviceId)) {
+        args.push('-s', deviceId);
+    }
+    args.push('shell', 'am', 'force-stop', packageName);
+    const proc = spawn(ADB_BIN, args);
+    let stdout = '';
+    proc.stdout.on('data', d => { stdout += d.toString('utf8'); });
+    proc.on('close', code => res.json({ success: code === 0, output: stdout }));
 });
 
 app.post('/api/adb/uninstall', (req, res) => {
     const { deviceId, packageName } = req.body;
-    const targetArg = deviceId ? `-s ${deviceId}` : '';
-    exec(`"${ADB_BIN}" ${targetArg} uninstall ${packageName}`, (err, stdout) => {
-        res.json({ success: !err, output: stdout });
-    });
+    if (!packageName || !/^[a-zA-Z0-9._-]+$/.test(packageName)) {
+        return res.status(400).json({ error: 'Geçersiz paket adı' });
+    }
+    const args = [];
+    if (deviceId && /^[a-zA-Z0-9.:_-]+$/.test(deviceId)) {
+        args.push('-s', deviceId);
+    }
+    args.push('uninstall', packageName);
+    const proc = spawn(ADB_BIN, args);
+    let stdout = '';
+    proc.stdout.on('data', d => { stdout += d.toString('utf8'); });
+    proc.on('close', code => res.json({ success: code === 0, output: stdout }));
 });
 
 // Remote Key Events (Back=4, Home=3, AppSwitch=187, Power=26)
 const handleRemoteKey = (req, res) => {
     const { deviceId, code, keyCode } = req.body;
     const key = keyCode || code;
+    if (!key || !/^\d+$/.test(String(key))) {
+        return res.status(400).json({ error: 'Geçersiz keycode' });
+    }
+    const args = [];
     const target = deviceId || config.selectedAdbDevice;
-    const targetArg = target ? `-s ${target}` : '';
-    if (!key) return res.status(400).json({ error: 'Key code required' });
-    exec(`"${ADB_BIN}" ${targetArg} shell input keyevent ${key}`, (err) => {
-        res.json({ success: !err });
-    });
+    if (target && /^[a-zA-Z0-9.:_-]+$/.test(target)) {
+        args.push('-s', target);
+    }
+    args.push('shell', 'input', 'keyevent', String(key));
+    const proc = spawn(ADB_BIN, args);
+    proc.on('close', code => res.json({ success: code === 0 }));
 };
 app.post('/api/adb/key', handleRemoteKey);
 app.post('/api/adb/keyevent', handleRemoteKey);
@@ -1439,18 +1538,29 @@ app.post('/api/adb/keyevent', handleRemoteKey);
 app.post('/api/adb/touch', (req, res) => {
     const { deviceId, type, x, y, x2, y2 } = req.body;
     const target = deviceId || config.selectedAdbDevice;
-    const targetArg = target ? `-s ${target}` : '';
-    let cmd = '';
+    const args = [];
+    if (target && /^[a-zA-Z0-9.:_-]+$/.test(target)) {
+        args.push('-s', target);
+    }
+
     if (type === 'tap') {
-        cmd = `"${ADB_BIN}" ${targetArg} shell input tap ${Math.round(x)} ${Math.round(y)}`;
+        const numX = Math.round(Number(x));
+        const numY = Math.round(Number(y));
+        if (isNaN(numX) || isNaN(numY)) return res.status(400).json({ error: 'Geçersiz koordinat' });
+        args.push('shell', 'input', 'tap', String(numX), String(numY));
     } else if (type === 'swipe') {
-        cmd = `"${ADB_BIN}" ${targetArg} shell input swipe ${Math.round(x)} ${Math.round(y)} ${Math.round(x2)} ${Math.round(y2)} 150`;
-    }
-    if (cmd) {
-        exec(cmd, (err) => res.json({ success: !err }));
+        const numX = Math.round(Number(x));
+        const numY = Math.round(Number(y));
+        const numX2 = Math.round(Number(x2));
+        const numY2 = Math.round(Number(y2));
+        if (isNaN(numX) || isNaN(numY) || isNaN(numX2) || isNaN(numY2)) return res.status(400).json({ error: 'Geçersiz koordinat' });
+        args.push('shell', 'input', 'swipe', String(numX), String(numY), String(numX2), String(numY2), '150');
     } else {
-        res.json({ success: false });
+        return res.json({ success: false });
     }
+
+    const proc = spawn(ADB_BIN, args);
+    proc.on('close', code => res.json({ success: code === 0 }));
 });
 
 // Get Device Display Resolution
@@ -1748,17 +1858,46 @@ app.get('/api/clipboard/sync/status', (req, res) => {
 app.post('/api/clipboard/send-text', async (req, res) => {
     const { text, deviceId } = req.body;
     const target = deviceId || config.selectedAdbDevice;
-    if (!target) return res.status(400).json({ error: 'Bağlı cihaz bulunamadı' });
-    if (!text) return res.status(400).json({ error: 'Metin gerekli' });
+    if (!target || !/^[a-zA-Z0-9.:_-]+$/.test(target)) {
+        return res.status(400).json({ error: 'Bağlı cihaz bulunamadı veya geçersiz' });
+    }
+    if (!text || typeof text !== 'string') {
+        return res.status(400).json({ error: 'Metin gerekli' });
+    }
 
     await ensureClipJar(target);
     const b64 = Buffer.from(text, 'utf8').toString('base64');
-    exec(`"${ADB_BIN}" -s ${target} shell "CLASSPATH=/data/local/tmp/clip.jar app_process / com.brq.Clip set-b64 '${b64}'"`, (err) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        }
+    if (!/^[A-Za-z0-9+/=]+$/.test(b64)) {
+        return res.status(400).json({ error: 'Geçersiz veri' });
+    }
+
+    const proc = spawn(ADB_BIN, [
+        '-s', target,
+        'shell',
+        `CLASSPATH=/data/local/tmp/clip.jar app_process / com.brq.Clip set-b64 ${b64}`
+    ]);
+    proc.on('close', code => {
+        if (code !== 0) return res.status(500).json({ error: 'Pano aktarılamadı' });
         res.json({ success: true });
     });
+});
+
+// Unity Editor PostProcessBuild notification endpoint
+app.post('/api/unity-build-done', async (req, res) => {
+    const { apkPath } = req.body;
+    if (!apkPath || typeof apkPath !== 'string') {
+        return res.status(400).json({ error: 'apkPath gereklidir' });
+    }
+    const resolvedPath = path.resolve(apkPath);
+    if (!resolvedPath.toLowerCase().endsWith('.apk') || !fs.existsSync(resolvedPath)) {
+        return res.status(404).json({ error: 'APK dosyası bulunamadı' });
+    }
+    const apkItem = await registerApk(resolvedPath, 'unity-editor');
+    if (apkItem) {
+        res.json({ success: true, apk: apkItem });
+    } else {
+        res.status(500).json({ error: 'APK işlenemedi' });
+    }
 });
 
 app.get('/download/:id', (req, res) => {
