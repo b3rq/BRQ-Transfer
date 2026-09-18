@@ -59,7 +59,16 @@ const i18n = {
         download: "İndir",
         status_transferred: "Cihaza Aktarıldı",
         status_saved: "Sunucuda Hazır",
+        status_received: "PC'ye Alındı",
         status_error: "Aktarım Başarısız",
+        dir_pc_to_phone: "PC ➔ Tel",
+        dir_phone_to_pc: "Tel ➔ PC",
+        open_file: "Aç",
+        show_in_folder: "Klasör",
+        pull_screenshot: "Son Ekran Görüntüsü",
+        pull_screenshot_title: "Telefondan son ekran görüntüsünü PC'ye çek",
+        received_folder: "İndirilenler",
+        open_folder_title: "Gelen dosyalar klasörünü aç",
 
         // Devices
         wireless_pairing: "Kablosuz Eşleme",
@@ -146,7 +155,11 @@ const i18n = {
         toast_clipboard_pc_to_phone: "Pano Modu: PC → Mobil aktif",
         toast_clipboard_phone_to_pc: "Pano Modu: Mobil → PC aktif",
         toast_clipboard_off: "Pano eşitleme kapatıldı",
-        toast_connect_first: "Lütfen önce bir cihaz bağlayın"
+        toast_connect_first: "Lütfen önce bir cihaz bağlayın",
+        toast_screenshot_pulling: "Ekran görüntüsü çekiliyor...",
+        toast_screenshot_pulled: "Ekran görüntüsü çekildi:",
+        toast_screenshot_pull_err: "Ekran görüntüsü çekilemedi:",
+        toast_file_received_from_phone: "Telefondan yeni dosya alındı:"
     },
     en: {
         // Navigation
@@ -203,7 +216,16 @@ const i18n = {
         download: "Download",
         status_transferred: "Transferred to Device",
         status_saved: "Ready on Server",
+        status_received: "Received on PC",
         status_error: "Transfer Failed",
+        dir_pc_to_phone: "PC ➔ Phone",
+        dir_phone_to_pc: "Phone ➔ PC",
+        open_file: "Open",
+        show_in_folder: "Folder",
+        pull_screenshot: "Latest Screenshot",
+        pull_screenshot_title: "Pull latest screenshot from phone to PC",
+        received_folder: "Received Files",
+        open_folder_title: "Open received files folder",
 
         // Devices
         wireless_pairing: "Wireless Pairing",
@@ -290,7 +312,11 @@ const i18n = {
         toast_clipboard_pc_to_phone: "Clipboard Mode: PC → Mobile active",
         toast_clipboard_phone_to_pc: "Clipboard Mode: Mobile → PC active",
         toast_clipboard_off: "Clipboard sync turned off",
-        toast_connect_first: "Please connect a device first"
+        toast_connect_first: "Please connect a device first",
+        toast_screenshot_pulling: "Pulling screenshot...",
+        toast_screenshot_pulled: "Screenshot pulled:",
+        toast_screenshot_pull_err: "Failed to pull screenshot:",
+        toast_file_received_from_phone: "File received from phone:"
     }
 };
 
@@ -334,6 +360,9 @@ const clipboardModeLabel = document.getElementById('clipboard-mode-label');
 
 const tabBtnApks = document.getElementById('tab-btn-apks');
 const tabBtnTransfers = document.getElementById('tab-btn-transfers');
+const transfersQuickActions = document.getElementById('transfers-quick-actions');
+const pullScreenshotBtn = document.getElementById('pull-screenshot-btn');
+const openReceivedFolderBtn = document.getElementById('open-received-folder-btn');
 const apkListContainer = document.getElementById('apk-list-container');
 const transfersListContainer = document.getElementById('transfers-list-container');
 const apkCountSpan = document.getElementById('apk-count');
@@ -394,6 +423,10 @@ function maskIdentifier(str) {
     return '••••••';
 }
 
+function escapeHtml(str) {
+    return (str || '').toString().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 function updatePrivacyUI() {
     if (!privacyToggleBtn) return;
     if (isPrivacyMode) {
@@ -436,6 +469,7 @@ if (tabBtnApks && tabBtnTransfers) {
         tabBtnTransfers.classList.remove('active');
         if (apkListContainer) apkListContainer.style.display = 'flex';
         if (transfersListContainer) transfersListContainer.style.display = 'none';
+        if (transfersQuickActions) transfersQuickActions.style.display = 'none';
         if (apkCountSpan) apkCountSpan.textContent = currentApks.length;
     };
 
@@ -445,6 +479,7 @@ if (tabBtnApks && tabBtnTransfers) {
         tabBtnApks.classList.remove('active');
         if (apkListContainer) apkListContainer.style.display = 'none';
         if (transfersListContainer) transfersListContainer.style.display = 'flex';
+        if (transfersQuickActions) transfersQuickActions.style.display = 'flex';
         renderTransfers();
         if (apkCountSpan) apkCountSpan.textContent = currentTransfers.length;
     };
@@ -1137,6 +1172,12 @@ function connectWs() {
             renderTransfers();
             const filename = (data.transfer && data.transfer.filename) || '';
             showToast(`${i18n[currentLang].toast_transfer_saved} ${filename}`, 'var(--warning)', 4500);
+        } else if (data.type === 'FILE_RECEIVED_FROM_PHONE') {
+            if (data.allTransfers) currentTransfers = data.allTransfers;
+            else if (data.transfers) currentTransfers = [...data.transfers, ...currentTransfers];
+            renderTransfers();
+            playChime();
+            showToast(data.message || `${i18n[currentLang].toast_file_received_from_phone}`, 'var(--success)', 5000);
         } else if (data.type === 'ADB_INSTALL_START') {
             showToast(`${i18n[currentLang].toast_installing} ${data.message}`, 'var(--warning)', 4000);
         } else if (data.type === 'ADB_INSTALL_SUCCESS') {
@@ -1274,29 +1315,142 @@ function renderTransfers() {
         document: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'
     };
 
+    const dict = i18n[currentLang];
+
     transfersListContainer.innerHTML = currentTransfers.map(t => {
         const icon = categoryIcons[t.category] || categoryIcons.document;
+        const isMobileToPc = t.direction === 'mobile-to-pc';
         const targetDev = t.deviceId ? (isPrivacyMode ? maskIdentifier(t.deviceId) : t.deviceId) : '';
-        const statusText = t.status === 'transferred' ? i18n[currentLang].status_transferred : (t.status === 'saved' ? i18n[currentLang].status_saved : i18n[currentLang].status_error);
-        const statusColor = t.status === 'transferred' ? 'var(--success)' : (t.status === 'saved' ? 'var(--warning)' : 'var(--danger)');
+
+        const dirBadge = isMobileToPc
+            ? `<span class="badge-dir badge-dir-received">📱 ➔ 💻 ${dict.dir_phone_to_pc}</span>`
+            : `<span class="badge-dir badge-dir-sent">💻 ➔ 📱 ${dict.dir_pc_to_phone}</span>`;
+
+        let statusText = '';
+        let statusColor = 'var(--success)';
+
+        if (isMobileToPc) {
+            statusText = dict.status_received || 'PC\'ye Alındı';
+            statusColor = 'var(--success)';
+        } else if (t.status === 'transferred') {
+            statusText = dict.status_transferred;
+            statusColor = 'var(--success)';
+        } else if (t.status === 'saved') {
+            statusText = dict.status_saved;
+            statusColor = 'var(--warning)';
+        } else {
+            statusText = dict.status_error;
+            statusColor = 'var(--danger)';
+        }
+
+        const pathDisplay = isMobileToPc
+            ? (t.localPath ? t.localPath.replace(/\\/g, '/') : 'received/')
+            : `${t.remotePath || t.targetDir} ${targetDev ? `&bull; ${targetDev}` : ''}`;
+
+        const safeFilename = escapeHtml(t.filename);
+        const safeLocalPath = escapeHtml((t.localPath || '').replace(/\\/g, '\\\\'));
+
+        const actionsHtml = isMobileToPc ? `
+          <button class="btn-transfer-action" onclick="openReceivedFile('${safeFilename}', '${safeLocalPath}')" title="${dict.open_file}">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            ${dict.open_file}
+          </button>
+          <button class="btn-transfer-action" onclick="openReceivedFolder('${safeFilename}', '${safeLocalPath}')" title="${dict.show_in_folder}">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            ${dict.show_in_folder}
+          </button>
+        ` : '';
 
         return `
           <div class="transfer-card">
             <div class="transfer-left">
               <div class="transfer-icon">${icon}</div>
               <div class="transfer-meta">
-                <div class="transfer-name" title="${t.filename}">${t.filename}</div>
-                <div class="transfer-path mono">${t.remotePath || t.targetDir} ${targetDev ? `&bull; ${targetDev}` : ''}</div>
+                <div class="transfer-name" title="${safeFilename}">${safeFilename}</div>
+                <div class="transfer-path mono">${pathDisplay}</div>
               </div>
             </div>
             <div class="transfer-right">
+              ${dirBadge}
               <span class="transfer-tag mono">${t.size}</span>
               <span class="transfer-tag mono">${t.timestamp}</span>
               <span class="transfer-status" style="color: ${statusColor};">${statusText}</span>
+              ${actionsHtml}
             </div>
           </div>
         `;
     }).join('');
+}
+
+// Open received file with default Windows app
+window.openReceivedFile = async (filename, filePath) => {
+    try {
+        await fetch('/api/transfers/open', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename, filePath })
+        });
+    } catch (e) {
+        console.error('File open error:', e);
+    }
+};
+
+// Open received files directory or select file in Windows Explorer
+window.openReceivedFolder = async (filename, filePath) => {
+    try {
+        await fetch('/api/transfers/open-folder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename, filePath })
+        });
+    } catch (e) {
+        console.error('Folder open error:', e);
+    }
+};
+
+// Wire Pull Screenshot and Open Received Folder buttons
+if (pullScreenshotBtn) {
+    pullScreenshotBtn.onclick = async () => {
+        const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
+        if (!target) {
+            showToast(i18n[currentLang].toast_no_device, 'var(--danger)');
+            return;
+        }
+        showToast(i18n[currentLang].toast_screenshot_pulling, 'var(--warning)', 3000);
+        pullScreenshotBtn.disabled = true;
+        try {
+            const res = await fetch('/api/adb/pull-latest-screenshot', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ deviceId: target })
+            });
+            const data = await res.json();
+            if (data.success && data.transfer) {
+                showToast(`${i18n[currentLang].toast_screenshot_pulled} ${data.transfer.filename}`, 'var(--success)', 4500);
+                playChime();
+            } else {
+                showToast(`${i18n[currentLang].toast_screenshot_pull_err} ${data.error || ''}`, 'var(--danger)', 5000);
+            }
+        } catch (e) {
+            showToast(e.message, 'var(--danger)');
+        } finally {
+            pullScreenshotBtn.disabled = false;
+        }
+    };
+}
+
+if (openReceivedFolderBtn) {
+    openReceivedFolderBtn.onclick = async () => {
+        try {
+            await fetch('/api/transfers/open-folder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+        } catch (e) {
+            console.error('Folder open error:', e);
+        }
+    };
 }
 
 // --- Battery Indicator & Header Pill ---
