@@ -65,9 +65,12 @@ const i18n = {
         dir_phone_to_pc: "Tel ➔ PC",
         open_file: "Aç",
         show_in_folder: "Klasör",
-        pull_screenshot: "Son Ekran Görüntüsü",
-        pull_screenshot_title: "Telefondan son ekran görüntüsünü PC'ye çek",
-        received_folder: "İndirilenler",
+        mobile_transfer_title: "📱 Telefondan PC'ye Aktar",
+        wifi_transfer_badge: "Wi-Fi Web",
+        adb_push_badge: "ADB Push",
+        mobile_qr_desc: "Telefon kamerasıyla QR kodu tarayın; fotoğraf, video ve belgeleri kablosuz PC'ye gönderin.",
+        copy_link: "Linki Kopyala",
+        received_folder: "İndirilenler Klasörü",
         open_folder_title: "Gelen dosyalar klasörünü aç",
 
         // Devices
@@ -222,9 +225,12 @@ const i18n = {
         dir_phone_to_pc: "Phone ➔ PC",
         open_file: "Open",
         show_in_folder: "Folder",
-        pull_screenshot: "Latest Screenshot",
-        pull_screenshot_title: "Pull latest screenshot from phone to PC",
-        received_folder: "Received Files",
+        mobile_transfer_title: "📱 Mobile to PC Transfer",
+        wifi_transfer_badge: "Wi-Fi Web",
+        adb_push_badge: "ADB Push",
+        mobile_qr_desc: "Scan QR with your phone camera to send photos, videos, and documents directly to PC over Wi-Fi.",
+        copy_link: "Copy Link",
+        received_folder: "Received Folder",
         open_folder_title: "Open received files folder",
 
         // Devices
@@ -361,7 +367,6 @@ const clipboardModeLabel = document.getElementById('clipboard-mode-label');
 const tabBtnApks = document.getElementById('tab-btn-apks');
 const tabBtnTransfers = document.getElementById('tab-btn-transfers');
 const transfersQuickActions = document.getElementById('transfers-quick-actions');
-const pullScreenshotBtn = document.getElementById('pull-screenshot-btn');
 const openReceivedFolderBtn = document.getElementById('open-received-folder-btn');
 const apkListContainer = document.getElementById('apk-list-container');
 const transfersListContainer = document.getElementById('transfers-list-container');
@@ -617,6 +622,37 @@ document.querySelectorAll('.nav-item, .tab-btn').forEach(btn => {
         }
     };
 });
+
+// --- Mobile to PC Web Transfer QR & Link ---
+async function loadMobileTransferQr() {
+    const mobileQrImg = document.getElementById('mobile-transfer-qr');
+    const mobileUrlLink = document.getElementById('mobile-transfer-url-link');
+    const mobileUrlText = document.getElementById('mobile-transfer-url-text');
+    if (!mobileQrImg) return;
+
+    try {
+        const res = await fetch('/api/qr');
+        const data = await res.json();
+        if (data && data.qrDataUrl) {
+            mobileQrImg.src = data.qrDataUrl;
+            if (mobileUrlLink) mobileUrlLink.href = data.url;
+            if (mobileUrlText) mobileUrlText.textContent = data.url;
+        }
+    } catch (e) {
+        console.error('Mobile QR load error:', e);
+    }
+}
+
+const copyMobileUrlBtn = document.getElementById('copy-mobile-url-btn');
+if (copyMobileUrlBtn) {
+    copyMobileUrlBtn.onclick = () => {
+        const urlText = document.getElementById('mobile-transfer-url-text');
+        if (urlText && urlText.textContent && !urlText.textContent.includes('...')) {
+            navigator.clipboard.writeText(urlText.textContent);
+            showToast(i18n[currentLang].toast_copied, 'var(--success)');
+        }
+    };
+}
 
 // --- ADB QR & Pairing ---
 function updatePairStatusBadge() {
@@ -1154,6 +1190,7 @@ function connectWs() {
             if (data.clipboardMode) {
                 updateClipboardUI(data.clipboardMode);
             }
+            loadMobileTransferQr();
         } else if (data.type === 'NEW_APK') {
             currentApks.unshift(data.apk);
             renderApks();
@@ -1175,9 +1212,16 @@ function connectWs() {
         } else if (data.type === 'FILE_RECEIVED_FROM_PHONE') {
             if (data.allTransfers) currentTransfers = data.allTransfers;
             else if (data.transfers) currentTransfers = [...data.transfers, ...currentTransfers];
-            renderTransfers();
+            
+            // Switch to Transfers tab so user immediately sees the received file
+            if (activeDeployTab !== 'transfers' && tabBtnTransfers) {
+                tabBtnTransfers.click();
+            } else {
+                renderTransfers();
+            }
             playChime();
-            showToast(data.message || `${i18n[currentLang].toast_file_received_from_phone}`, 'var(--success)', 5000);
+            const count = data.transfers ? data.transfers.length : 1;
+            showToast(data.message || `${i18n[currentLang].toast_file_received_from_phone} (${count})`, 'var(--success)', 5000);
         } else if (data.type === 'ADB_INSTALL_START') {
             showToast(`${i18n[currentLang].toast_installing} ${data.message}`, 'var(--warning)', 4000);
         } else if (data.type === 'ADB_INSTALL_SUCCESS') {
@@ -1408,36 +1452,7 @@ window.openReceivedFolder = async (filename, filePath) => {
     }
 };
 
-// Wire Pull Screenshot and Open Received Folder buttons
-if (pullScreenshotBtn) {
-    pullScreenshotBtn.onclick = async () => {
-        const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
-        if (!target) {
-            showToast(i18n[currentLang].toast_no_device, 'var(--danger)');
-            return;
-        }
-        showToast(i18n[currentLang].toast_screenshot_pulling, 'var(--warning)', 3000);
-        pullScreenshotBtn.disabled = true;
-        try {
-            const res = await fetch('/api/adb/pull-latest-screenshot', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ deviceId: target })
-            });
-            const data = await res.json();
-            if (data.success && data.transfer) {
-                showToast(`${i18n[currentLang].toast_screenshot_pulled} ${data.transfer.filename}`, 'var(--success)', 4500);
-                playChime();
-            } else {
-                showToast(`${i18n[currentLang].toast_screenshot_pull_err} ${data.error || ''}`, 'var(--danger)', 5000);
-            }
-        } catch (e) {
-            showToast(e.message, 'var(--danger)');
-        } finally {
-            pullScreenshotBtn.disabled = false;
-        }
-    };
-}
+// Wire Open Received Folder button
 
 if (openReceivedFolderBtn) {
     openReceivedFolderBtn.onclick = async () => {
@@ -1830,3 +1845,5 @@ setLanguage(currentLang);
 connectWs();
 renderCapturesList();
 renderTransfers();
+loadMobileTransferQr();
+

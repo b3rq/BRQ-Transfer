@@ -107,10 +107,38 @@
         <div class="split-view">
           <!-- Left Sidebar Controls -->
           <aside class="sidebar-panel">
-            <!-- Dropzone -->
+            <!-- 1. Telefondan PC'ye Aktar (Mobile -> PC Wi-Fi QR) -->
+            <div class="panel mobile-transfer-panel">
+              <div class="panel-header-between">
+                <h3 data-i18n="mobile_transfer_title">📱 Telefondan PC'ye Aktar</h3>
+                <span class="badge-wifi-live" data-i18n="wifi_transfer_badge">Wi-Fi Web</span>
+              </div>
+              <div class="mobile-qr-card">
+                <div class="mobile-qr-canvas-wrap">
+                  <img id="mobile-transfer-qr" class="mobile-qr-img" alt="Mobile Transfer QR">
+                </div>
+                <div class="mobile-qr-info">
+                  <p class="mobile-qr-desc" data-i18n="mobile_qr_desc">
+                    Telefon kamerasıyla QR kodu tarayın; fotoğraf, video ve belgeleri kablosuz PC'ye gönderin.
+                  </p>
+                  <div class="mobile-qr-url-row">
+                    <a id="mobile-transfer-url-link" href="#" target="_blank" class="mobile-url-link mono" title="Tarayıcıda Aç">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                      <span id="mobile-transfer-url-text">Yükleniyor...</span>
+                    </a>
+                    <button class="btn-copy-url" id="copy-mobile-url-btn" title="Linki Kopyala" data-i18n-title="copy_link">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 2. PC'den Telefona Dosya Yükle (Dropzone) -->
             <div class="panel">
-              <div class="panel-header">
-                <h3 data-i18n="upload_title">Dosya & Paket Yükle</h3>
+              <div class="panel-header-between">
+                <h3 data-i18n="upload_title">💻 PC'den Telefona Yükle</h3>
+                <span class="badge-adb-tag" data-i18n="adb_push_badge">ADB Push</span>
               </div>
               <div class="dropzone" id="dropzone">
                 <input type="file" id="file-input" accept="*/*" style="display: none;">
@@ -131,7 +159,7 @@
               </div>
             </div>
 
-            <!-- Folder Watcher -->
+            <!-- 3. Folder Watcher -->
             <div class="panel">
               <div class="panel-header">
                 <h3 data-i18n="build_watcher">Build İzleyici</h3>
@@ -158,13 +186,9 @@
                 </div>
                 <div class="header-actions-wrap" style="display: flex; align-items: center; gap: 8px;">
                   <div id="transfers-quick-actions" style="display: none; align-items: center; gap: 6px;">
-                    <button class="btn btn-secondary btn-sm" id="pull-screenshot-btn" title="Telefondan son ekran görüntüsünü PC'ye çek" data-i18n-title="pull_screenshot_title">
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-                      <span data-i18n="pull_screenshot">Son Ekran Görüntüsü</span>
-                    </button>
                     <button class="btn btn-secondary btn-sm" id="open-received-folder-btn" title="Gelen dosyalar klasörünü aç" data-i18n-title="open_folder_title">
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                      <span data-i18n="received_folder">İndirilenler</span>
+                      <span data-i18n="received_folder">İndirilenler Klasörü</span>
                     </button>
                   </div>
                   <span class="device-context" id="active-device-indicator">Hedef: Yok</span>
@@ -181,7 +205,7 @@
               <div id="transfers-list-container" class="package-list" style="display: none;">
                 <div class="empty-view">
                   <p class="empty-title" data-i18n="no_transfers">Henüz dosya aktarılmadı</p>
-                  <p class="empty-sub" data-i18n="no_transfers_sub">APK, resim, video, ses veya belge sürükleyip bırakın.</p>
+                  <p class="empty-sub" data-i18n="no_transfers_sub">Sol paneldeki QR kodu telefonla okutup dosya yollayabilir veya PC'den dosya sürükleyebilirsiniz.</p>
                 </div>
               </div>
             </div>
