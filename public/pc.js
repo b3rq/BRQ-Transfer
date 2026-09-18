@@ -65,6 +65,7 @@ const i18n = {
         dir_phone_to_pc: "Tel ➔ PC",
         open_file: "Aç",
         show_in_folder: "Klasör",
+        delete: "Sil",
         mobile_transfer_title: "📱 Telefondan PC'ye Aktar",
         wifi_transfer_badge: "Wi-Fi Web",
         adb_push_badge: "ADB Push",
@@ -162,7 +163,8 @@ const i18n = {
         toast_screenshot_pulling: "Ekran görüntüsü çekiliyor...",
         toast_screenshot_pulled: "Ekran görüntüsü çekildi:",
         toast_screenshot_pull_err: "Ekran görüntüsü çekilemedi:",
-        toast_file_received_from_phone: "Telefondan yeni dosya alındı:"
+        toast_file_received_from_phone: "Telefondan yeni dosya alındı:",
+        toast_transfer_deleted: "Transfer silindi"
     },
     en: {
         // Navigation
@@ -225,6 +227,7 @@ const i18n = {
         dir_phone_to_pc: "Phone ➔ PC",
         open_file: "Open",
         show_in_folder: "Folder",
+        delete: "Delete",
         mobile_transfer_title: "📱 Mobile to PC Transfer",
         wifi_transfer_badge: "Wi-Fi Web",
         adb_push_badge: "ADB Push",
@@ -322,7 +325,8 @@ const i18n = {
         toast_screenshot_pulling: "Pulling screenshot...",
         toast_screenshot_pulled: "Screenshot pulled:",
         toast_screenshot_pull_err: "Failed to pull screenshot:",
-        toast_file_received_from_phone: "File received from phone:"
+        toast_file_received_from_phone: "File received from phone:",
+        toast_transfer_deleted: "Transfer deleted"
     }
 };
 
@@ -1222,6 +1226,9 @@ function connectWs() {
             playChime();
             const count = data.transfers ? data.transfers.length : 1;
             showToast(data.message || `${i18n[currentLang].toast_file_received_from_phone} (${count})`, 'var(--success)', 5000);
+        } else if (data.type === 'TRANSFERS_UPDATED') {
+            currentTransfers = data.transfers || [];
+            renderTransfers();
         } else if (data.type === 'ADB_INSTALL_START') {
             showToast(`${i18n[currentLang].toast_installing} ${data.message}`, 'var(--warning)', 4000);
         } else if (data.type === 'ADB_INSTALL_SUCCESS') {
@@ -1403,7 +1410,16 @@ function renderTransfers() {
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
             ${dict.show_in_folder}
           </button>
-        ` : '';
+          <button class="btn-transfer-action btn-transfer-delete" onclick="deleteTransfer('${t.id}')" title="${dict.delete}">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            ${dict.delete}
+          </button>
+        ` : `
+          <button class="btn-transfer-action btn-transfer-delete" onclick="deleteTransfer('${t.id}')" title="${dict.delete}">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            ${dict.delete}
+          </button>
+        `;
 
         return `
           <div class="transfer-card">
@@ -1449,6 +1465,25 @@ window.openReceivedFolder = async (filename, filePath) => {
         });
     } catch (e) {
         console.error('Folder open error:', e);
+    }
+};
+
+// Delete transfer entry and local file
+window.deleteTransfer = async (id) => {
+    try {
+        const res = await fetch('/api/transfers/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+        });
+        const json = await res.json();
+        if (json.transfers) {
+            currentTransfers = json.transfers;
+            renderTransfers();
+        }
+        showToast(i18n[currentLang].toast_transfer_deleted, 'var(--warning)', 3000);
+    } catch (e) {
+        console.error('Delete transfer error:', e);
     }
 };
 
