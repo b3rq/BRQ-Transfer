@@ -21,11 +21,13 @@ const BASE_DIR = __dirname;
 const UPLOADS_DIR = path.join(BASE_DIR, 'uploads');
 const WATCH_DIR = path.join(BASE_DIR, 'watch');
 const PUBLIC_DIR = path.join(BASE_DIR, 'public');
+const RECEIVED_DIR = path.join(BASE_DIR, 'received');
 const CONFIG_FILE = path.join(BASE_DIR, 'config.json');
 
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 if (!fs.existsSync(WATCH_DIR)) fs.mkdirSync(WATCH_DIR, { recursive: true });
 if (!fs.existsSync(PUBLIC_DIR)) fs.mkdirSync(PUBLIC_DIR, { recursive: true });
+if (!fs.existsSync(RECEIVED_DIR)) fs.mkdirSync(RECEIVED_DIR, { recursive: true });
 
 // Configuration state
 let config = {
@@ -799,14 +801,45 @@ wss.on('connection', async (ws) => {
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Auto-route mobile clients to mobile PWA interface
+app.get('/', (req, res, next) => {
+    const ua = req.headers['user-agent'] || '';
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+    if (isMobile) {
+        return res.sendFile(path.join(PUBLIC_DIR, 'mobile.html'));
+    }
+    next();
+});
+
 app.use(express.static(PUBLIC_DIR));
 
-// Multer Storage for drag and drop
+// Multer Storage for PC Drag & Drop (uploads folder)
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, UPLOADS_DIR),
     filename: (req, file, cb) => cb(null, file.originalname)
 });
 const upload = multer({ storage });
+
+// Multer Storage for Mobile to PC Transfers (received folder)
+const storageReceived = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, RECEIVED_DIR),
+    filename: (req, file, cb) => {
+        let safeName = path.basename(file.originalname).replace(/[/\\?%*:|"<>]/g, '_');
+        if (!safeName) safeName = `file_${Date.now()}`;
+        const targetPath = path.join(RECEIVED_DIR, safeName);
+        if (fs.existsSync(targetPath)) {
+            const ext = path.extname(safeName);
+            const nameWithoutExt = path.basename(safeName, ext);
+            safeName = `${nameWithoutExt}_${Date.now()}${ext}`;
+        }
+        cb(null, safeName);
+    }
+});
+const uploadReceived = multer({
+    storage: storageReceived,
+    limits: { fileSize: 2000 * 1024 * 1024 } // 2GB
+});
 
 // REST Routes
 app.get('/api/status', async (req, res) => {
@@ -830,6 +863,7 @@ app.get('/api/transfers', (req, res) => {
     res.json(transfersList);
 });
 
+// PC to Phone Upload & Push
 app.post('/api/upload', upload.any(), async (req, res) => {
     const file = req.files && req.files[0] ? req.files[0] : req.file;
     if (!file) {
@@ -853,6 +887,7 @@ app.post('/api/upload', upload.any(), async (req, res) => {
         filename: file.originalname,
         size: formatBytes(file.size),
         category: meta.category,
+        direction: 'pc-to-phone',
         targetDir: meta.dir,
         remotePath: `${meta.dir}/${file.originalname}`,
         deviceId: targetDevice,
@@ -888,6 +923,163 @@ app.post('/api/upload', upload.any(), async (req, res) => {
         broadcast({ type: 'TRANSFER_SAVED', transfer: record, transfers: transfersList });
         return res.json({ success: true, isApk, apk: registeredApk, transfer: record });
     }
+});
+
+// Mobile to PC Upload (Receives files over Wi-Fi)
+app.post('/api/upload/mobile-to-pc', uploadReceived.array('files', 50), async (req, res) => {
+    try {
+        const files = req.files || (req.file ? [req.file] : []);
+        if (!files || files.length === 0) {
+            return res.status(400).json({ error: 'Yüklenecek dosya seçilmedi' });
+        }
+
+        const savedRecords = [];
+        for (const file of files) {
+            const ext = path.extname(file.filename).toLowerCase();
+            let category = 'document';
+            if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.heic', '.heif'].includes(ext)) category = 'image';
+            else if (['.mp4', '.mkv', '.mov', '.avi', '.webm', '.3gp'].includes(ext)) category = 'video';
+            else if (['.mp3', '.wav', '.ogg', '.flac', '.m4a', '.aac', '.opus'].includes(ext)) category = 'audio';
+            else if (ext === '.apk') category = 'apk';
+
+            if (ext === '.apk') {
+                registerApk(file.path, 'mobile-upload').catch(() => {});
+            }
+
+            const record = {
+                id: Date.now() + Math.random().toString(36).substr(2, 5),
+                filename: file.filename,
+                originalName: file.originalname,
+                size: formatBytes(file.size),
+                rawSize: file.size,
+                category,
+                direction: 'mobile-to-pc',
+                localPath: file.path,
+                timestamp: new Date().toLocaleTimeString(),
+                status: 'transferred'
+            };
+
+            transfersList.unshift(record);
+            if (transfersList.length > 60) transfersList.pop();
+            savedRecords.push(record);
+
+            console.log(`[Mobil -> PC]: ${file.filename} (${record.size}) kaydedildi -> ${file.path}`);
+        }
+
+        broadcast({
+            type: 'FILE_RECEIVED_FROM_PHONE',
+            transfers: savedRecords,
+            allTransfers: transfersList,
+            message: `${savedRecords.length} dosya telefondan PC'ye başarıyla aktarıldı!`
+        });
+
+        res.json({ success: true, count: savedRecords.length, files: savedRecords });
+    } catch (err) {
+        console.error('[Mobil -> PC Yükleme Hatası]:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Open Received File with default Windows application
+app.post('/api/transfers/open', (req, res) => {
+    const { filename, filePath } = req.body;
+    let target = filePath;
+    if (!target && filename) {
+        target = path.join(RECEIVED_DIR, filename);
+    }
+    if (!target || !fs.existsSync(target)) {
+        return res.status(404).json({ error: 'Dosya bulunamadı' });
+    }
+    exec(`start "" "${target}"`, (err) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true });
+    });
+});
+
+// Show Received File in Windows Explorer
+app.post('/api/transfers/open-folder', (req, res) => {
+    const { filename, filePath } = req.body;
+    let target = filePath;
+    if (!target && filename) {
+        target = path.join(RECEIVED_DIR, filename);
+    }
+    if (target && fs.existsSync(target)) {
+        exec(`explorer.exe /select,"${target}"`, () => {});
+        return res.json({ success: true });
+    } else {
+        exec(`explorer.exe "${RECEIVED_DIR}"`, () => {});
+        return res.json({ success: true });
+    }
+});
+
+// Pull Latest Screenshot from Connected Android Device via ADB
+app.post('/api/adb/pull-latest-screenshot', async (req, res) => {
+    const { deviceId } = req.body;
+    const targetDevice = deviceId || config.selectedAdbDevice;
+    if (!targetDevice) {
+        return res.status(400).json({ error: 'Bağlı cihaz bulunamadı' });
+    }
+
+    const targetArg = `-s ${targetDevice}`;
+    const checkCmd = `"${ADB_BIN}" ${targetArg} shell "ls -t /sdcard/DCIM/Screenshots/ 2>/dev/null | head -n 1; ls -t /sdcard/Pictures/Screenshots/ 2>/dev/null | head -n 1"`;
+
+    exec(checkCmd, async (err, stdout) => {
+        let lines = (stdout || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        let phonePath = '';
+        let screenshotName = '';
+
+        if (lines.length > 0 && lines[0]) {
+            screenshotName = lines[0];
+            const dcimTest = `"${ADB_BIN}" ${targetArg} shell "ls '/sdcard/DCIM/Screenshots/${screenshotName}' 2>/dev/null"`;
+            const hasDcim = await new Promise(resolve => {
+                exec(dcimTest, (e, out) => resolve(out && out.includes(screenshotName)));
+            });
+            phonePath = hasDcim ? `/sdcard/DCIM/Screenshots/${screenshotName}` : `/sdcard/Pictures/Screenshots/${screenshotName}`;
+        }
+
+        if (!phonePath || !screenshotName) {
+            const now = new Date();
+            const pad = (n) => String(n).padStart(2, '0');
+            screenshotName = `Screenshot_${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.png`;
+            phonePath = `/sdcard/Pictures/Screenshots/${screenshotName}`;
+            await new Promise(r => exec(`"${ADB_BIN}" ${targetArg} shell "screencap -p '${phonePath}'"`, () => r()));
+        }
+
+        const localFileName = `Phone_${Date.now()}_${screenshotName.replace(/[/\\?%*:|"<>]/g, '_')}`;
+        const localDest = path.join(RECEIVED_DIR, localFileName);
+
+        exec(`"${ADB_BIN}" ${targetArg} pull "${phonePath}" "${localDest}"`, (pullErr) => {
+            if (pullErr || !fs.existsSync(localDest)) {
+                return res.status(500).json({ error: pullErr ? pullErr.message : 'Ekran görüntüsü çekilemedi' });
+            }
+
+            const stats = fs.statSync(localDest);
+            const record = {
+                id: Date.now() + Math.random().toString(36).substr(2, 5),
+                filename: localFileName,
+                originalName: screenshotName,
+                size: formatBytes(stats.size),
+                rawSize: stats.size,
+                category: 'image',
+                direction: 'mobile-to-pc',
+                localPath: localDest,
+                timestamp: new Date().toLocaleTimeString(),
+                status: 'transferred'
+            };
+
+            transfersList.unshift(record);
+            if (transfersList.length > 60) transfersList.pop();
+
+            broadcast({
+                type: 'FILE_RECEIVED_FROM_PHONE',
+                transfers: [record],
+                allTransfers: transfersList,
+                message: `Telefondan ekran görüntüsü çekildi: ${screenshotName}`
+            });
+
+            res.json({ success: true, transfer: record });
+        });
+    });
 });
 
 app.post('/api/config', (req, res) => {
@@ -1394,13 +1586,13 @@ app.get('/download-companion', (req, res) => {
 });
 
 app.get('/mobile', (req, res) => {
-    res.redirect('/');
+    res.sendFile(path.join(PUBLIC_DIR, 'mobile.html'));
 });
 
 app.get('/api/qr', async (req, res) => {
     try {
         const ip = getPrimaryIp();
-        const url = `http://${ip}:${PORT}`;
+        const url = `http://${ip}:${PORT}/mobile`;
         const qrDataUrl = await QRCode.toDataURL(url, {
             width: 320,
             margin: 2,

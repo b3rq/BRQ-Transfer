@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0a0d14">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>BRQ Transfer - Mobil</title>
+  <link rel="icon" type="image/png" href="/icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0d14;
+      --surface: #121620;
+      --surface-elevated: #181e2c;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-focus: rgba(37, 99, 235, 0.45);
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --accent-glow: rgba(37, 99, 235, 0.25);
+      --success: #10b981;
+      --success-surface: rgba(16, 185, 129, 0.12);
+      --danger: #ef4444;
+      --card-radius: 14px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding-bottom: 24px;
+    }
+
+    /* Header */
+    .mobile-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(10px);
+    }
+    .brand-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .brand-logo {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      object-fit: cover;
+    }
+    .brand-title {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .brand-badge {
+      font-size: 10px;
+      background: rgba(37, 99, 235, 0.15);
+      color: #60a5fa;
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .status-pill {
+      font-size: 11px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: var(--surface-elevated);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+    .status-pill.connected {
+      background: var(--success-surface);
+      color: var(--success);
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .status-pill.connected .status-dot {
+      box-shadow: 0 0 6px var(--success);
+      animation: pulse-dot 2s infinite ease-in-out;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+    .lang-btn {
+      background: var(--surface-elevated);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      cursor: pointer;
+    }
+
+    /* Container */
+    .mobile-container {
+      flex: 1;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-width: 540px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    /* Nav Segment */
+    .segment-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 4px;
+      border-radius: 10px;
+      gap: 4px;
+    }
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 8px 12px;
+      border-radius: 7px;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-family: inherit;
+    }
+    .tab-btn.active {
+      background: var(--surface-elevated);
+      color: var(--text);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--card-radius);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: -0.01em;
+    }
+
+    /* Upload Hero */
+    .upload-box {
+      border: 2px dashed rgba(37, 99, 235, 0.35);
+      background: rgba(37, 99, 235, 0.03);
+      border-radius: 12px;
+      padding: 24px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    .upload-box:active {
+      background: rgba(37, 99, 235, 0.08);
+      border-color: var(--accent);
+      transform: scale(0.99);
+    }
+    .upload-icon-circle {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: rgba(37, 99, 235, 0.12);
+      color: #60a5fa;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .upload-prompt {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .upload-sub {
+      font-size: 11.5px;
+      color: var(--text-muted);
+    }
+
+    .quick-pickers {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .picker-btn {
+      background: var(--surface-elevated);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .picker-btn:active {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    /* Selected files list */
+    .selected-files-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 220px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .file-item {
+      background: var(--surface-elevated);
+      border: 1px solid var(--border);
+      padding: 9px 12px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .file-item-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .file-item-name {
+      font-size: 12.5px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .file-item-size {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .file-item-remove {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 16px;
+      padding: 4px;
+      cursor: pointer;
+    }
+    .file-item-remove:active {
+      color: var(--danger);
+    }
+
+    /* Actions */
+    .btn-send-main {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 14px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 12px var(--accent-glow);
+      transition: all 0.15s ease;
+      font-family: inherit;
+    }
+    .btn-send-main:disabled {
+      background: var(--surface-elevated);
+      color: var(--text-muted);
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+    .btn-send-main:not(:disabled):active {
+      background: var(--accent-hover);
+      transform: scale(0.98);
+    }
+
+    /* Progress bar */
+    .progress-wrap {
+      background: var(--surface-elevated);
+      border-radius: 999px;
+      height: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      position: relative;
+    }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #2563eb, #38bdf8);
+      width: 0%;
+      transition: width 0.1s linear;
+    }
+    .progress-text {
+      font-size: 11.5px;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    /* APK List */
+    .apk-card-mobile {
+      background: var(--surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .apk-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .apk-card-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .apk-card-pkg {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+      word-break: break-all;
+    }
+    .apk-card-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .meta-chip {
+      font-size: 10.5px;
+      font-family: 'JetBrains Mono', monospace;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--text-muted);
+    }
+    .btn-apk-install {
+      background: var(--success);
+      color: white;
+      text-decoration: none;
+      padding: 9px 12px;
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 700;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .btn-apk-install:active {
+      opacity: 0.85;
+    }
+
+    /* Toast */
+    .mobile-toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: var(--surface-elevated);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 10px 18px;
+      border-radius: 999px;
+      font-size: 12.5px;
+      font-weight: 600;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      opacity: 0;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      white-space: nowrap;
+      pointer-events: none;
+    }
+    .mobile-toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="mobile-header">
+    <div class="brand-wrap">
+      <img src="/icon.png" alt="BRQ" class="brand-logo" onerror="this.style.display='none'">
+      <div>
+        <div class="brand-title">
+          <span>BRQ Transfer</span>
+          <span class="brand-badge">Mobil</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <div id="conn-status" class="status-pill">
+        <span class="status-dot"></span>
+        <span id="conn-text">PC Aranıyor</span>
+      </div>
+      <button id="lang-btn" class="lang-btn">EN</button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="mobile-container">
+    <!-- View Switcher -->
+    <nav class="segment-tabs">
+      <button class="tab-btn active" id="tab-send-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+        <span id="label-tab-send">PC'ye Gönder</span>
+      </button>
+      <button class="tab-btn" id="tab-apks-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        <span id="label-tab-apks">APK İndir</span>
+      </button>
+    </nav>
+
+    <!-- TAB 1: SEND TO PC -->
+    <section id="view-send" class="card">
+      <div class="card-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+        <span id="card-title-send">Bilgisayara Dosya Fırlat</span>
+      </div>
+
+      <!-- Hero Upload Box -->
+      <div class="upload-box" id="drop-trigger">
+        <div class="upload-icon-circle">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+        </div>
+        <div>
+          <div class="upload-prompt" id="prompt-select-files">Dosyaları Seçmek İçin Dokunun</div>
+          <div class="upload-sub" id="prompt-sub">Fotoğraf, video, belge veya APK</div>
+        </div>
+      </div>
+
+      <!-- Quick Pickers -->
+      <div class="quick-pickers">
+        <button class="picker-btn" id="pick-media-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          <span id="label-pick-media">Fotoğraf / Video</span>
+        </button>
+        <button class="picker-btn" id="pick-files-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span id="label-pick-files">Tüm Dosyalar</span>
+        </button>
+      </div>
+
+      <!-- Hidden Inputs -->
+      <input type="file" id="media-input" class="hidden" multiple accept="image/*,video/*">
+      <input type="file" id="file-input" class="hidden" multiple>
+
+      <!-- Selected Files Queue -->
+      <div id="queue-container" class="hidden">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <span style="font-size: 11.5px; font-weight: 700; color: var(--text-muted);" id="queue-heading">SEÇİLEN DOSYALAR</span>
+          <button id="clear-queue-btn" style="background: none; border: none; color: var(--danger); font-size: 11px; font-weight: 600; cursor: pointer;">Temizle</button>
+        </div>
+        <div class="selected-files-list" id="selected-files-list"></div>
+      </div>
+
+      <!-- Upload Progress -->
+      <div id="progress-container" class="hidden" style="display: flex; flex-direction: column; gap: 6px;">
+        <div class="progress-wrap">
+          <div class="progress-bar" id="progress-bar"></div>
+        </div>
+        <div class="progress-text" id="progress-text">Aktarılıyor... %0</div>
+      </div>
+
+      <!-- Submit Button -->
+      <button class="btn-send-main" id="send-btn" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        <span id="send-btn-label">PC'ye Gönder</span>
+      </button>
+    </section>
+
+    <!-- TAB 2: DOWNLOAD APKS -->
+    <section id="view-apks" class="card hidden">
+      <div class="card-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+        <span id="card-title-apks">PC'deki Hazır APK'lar</span>
+      </div>
+
+      <div id="apk-list-container" style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="text-align: center; padding: 24px 0; color: var(--text-muted); font-size: 12.5px;" id="apks-loading">
+          Paketler yükleniyor...
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Toast -->
+  <div id="toast" class="mobile-toast"></div>
+
+  <script>
+    const i18n = {
+      tr: {
+        lang_btn: "EN",
+        conn_searching: "PC Aranıyor",
+        conn_ready: "PC Bağlı",
+        tab_send: "PC'ye Gönder",
+        tab_apks: "APK İndir",
+        card_title_send: "Bilgisayara Dosya Fırlat",
+        prompt_select: "Dosyaları Seçmek İçin Dokunun",
+        prompt_sub: "Fotoğraf, video, belge veya APK",
+        pick_media: "Fotoğraf / Video",
+        pick_files: "Tüm Dosyalar",
+        queue_heading: "SEÇİLEN DOSYALAR",
+        clear: "Temizle",
+        send_btn: "PC'ye Gönder",
+        card_title_apks: "PC'deki Hazır APK'lar",
+        no_apks: "PC'de hazır APK paketi yok.",
+        install: "İndir ve Kur",
+        uploading: "PC'ye Aktarılıyor...",
+        upload_success: "✅ Dosyalar PC'ye başarıyla gönderildi!",
+        upload_error: "Aktarım hatası:"
+      },
+      en: {
+        lang_btn: "TR",
+        conn_searching: "Searching PC",
+        conn_ready: "Connected",
+        tab_send: "Send to PC",
+        tab_apks: "Download APKs",
+        card_title_send: "Send Files to PC",
+        prompt_select: "Tap to Select Files",
+        prompt_sub: "Photos, videos, documents or APKs",
+        pick_media: "Photos / Videos",
+        pick_files: "All Files",
+        queue_heading: "SELECTED FILES",
+        clear: "Clear",
+        send_btn: "Send to PC",
+        card_title_apks: "Ready APKs on PC",
+        no_apks: "No APKs ready on PC.",
+        install: "Download & Install",
+        uploading: "Transferring to PC...",
+        upload_success: "✅ Files sent to PC successfully!",
+        upload_error: "Upload error:"
+      }
+    };
+
+    let currentLang = localStorage.getItem('brq_mobile_lang') || 'tr';
+    let selectedFiles = [];
+    let apks = [];
+
+    // DOM
+    const langBtn = document.getElementById('lang-btn');
+    const connStatus = document.getElementById('conn-status');
+    const connText = document.getElementById('conn-text');
+    const tabSendBtn = document.getElementById('tab-send-btn');
+    const tabApksBtn = document.getElementById('tab-apks-btn');
+    const viewSend = document.getElementById('view-send');
+    const viewApks = document.getElementById('view-apks');
+    const dropTrigger = document.getElementById('drop-trigger');
+    const pickMediaBtn = document.getElementById('pick-media-btn');
+    const pickFilesBtn = document.getElementById('pick-files-btn');
+    const mediaInput = document.getElementById('media-input');
+    const fileInput = document.getElementById('file-input');
+    const queueContainer = document.getElementById('queue-container');
+    const selectedFilesList = document.getElementById('selected-files-list');
+    const clearQueueBtn = document.getElementById('clear-queue-btn');
+    const sendBtn = document.getElementById('send-btn');
+    const sendBtnLabel = document.getElementById('send-btn-label');
+    const progressContainer = document.getElementById('progress-container');
+    const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
+    const apkListContainer = document.getElementById('apk-list-container');
+    const toast = document.getElementById('toast');
+
+    function applyLang(lang) {
+      currentLang = lang;
+      localStorage.setItem('brq_mobile_lang', lang);
+      const dict = i18n[lang];
+
+      langBtn.textContent = dict.lang_btn;
+      document.getElementById('label-tab-send').textContent = dict.tab_send;
+      document.getElementById('label-tab-apks').textContent = dict.tab_apks;
+      document.getElementById('card-title-send').textContent = dict.card_title_send;
+      document.getElementById('prompt-select-files').textContent = dict.prompt_select;
+      document.getElementById('prompt-sub').textContent = dict.prompt_sub;
+      document.getElementById('label-pick-media').textContent = dict.pick_media;
+      document.getElementById('label-pick-files').textContent = dict.pick_files;
+      document.getElementById('queue-heading').textContent = dict.queue_heading;
+      clearQueueBtn.textContent = dict.clear;
+      document.getElementById('card-title-apks').textContent = dict.card_title_apks;
+      updateSendButton();
+      renderApks();
+    }
+
+    langBtn.onclick = () => applyLang(currentLang === 'tr' ? 'en' : 'tr');
+
+    // Tab Switcher
+    tabSendBtn.onclick = () => {
+      tabSendBtn.classList.add('active');
+      tabApksBtn.classList.remove('active');
+      viewSend.classList.remove('hidden');
+      viewApks.classList.add('hidden');
+    };
+
+    tabApksBtn.onclick = () => {
+      tabApksBtn.classList.add('active');
+      tabSendBtn.classList.remove('active');
+      viewApks.classList.remove('hidden');
+      viewSend.classList.add('hidden');
+      fetchApks();
+    };
+
+    // Pickers
+    dropTrigger.onclick = () => fileInput.click();
+    pickMediaBtn.onclick = () => mediaInput.click();
+    pickFilesBtn.onclick = () => fileInput.click();
+
+    function formatBytes(bytes) {
+      if (!+bytes) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+    }
+
+    function handleFilesAdded(fileList) {
+      for (const file of fileList) {
+        if (!selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
+          selectedFiles.push(file);
+        }
+      }
+      renderQueue();
+    }
+
+    mediaInput.onchange = (e) => {
+      handleFilesAdded(e.target.files);
+      mediaInput.value = '';
+    };
+
+    fileInput.onchange = (e) => {
+      handleFilesAdded(e.target.files);
+      fileInput.value = '';
+    };
+
+    function renderQueue() {
+      if (selectedFiles.length === 0) {
+        queueContainer.classList.add('hidden');
+        sendBtn.disabled = true;
+      } else {
+        queueContainer.classList.remove('hidden');
+        sendBtn.disabled = false;
+        selectedFilesList.innerHTML = selectedFiles.map((f, i) => `
+          <div class="file-item">
+            <div class="file-item-info">
+              <div class="file-item-name">${escapeHtml(f.name)}</div>
+              <div class="file-item-size">${formatBytes(f.size)}</div>
+            </div>
+            <button class="file-item-remove" onclick="removeFile(${i})">✕</button>
+          </div>
+        `).join('');
+      }
+      updateSendButton();
+    }
+
+    window.removeFile = (index) => {
+      selectedFiles.splice(index, 1);
+      renderQueue();
+    };
+
+    clearQueueBtn.onclick = () => {
+      selectedFiles = [];
+      renderQueue();
+    };
+
+    function updateSendButton() {
+      const dict = i18n[currentLang];
+      if (selectedFiles.length === 0) {
+        sendBtnLabel.textContent = dict.send_btn;
+      } else {
+        const totalSize = selectedFiles.reduce((acc, f) => acc + f.size, 0);
+        sendBtnLabel.textContent = `${dict.send_btn} (${selectedFiles.length} &bull; ${formatBytes(totalSize)})`;
+      }
+    }
+
+    // Upload to PC
+    sendBtn.onclick = async () => {
+      if (selectedFiles.length === 0) return;
+
+      const dict = i18n[currentLang];
+      sendBtn.disabled = true;
+      progressContainer.classList.remove('hidden');
+      progressBar.style.width = '0%';
+      progressText.textContent = `${dict.uploading} %0`;
+
+      const formData = new FormData();
+      for (const file of selectedFiles) {
+        formData.append('files', file);
+      }
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/upload/mobile-to-pc', true);
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const percent = Math.round((e.loaded / e.total) * 100);
+          progressBar.style.width = `${percent}%`;
+          progressText.textContent = `${dict.uploading} %${percent}`;
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          progressBar.style.width = '100%';
+          progressText.textContent = '100%';
+          showToast(dict.upload_success);
+          if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+
+          selectedFiles = [];
+          renderQueue();
+          setTimeout(() => {
+            progressContainer.classList.add('hidden');
+            progressBar.style.width = '0%';
+          }, 2000);
+        } else {
+          showToast(`${dict.upload_error} ${xhr.responseText}`, true);
+          sendBtn.disabled = false;
+        }
+      };
+
+      xhr.onerror = () => {
+        showToast(dict.upload_error, true);
+        sendBtn.disabled = false;
+      };
+
+      xhr.send(formData);
+    };
+
+    // APK List
+    async function fetchApks() {
+      try {
+        const res = await fetch('/api/apks');
+        apks = await res.json();
+        renderApks();
+      } catch (e) {
+        console.error('APK fetch error:', e);
+      }
+    }
+
+    function renderApks() {
+      const dict = i18n[currentLang];
+      if (!apks || apks.length === 0) {
+        apkListContainer.innerHTML = `<div style="text-align: center; padding: 24px 0; color: var(--text-muted); font-size: 12.5px;">${dict.no_apks}</div>`;
+        return;
+      }
+
+      apkListContainer.innerHTML = apks.map(apk => `
+        <div class="apk-card-mobile">
+          <div class="apk-card-header">
+            <div>
+              <div class="apk-card-title">${escapeHtml(apk.label || apk.name)}</div>
+              <div class="apk-card-pkg">${escapeHtml(apk.packageName || apk.name)}</div>
+            </div>
+          </div>
+          <div class="apk-card-meta">
+            <span class="meta-chip">v${apk.versionName || '1.0'}</span>
+            <span class="meta-chip">${apk.size}</span>
+            <span class="meta-chip">${new Date(apk.updatedAt).toLocaleTimeString()}</span>
+          </div>
+          <a href="${apk.downloadUrl}" class="btn-apk-install" download="${apk.name}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            ${dict.install}
+          </a>
+        </div>
+      `).join('');
+    }
+
+    function showToast(msg, isError = false) {
+      toast.textContent = msg;
+      toast.style.borderColor = isError ? 'var(--danger)' : 'var(--border)';
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    function escapeHtml(str) {
+      return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // Health check & WS
+    async function checkHealth() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        connStatus.classList.add('connected');
+        connText.textContent = `${data.localIp}:${data.port}`;
+      } catch (e) {
+        connStatus.classList.remove('connected');
+        connText.textContent = i18n[currentLang].conn_searching;
+      }
+    }
+
+    function setupWs() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${location.host}`;
+      const ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        connStatus.classList.add('connected');
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data.type === 'INIT') {
+            apks = data.apks || [];
+            renderApks();
+            connText.textContent = `${data.localIp}:${data.port}`;
+          } else if (data.type === 'NEW_APK') {
+            apks.unshift(data.apk);
+            renderApks();
+            showToast(`Yeni APK: ${data.apk.name}`);
+          }
+        } catch (err) {}
+      };
+
+      ws.onclose = () => {
+        connStatus.classList.remove('connected');
+        connText.textContent = i18n[currentLang].conn_searching;
+        setTimeout(setupWs, 3000);
+      };
+    }
+
+    applyLang(currentLang);
+    checkHealth();
+    setupWs();
+    fetchApks();
+  </script>
+</body>
+</html>
