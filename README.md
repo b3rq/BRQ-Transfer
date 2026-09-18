@@ -1,56 +1,78 @@
-# BRQ Transfer
+﻿# BRQ Transfer
 
 High-speed local Wi-Fi file transfer, wireless ADB manager, live screen mirroring, and clipboard sync hub between PC and Android devices.
 
-This project was built with AI assistance to eliminate friction in daily Android device management, wireless file transfers, and mobile development workflows.
+![BRQ Transfer Dashboard](docs/preview.png)
+
+This tool was created with AI assistance to remove daily friction in moving files, managing Android devices, and testing mobile applications without physical cables or cloud workarounds.
 
 ---
 
-## The Problem & Why BRQ Transfer
+## Why BRQ Transfer?
 
-Transferring files, testing APK builds, and controlling Android devices from a PC usually relies on two common methods:
+Moving files between a PC and an Android phone or testing mobile applications typically relies on two conventional methods:
 
-### 1. USB Cable Tethering
-- Physical cables wear out charging ports through repeated plugging and unplugging.
-- Testing motion, gyroscope, camera, or general handheld use is awkward while physically tethered to a desk.
-- Accidental cable nudges can interrupt active transfers or ADB sessions.
+1. **USB Cables**: Physical cables wear out ports over time, restrict device movement during testing (gyroscope, orientation, camera), and easily disconnect when moved.
+2. **Cloud Services (Drive, Dropbox, Messaging Apps)**: Uploading 100 MB to 1 GB files (recordings, media, app builds) depends on external internet upload speeds, applies cloud processing delays, and requires manual downloading and searching through phone folders.
 
-### 2. Cloud Storage (Google Drive / Dropbox / WeTransfer / Messaging Apps)
-- Uploading large files (videos, assets, 100 MB to 500 MB APKs) consumes external internet bandwidth and takes several minutes.
-- Cloud providers introduce processing, upload, and virus-scanning delays.
-- On the phone, you have to manually open the app, find the download, save it, and hunt for it in file managers.
+### The Solution
+BRQ Transfer connects your PC and Android devices directly over your local Wi-Fi network (LAN):
+- **Gigabit Local Speeds**: Transfers run at full router bandwidth (30–80+ MB/s over 5 GHz Wi-Fi) with 0 KB internet data usage.
+- **Universal Bidirectional Transfer**: Send any file format (photos, videos, documents, music, APKs) from PC to phone, or upload from phone back to PC.
+- **Zero-Install Web Access**: Connected phones only need to scan a QR code with their camera to access the transfer dashboard in their mobile browser.
+- **Wireless ADB Engine**: Manage devices, install apps, launch packages, and inspect device telemetry over Wi-Fi without cables.
+- **Real-Time Clipboard Sync**: Seamlessly synchronize copied text between PC and Android in both directions.
+- **Low-Latency Screen Mirroring**: View and interact with your Android display on your PC at 60 FPS.
 
-### The BRQ Transfer Solution
-BRQ Transfer runs locally on your Wi-Fi router (LAN). It directly connects your PC and Android devices:
-- **Universal Bidirectional File Transfer**: Send any file (photos, videos, music, documents, APKs) from PC to phone, or upload from phone back to PC at full local network speeds (often 30–80+ MB/s) with zero internet consumption.
-- **Wireless ADB Engine**: Connect over Wi-Fi with one click or QR pairing. Install APKs, launch apps, send key events, and monitor battery status without cables.
-- **Zero-Touch APK Auto-Install**: Automatically detects compiled APKs (from folder watching or Unity Editor) and silently installs and launches them on your connected device.
-- **Bidirectional Clipboard Sync**: Seamlessly sync text between PC and mobile clipboard in real time.
-- **Live 60 FPS Screen Mirroring**: View and control your Android screen directly from your PC desktop with ultra-low latency.
-- **Zero-Install Web Client**: Any device on your local network can connect instantly by scanning a QR code in any browser—no mandatory companion app installation required.
+---
+
+## Use Cases
+
+- **Everyday File Transfers**: Quickly move camera recordings, music albums, PDFs, or photos between your PC and Android phone without hunting for USB cables or uploading to third-party servers.
+- **App & Game Developers**: If you build mobile apps or games (e.g. in Unity, Flutter, React Native, or Android Studio), BRQ Transfer can watch your build folder, automatically detect new APKs, install them over Wireless ADB, and launch them on your device hands-free.
+- **Device Management & Testing**: Control phone navigation buttons, capture screenshots, check battery telemetry, and mirror screens during presentations or testing.
+
+---
+
+## Security & Important Safety Warnings
+
+> [!WARNING]
+> **Use on Trusted Private Networks Only**
+> BRQ Transfer runs on your local network (LAN) on port 4500 and is designed for ease of use without complex authentication barriers. **Never run this application on public or untrusted Wi-Fi networks** (such as cafes, airports, or hotels) where unknown devices share the same network. Only run it on private, password-protected home or office networks.
+
+> [!IMPORTANT]
+> **Wireless ADB Security**
+> Wireless ADB grants direct command-level access to your Android device (including installing/uninstalling packages, rebooting, and input simulation). Only pair and connect to Android devices that you personally own. Always verify the device IP before initiating a connection.
+
+> [!CAUTION]
+> **Third-Party Package Caution**
+> Do not transfer or install APKs from unknown or unverified sources. Installing untrusted packages can compromise your mobile device.
+
+> [!TIP]
+> **Privacy / Streamer Mode**
+> If you are screen-sharing, recording videos, or livestreaming, enable **Privacy Mode** (the eye icon in the top-right corner of the dashboard). This will automatically mask local IP addresses, device serial numbers, and sensitive hardware identifiers.
 
 ---
 
 ## Features
 
 - **Bidirectional File Transfer**:
-  - **PC to Mobile**: Drag and drop any file onto the web dashboard for instant download to `/sdcard/Download`.
+  - **PC to Mobile**: Drag and drop any file onto the web dashboard for immediate download to `/sdcard/Download`.
   - **Mobile to PC**: Upload photos, videos, recordings, or documents directly from your phone's browser or companion app to your PC's `received/` folder.
 - **Wireless ADB Management**:
   - One-click connect via IP & Port.
-  - Android 11+ Wireless Debugging QR code pairing with automatic port discovery.
+  - Android 11+ Wireless Debugging QR code pairing with automatic port resolution.
   - Direct APK installation, package uninstallation, force stop, and app launch.
   - Remote navigation controls (Back, Home, App Switch, Power).
 - **Bidirectional Clipboard Synchronization**:
   - `PC → Mobile`: Text copied on PC is automatically sent to the phone's clipboard.
   - `Mobile → PC`: Text copied on phone is automatically received on PC.
-  - `Off`: Easily toggle synchronization off when not needed.
+  - `Off`: Toggle synchronization off when not needed.
 - **High-FPS Screen Mirroring**: Integrated `scrcpy` engine for viewing and controlling your Android device at 60 FPS with low latency.
-- **Automatic Build Watcher & Unity Hook**:
-  - Monitors configured folders for new APK builds.
-  - Includes an optional Unity Editor post-build script for instant game testing upon compilation (`Ctrl + B`).
+- **Build Watcher & Developer Hooks**:
+  - Automatically monitors configured folders for newly exported APKs.
+  - Includes optional editor post-build scripts (`plugins/`) for developers wanting instant zero-touch testing upon compilation.
 - **Device Telemetry & Battery Monitor**: Real-time display of battery percentage, charging state, and device identifiers.
-- **Privacy / Streamer Mode**: One-click toggle on the dashboard to mask IP addresses, device serials, and sensitive identifiers.
 
 ---
 
@@ -63,13 +85,13 @@ BRQ Transfer runs locally on your Wi-Fi router (LAN). It directly connects your 
 ### Installation & Run
 
 #### Option A: Quick Start (Windows)
-1. Download or clone the repository:
+1. Clone or download the repository:
    ```bash
    git clone https://github.com/b3rq/BRQ-Transfer.git
    cd BRQ-Transfer
    ```
-2. Double-click **`start.bat`** (or **`launch.vbs`** for windowless background run).
-   - On the first run, it automatically installs required packages and launches the native desktop app window!
+2. Double-click **`start.bat`** (or **`launch.vbs`** for silent background execution).
+   - On the first run, it automatically installs required dependencies (`npm install`) and opens the native desktop application window.
 
 #### Option B: Manual CLI
 1. Clone and enter directory:
@@ -85,18 +107,6 @@ BRQ Transfer runs locally on your Wi-Fi router (LAN). It directly connects your 
    - Desktop App: `npm run desktop`
    - Headless Web Server: `npm start` (Dashboard opens at `http://localhost:4500`)
 
-5. Connect your phone to the same Wi-Fi network and scan the QR code displayed on the dashboard.
-
----
-
-## Optional: Unity Editor Integration
-
-If you use Unity, you can deploy builds automatically:
-
-1. Copy the `unity-package/Editor` folder into your Unity project's `Assets/Editor/` directory.
-2. In Unity, open: **Tools -> UnityDrop Hub**.
-3. Every time you trigger an Android build (`Ctrl + B`), the hook automatically notifies UnityDrop to deploy the APK.
-
 ---
 
 ## Wireless ADB Setup
@@ -106,8 +116,8 @@ For Android 11 and newer:
 1. Enable Developer Options on your phone (Settings -> About Phone -> tap Build Number 7 times).
 2. Go to **Settings -> Developer Options -> Wireless Debugging** and enable it.
 3. Tap **Wireless Debugging** to see your device IP address and port (e.g. `192.168.1.50:37855`).
-4. On the UnityDrop PC dashboard, enter the IP and port, then click **Connect**.
-5. Enable **Auto-install on new build** for zero-touch updates.
+4. On the BRQ Transfer PC dashboard, enter the IP and port, then click **Connect** (or use the QR pairing tab).
+5. Enable **Auto-install on new build** for hands-free updates.
 
 ---
 
@@ -115,18 +125,17 @@ For Android 11 and newer:
 
 ```mermaid
 flowchart TD
-    subgraph PC["Development / Host PC"]
-        Server["UnityDrop Hub Server (:4500)"]
+    subgraph PC["Host PC"]
+        Server["BRQ Transfer Server (:4500)"]
         Watcher["Folder Watcher (chokidar)"] --> Server
         Manual["Web Dashboard Drag & Drop"] --> Server
-        Unity["Unity Editor (Optional Hook)"] -->|POST /api/unity-build-done| Server
         Server --> ADB["Wireless ADB Engine"]
         Server --> Scrcpy["scrcpy Screen Mirror"]
         Server --> Clip["Clipboard Daemon"]
     end
 
     subgraph Mobile["Android Device (Same Local Wi-Fi)"]
-        ADB -->|Direct Install & Launch| Game["Installed Apps"]
+        ADB -->|Direct Install & Launch| Apps["Installed Apps"]
         Server -->|HTTP / WebSocket| MobileWeb["Mobile Browser / PWA"]
         Server -->|HTTP / APK Install| Companion["Optional Companion APK"]
     end
@@ -139,9 +148,10 @@ flowchart TD
 ```
 BRQ-Transfer/
 ├── android-companion/    # Optional lightweight Android companion app source
+├── docs/                 # Documentation assets and dashboard screenshots
+├── plugins/              # Optional editor and build hook scripts
 ├── public/               # PC & Mobile web dashboards (HTML, CSS, JS)
 ├── tools/                # Clipboard sync and platform helper binaries
-├── unity-package/        # Optional Unity Editor integration script
 ├── server.js             # Core Node.js server, WebSocket, ADB manager
 ├── electron.js           # Native desktop application wrapper
 ├── start.bat             # Windows one-click auto-installer & desktop launcher
