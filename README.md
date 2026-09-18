@@ -1,118 +1,146 @@
-<div align="center">
+﻿# UnityDrop
 
-# 🎮 UnityDrop
+Local Wi-Fi APK deployment, wireless ADB manager, and testing hub for Unity and Android developers.
 
-**Instant Local Wi-Fi APK Deployment, Wireless ADB & Live Testing Hub for Unity Developers**
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Node.js](https://img.shields.io/badge/Node.js-v18+-green.svg)](https://nodejs.org/)
-[![Unity](https://img.shields.io/badge/Unity-2021%20%7C%202022%20%7C%20Unity%206-black.svg)](https://unity.com/)
-[![Android](https://img.shields.io/badge/Android-7.0%20to%2015+-3DDC84.svg)](https://developer.android.com/)
-
-Say goodbye to uploading APKs to Google Drive, waiting for processing, downloading on your phone, and fighting file managers.  
-**Deploy Unity Android builds to your phone over local Wi-Fi in 2–5 seconds!**
-
-[Features](#-features) • [Quick Start](#-quick-start) • [Unity Integration](#-unity-editor-integration) • [Wireless ADB](#-wireless-adb-setup) • [Architecture](#-architecture)
-
-</div>
+This project was built with AI assistance to eliminate repetitive friction in daily Android game development and mobile QA testing workflows.
 
 ---
 
-## ⚡ Why UnityDrop?
+## The Problem & Why UnityDrop
 
-| Traditional Drive / Cloud Workflow | UnityDrop Local Hub Workflow |
-| :--- | :--- |
-| ❌ Upload 50–200 MB over internet upload speed (minutes) | 🚀 **Transfer over Gigabit Wi-Fi at 30–100 MB/s (1–3 seconds)** |
-| ❌ Drive app sync delays & caching bugs | ⚡ **Zero internet used; runs completely on your local router** |
-| ❌ Manual download & searching in phone downloads | 📲 **Instant install notification & 1-tap install** |
-| ❌ Manual copy-pasting of links & test keys | 📋 **Seamless 3-Way Clipboard Sync (PC → Mobile & Mobile → PC)** |
-| ❌ Phone interaction needed every single build | 🤖 **Zero-Touch Mode: auto-installs & launches game via Wireless ADB** |
+Testing Android builds during active development usually relies on two common methods, both of which introduce friction:
 
----
+### 1. USB Cable Tethering
+- Physical cables wear out charging ports through repeated plugging and unplugging.
+- Testing motion, gyroscope, AR, or handheld comfort is awkward while tethered to a desk.
+- Accidental cable nudges can disrupt data transfer mid-install.
 
-## 🌟 Features
+### 2. Cloud Storage (Google Drive / Dropbox / WeTransfer)
+- Uploading 100 MB to 500 MB builds depends on external internet upload speed and can take several minutes per iteration.
+- Cloud services apply virus-scanning or processing delays before download links become active.
+- On the phone, you must manually open the cloud app, wait for the file to appear, download it, locate it in the file manager, and trigger the package installer.
 
-- 📂 **Automatic Unity Build Watcher**: Monitors your Unity `Builds/` folder. The millisecond Unity finishes compiling, the APK is prepared and announced to your devices.
-- ⚡ **Zero-Touch Wireless ADB Deploy**: Pair your Android phone over Wi-Fi once. When Unity finishes building, UnityDrop automatically installs the APK and launches the game on your phone—without touching the phone screen!
-- 📋 **Seamless 3-Way Clipboard Sync**: Instant real-time clipboard synchronization with 3 modes: `PC → Mobile` (copy on PC, pastes immediately on phone), `Mobile → PC` (copy on phone, pastes immediately on PC), and `Off`.
-- 📲 **Ultra-Lightweight Android Companion App (16 KB)**: Built-in native companion APK with automatic install triggers.
-- 🌐 **Zero-Install Web/PWA Client**: Scan the QR code on your PC screen with your phone's camera, bookmark the page, and enjoy 1-tap download & install.
-- 🔍 **Automated APK Metadata Inspection**: Extracts package name, version, SDK levels, and game label using `aapt`.
-- 📸 **Live Phone Screen Capture**: Grab instant snapshots from the running device directly in your PC browser.
-- 🔔 **Melodic Synthesizer Chimes**: Web Audio API notification sounds when your build is ready so you can multitask freely.
-- 🌐 **Multi-Language**: Instant toggle between English and Turkish.
+### The UnityDrop Solution
+UnityDrop runs entirely on your local Wi-Fi network (LAN). It bridges your PC and test devices directly:
+- **Fast Local Transfer**: Transfers run at full local network bandwidth (often 30 to 80+ MB/s over 5 GHz Wi-Fi), finishing in 2-5 seconds with zero internet data usage.
+- **Zero-Touch Deployment**: When paired with Wireless ADB, building in Unity triggers an automatic background install and launches the game on your device without touching the phone.
+- **Bidirectional Sharing**: Send test APKs and assets from PC to device, and upload screenshots, logs, or recordings from device back to PC.
+- **Zero-Friction Access**: Any phone on the same network can access the hub simply by scanning a QR code with its camera. No mandatory app store downloads required.
 
 ---
 
-## 🚀 Quick Start
+## Features
 
-### 1. Requirements
-- [Node.js](https://nodejs.org/) (v18 or higher)
-- Android SDK Platform-Tools (`adb`) — automatically detected from Unity Hub or Android Studio!
-
-### 2. Run the Hub
-Clone the repository and install dependencies:
-```bash
-git clone https://github.com/yourusername/unitydrop.git
-cd unitydrop
-npm install
-npm start
-```
-Or simply double-click **`start-hub.bat`** on Windows!
-
-1. Open the PC dashboard at **`http://localhost:4500`**.
-2. Connect your phone to the same Wi-Fi network.
-3. Scan the QR code with your phone camera or connect via Wireless ADB.
+- **Automatic Build Watcher**: Monitors your Unity build output directory. As soon as an APK is compiled, UnityDrop detects it, extracts metadata, and notifies connected devices.
+- **Unity Editor Integration**: Includes an optional Unity Editor script (`PostProcessBuild`) that hooks into `Ctrl + B` builds for instant deployment.
+- **Wireless ADB Integration**: Connect to Android 11+ devices via Wireless Debugging. Supports auto-install on new build, app launch, log inspection, and remote reboot.
+- **Bidirectional File Transfer**:
+  - PC to Mobile: Drag and drop files onto the dashboard for instant download.
+  - Mobile to PC: Upload files from your phone's browser or companion app to save them directly to your PC.
+- **Bidirectional Clipboard Sync**:
+  - PC to Mobile: Text copied on PC is automatically sent to the phone's clipboard.
+  - Mobile to PC: Text copied on phone is automatically received on PC.
+  - Off: Toggle synchronization off when not needed.
+- **Live Screen Mirroring**: Integrated `scrcpy` engine allows viewing and controlling your Android device at low latency directly from your PC.
+- **Device Status & Telemetry**: Monitor connected device battery percentage, charging state, and connection status in real time.
+- **APK Metadata Parsing**: Automatically reads package name, version, min SDK, and app label using `aapt` or pure JS fallback.
+- **Streamer / Privacy Mode**: One-click toggle to mask IP addresses, serial numbers, and device identifiers on the dashboard.
 
 ---
 
-## 🎮 Unity Editor Integration
+## Quick Start
 
-Want seamless 1-click deployment straight from the Unity Editor?
+### Requirements
+- Node.js (v18 or newer recommended)
+- Android SDK Platform-Tools (`adb`) in PATH (automatically detected if installed via Unity Hub or Android Studio)
 
-1. Copy the [`unity-package/Editor`](./unity-package/Editor) folder into your Unity project's `Assets/Editor/` directory.
-2. In Unity, open **`Tools -> UnityDrop Hub 🚀`** to view your hub status.
-3. Every time you build your game (`Ctrl + B`), the `UnityDropBuildHook` automatically notifies the local server to distribute or wireless-deploy your build!
+### Installation & Run
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/unitydrop.git
+   cd unitydrop
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Start the hub:
+   ```bash
+   npm start
+   ```
+   *Windows shortcut:* Double-click `start-hub.bat` or `launch.vbs` (runs quietly in background).
+
+4. Open the PC dashboard at:
+   ```
+   http://localhost:4500
+   ```
+
+5. Connect your mobile device to the same Wi-Fi network and scan the QR code displayed on the dashboard.
 
 ---
 
-## 📶 Wireless ADB Setup (1 Minute)
+## Unity Editor Integration
 
-1. On your phone: **Settings -> About Phone -> Software Information -> Tap "Build Number" 7 times** to unlock Developer Options.
-2. Go to **Settings -> Developer Options -> Enable "Wireless Debugging"**.
-3. Tap **"Wireless Debugging"** to view your device's **IP Address & Port** (e.g., `192.168.1.50:37855`).
-4. In UnityDrop's PC Dashboard, enter the IP & Port and click **"Connect"**.
-5. Done! Check **"Auto-install on new build"** for completely hands-free testing.
+To automatically deploy builds whenever you build inside Unity:
+
+1. Copy the `unity-package/Editor` folder into your Unity project's `Assets/Editor/` directory.
+2. In Unity, open the menu: **Tools -> UnityDrop Hub**.
+3. Every time you trigger a build (`Ctrl + B`), the hook automatically notifies UnityDrop to distribute or install the new APK.
 
 ---
 
-## 🏗️ Architecture
+## Wireless ADB Setup
+
+For Android 11 and newer:
+
+1. Enable Developer Options on your phone (Settings -> About Phone -> tap Build Number 7 times).
+2. Go to **Settings -> Developer Options -> Wireless Debugging** and turn it on.
+3. Tap **Wireless Debugging** to see your device IP address and port (e.g. `192.168.1.50:37855`).
+4. On the UnityDrop PC dashboard, enter the IP and port, then click **Connect**.
+5. Enable **Auto-install on new build** for zero-touch updates.
+
+---
+
+## Architecture
 
 ```mermaid
 flowchart TD
-    subgraph UnityDev["Unity Development Machine"]
-        Editor["Unity Editor (Build)"] -->|PostProcessBuild Hook| Server["UnityDrop Node.js Hub (:4500)"]
-        Drop["Manual Drag & Drop"] --> Server
-        FolderWatcher["Folder Watcher (chokidar)"] --> Server
-        Server --> AAPT["aapt Metadata Extractor"]
+    subgraph PC["Development PC"]
+        Unity["Unity Editor (Build)"] -->|PostProcessBuild Hook| Server["UnityDrop Server (:4500)"]
+        Watcher["Folder Watcher (chokidar)"] --> Server
+        Manual["Web Dashboard Drag & Drop"] --> Server
         Server --> ADB["Wireless ADB Engine"]
+        Server --> Scrcpy["scrcpy Stream Service"]
+        Server --> Clip["Clipboard Daemon"]
     end
 
-    subgraph Phone["Android Phone (Same Wi-Fi)"]
-        ADB -->|Direct Install & Launch| GameApp["Installed Game"]
-        Server -->|WebSocket & HTTP Stream| CompanionApp["UnityDrop Companion APK"]
-        Server -->|PWA / Web Mobile UI| Browser["Mobile Chrome/Browser"]
+    subgraph Mobile["Android Device (Same Local Wi-Fi)"]
+        ADB -->|Direct Install & Launch| Game["Installed Game"]
+        Server -->|HTTP / WebSocket| MobileWeb["Mobile Browser / PWA"]
+        Server -->|HTTP / APK Install| Companion["Optional Companion APK"]
     end
 ```
 
 ---
 
-## 📄 License
+## Repository Structure
 
-Distributed under the **MIT License**. See `LICENSE` for more information.
+```
+unity-apk-hub/
+├── android-companion/    # Optional lightweight Android companion app source
+├── public/               # PC & Mobile web dashboards (HTML, CSS, JS)
+├── tools/                # Clipboard sync and platform helper binaries
+├── unity-package/        # Unity Editor integration script
+├── server.js             # Core Node.js server, WebSocket, ADB manager
+├── start-hub.bat         # Windows launch script
+└── launch.vbs            # Background launcher (no console window)
+```
 
 ---
 
-<div align="center">
-Made with ❤️ for Game Developers
-</div>
+## License
+
+Distributed under the MIT License. See `LICENSE` for details.
