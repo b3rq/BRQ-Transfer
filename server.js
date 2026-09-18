@@ -665,67 +665,12 @@ async function runPairingLoop(session) {
     }
 }
 
-// Re-engineered Logcat streamer with bulletproof termination
-let activeLogcatProcess = null;
-
 function broadcast(data) {
     const payload = JSON.stringify(data);
     wss.clients.forEach(client => {
         if (client.readyState === WebSocket.OPEN) {
             client.send(payload);
         }
-    });
-}
-
-function stopLogcatStream() {
-    if (activeLogcatProcess) {
-        console.log('[Logcat]: Süreç durduruluyor PID:', activeLogcatProcess.pid);
-        try {
-            if (process.platform === 'win32') {
-                exec(`taskkill /pid ${activeLogcatProcess.pid} /T /F`, () => {});
-            } else {
-                activeLogcatProcess.kill('SIGKILL');
-            }
-        } catch (e) {
-            console.error('Logcat stop error:', e.message);
-        }
-        activeLogcatProcess = null;
-        broadcast({ type: 'LOGCAT_STOPPED' });
-    }
-}
-
-function startLogcatStream(deviceId, filter = '', level = '') {
-    stopLogcatStream();
-
-    const targetArg = deviceId ? ['-s', deviceId] : [];
-    const args = [...targetArg, 'logcat', '-v', 'threadtime'];
-    console.log('[Logcat]: Başlatılıyor:', ADB_BIN, args.join(' '));
-
-    activeLogcatProcess = spawn(ADB_BIN, args);
-    broadcast({ type: 'LOGCAT_STARTED' });
-
-    activeLogcatProcess.stdout.on('data', (chunk) => {
-        const text = chunk.toString('utf8');
-        const lines = text.split('\n');
-        for (const rawLine of lines) {
-            const line = rawLine.trim();
-            if (!line) continue;
-            if (filter && !line.toLowerCase().includes(filter.toLowerCase())) continue;
-
-            broadcast({
-                type: 'LOGCAT_LINE',
-                line: line
-            });
-        }
-    });
-
-    activeLogcatProcess.stderr.on('data', (chunk) => {
-        broadcast({ type: 'LOGCAT_LINE', line: `[ADB-STDERR] ${chunk.toString('utf8').trim()}` });
-    });
-
-    activeLogcatProcess.on('close', () => {
-        console.log('[Logcat]: Kapandı');
-        broadcast({ type: 'LOGCAT_STOPPED' });
     });
 }
 
@@ -821,7 +766,7 @@ wss.on('connection', async (ws) => {
         localIp: getPrimaryIp(),
         availableIps: getAllLocalIps(),
         port: PORT,
-        isLogcatRunning: !!activeLogcatProcess,
+        clipboardMode: currentClipboardMode,
         isScrcpyRunning: !!activeScrcpyProcess,
         pairingSession: currentPairingSession ? {
             qrDataUrl: currentPairingSession.qrDataUrl,
@@ -834,16 +779,7 @@ wss.on('connection', async (ws) => {
     ws.on('message', (message) => {
         try {
             const data = JSON.parse(message);
-            if (data.action === 'START_LOGCAT') {
-                startLogcatStream(data.deviceId, data.filter || '', data.level || '');
-            } else if (data.action === 'STOP_LOGCAT') {
-                stopLogcatStream();
-            } else if (data.action === 'CLEAR_LOGCAT') {
-                const targetArg = data.deviceId ? `-s ${data.deviceId}` : '';
-                exec(`"${ADB_BIN}" ${targetArg} logcat -c`, () => {
-                    broadcast({ type: 'LOGCAT_CLEARED' });
-                });
-            } else if (data.action === 'START_SCREEN_STREAM') {
+            if (data.action === 'START_SCREEN_STREAM') {
                 startScreenStream(ws, data.deviceId);
             } else if (data.action === 'STOP_SCREEN_STREAM') {
                 stopScreenStream();
@@ -882,7 +818,7 @@ app.get('/api/status', async (req, res) => {
         devices,
         config,
         apkCount: apkList.length,
-        isLogcatRunning: !!activeLogcatProcess
+        clipboardMode: currentClipboardMode
     });
 });
 
@@ -1043,6 +979,9 @@ app.post('/api/adb/disconnect', async (req, res) => {
         if (config.selectedAdbDevice === deviceId) {
             config.selectedAdbDevice = devices.length > 0 ? devices[0].id : '';
             saveConfig();
+        }
+        if (activeClipboardDevice === deviceId) {
+            setClipboardMode('off');
         }
         broadcast({ type: 'DEVICES_UPDATED', devices });
         res.json({ success: true, message: `${deviceId} bağlantısı sonlandırıldı`, devices });
@@ -1208,86 +1147,223 @@ app.get('/api/adb/battery', async (req, res) => {
     res.json({ success: true, battery });
 });
 
-// Two-Way Clipboard Synchronization
-let activeClipboardProcess = null;
+// --- 3-Way Clipboard Synchronization Engine (PC -> Mobil / Mobil -> PC / Kapalı) ---
+let currentClipboardMode = 'off'; // 'off' | 'pc-to-phone' | 'phone-to-pc'
+let activeClipboardProcess = null; // scrcpy headless (phone-to-pc)
+let activeClipWatchProcess = null; // clipwatch.exe (pc-to-phone)
 let activeClipboardDevice = null;
+let lastSentClipboardB64 = '';
 
-function stopClipboardSync() {
-    if (activeClipboardProcess) {
-        try {
-            activeClipboardProcess.kill();
-        } catch (e) {}
-        activeClipboardProcess = null;
-        activeClipboardDevice = null;
-    }
-    broadcast({ type: 'CLIPBOARD_SYNC_STATUS', active: false });
-}
+const CLIP_JAR_PATH = path.join(BASE_DIR, 'tools', 'clip.jar');
+const CLIPWATCH_BIN = path.join(BASE_DIR, 'tools', 'clipwatch.exe');
 
-function startClipboardSync(deviceId) {
-    if (!deviceId || !fs.existsSync(SCRCPY_BIN)) return false;
-    stopClipboardSync();
-
-    try {
-        console.log(`[Clipboard Sync]: Başlatılıyor -> ${deviceId}`);
-        activeClipboardProcess = spawn(SCRCPY_BIN, [
-            '-s', deviceId,
-            '--no-video',
-            '--no-audio',
-            '--no-window'
-        ], {
-            windowsHide: true,
-            stdio: ['ignore', 'ignore', 'pipe']
-        });
-
-        activeClipboardDevice = deviceId;
-
-        activeClipboardProcess.stderr.on('data', (data) => {
-            const msg = data.toString();
-            if (msg.includes('ERROR') || msg.includes('Aborted')) {
-                console.warn('[Clipboard Sync]:', msg.trim());
+function ensureClipJar(deviceId) {
+    return new Promise((resolve) => {
+        if (!fs.existsSync(CLIP_JAR_PATH)) {
+            console.warn('[Clipboard]: tools/clip.jar bulunamadı');
+            return resolve(false);
+        }
+        exec(`"${ADB_BIN}" -s ${deviceId} push "${CLIP_JAR_PATH}" /data/local/tmp/clip.jar`, (err) => {
+            if (err) {
+                console.error('[Clipboard]: clip.jar push hatası:', err.message);
+                resolve(false);
+            } else {
+                resolve(true);
             }
         });
+    });
+}
 
-        activeClipboardProcess.on('exit', (code) => {
-            console.log(`[Clipboard Sync]: Durdu (kod: ${code})`);
-            activeClipboardProcess = null;
-            activeClipboardDevice = null;
-            broadcast({ type: 'CLIPBOARD_SYNC_STATUS', active: false });
-        });
+function stopAllClipboardProcesses() {
+    if (activeClipWatchProcess) {
+        try {
+            if (process.platform === 'win32') {
+                exec(`taskkill /pid ${activeClipWatchProcess.pid} /T /F`, () => {});
+            } else {
+                activeClipWatchProcess.kill();
+            }
+        } catch (e) {}
+        activeClipWatchProcess = null;
+    }
 
-        broadcast({ type: 'CLIPBOARD_SYNC_STATUS', active: true, deviceId });
-        return true;
-    } catch (err) {
-        console.error('[Clipboard Sync Error]:', err.message);
-        return false;
+    if (activeClipboardProcess) {
+        try {
+            if (process.platform === 'win32') {
+                exec(`taskkill /pid ${activeClipboardProcess.pid} /T /F`, () => {});
+            } else {
+                activeClipboardProcess.kill();
+            }
+        } catch (e) {}
+        activeClipboardProcess = null;
     }
 }
 
-app.post('/api/clipboard/sync/start', (req, res) => {
-    const { deviceId } = req.body;
+async function setClipboardMode(mode, deviceId) {
+    stopAllClipboardProcesses();
+
     const target = deviceId || config.selectedAdbDevice;
-    if (!target) return res.status(400).json({ error: 'Bağlı cihaz bulunamadı' });
-    const success = startClipboardSync(target);
-    res.json({ success, active: !!activeClipboardProcess, deviceId: target });
+
+    if (mode === 'off' || !mode) {
+        currentClipboardMode = 'off';
+        activeClipboardDevice = null;
+        broadcast({ type: 'CLIPBOARD_MODE_CHANGED', mode: 'off' });
+        return { success: true, mode: 'off' };
+    }
+
+    if (!target) {
+        currentClipboardMode = 'off';
+        broadcast({ type: 'CLIPBOARD_MODE_CHANGED', mode: 'off' });
+        return { success: false, error: 'Bağlı cihaz bulunamadı' };
+    }
+
+    activeClipboardDevice = target;
+
+    if (mode === 'pc-to-phone') {
+        if (!fs.existsSync(CLIPWATCH_BIN)) {
+            return { success: false, error: 'tools/clipwatch.exe bulunamadı' };
+        }
+
+        const jarReady = await ensureClipJar(target);
+        if (!jarReady) {
+            return { success: false, error: 'clip.jar cihaza yüklenemedi' };
+        }
+
+        try {
+            console.log(`[Clipboard PC -> Mobil]: Başlatılıyor -> ${target}`);
+            lastSentClipboardB64 = '';
+
+            activeClipWatchProcess = spawn(CLIPWATCH_BIN, [], {
+                windowsHide: true,
+                stdio: ['ignore', 'pipe', 'ignore']
+            });
+
+            activeClipWatchProcess.stdout.on('data', (chunk) => {
+                const text = chunk.toString('utf8');
+                const lines = text.split(/\r?\n/);
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (trimmed.startsWith('CLIP:')) {
+                        const b64 = trimmed.substring(5).trim();
+                        if (b64 && b64 !== lastSentClipboardB64 && activeClipboardDevice) {
+                            lastSentClipboardB64 = b64;
+                            console.log(`[Clipboard PC -> Mobil]: Yeni pano aktarılıyor...`);
+                            exec(`"${ADB_BIN}" -s ${activeClipboardDevice} shell "CLASSPATH=/data/local/tmp/clip.jar app_process / com.brq.Clip set-b64 '${b64}'"`, (err) => {
+                                if (err) console.error('[Clipboard Set Error]:', err.message);
+                            });
+                        }
+                    }
+                }
+            });
+
+            activeClipWatchProcess.on('exit', (code) => {
+                console.log(`[ClipWatch]: Sonlandı (kod: ${code})`);
+                activeClipWatchProcess = null;
+                if (currentClipboardMode === 'pc-to-phone') {
+                    currentClipboardMode = 'off';
+                    broadcast({ type: 'CLIPBOARD_MODE_CHANGED', mode: 'off' });
+                }
+            });
+
+            currentClipboardMode = 'pc-to-phone';
+            broadcast({ type: 'CLIPBOARD_MODE_CHANGED', mode: 'pc-to-phone', deviceId: target });
+            return { success: true, mode: 'pc-to-phone', deviceId: target };
+        } catch (err) {
+            console.error('[ClipWatch Başlatma Hatası]:', err.message);
+            currentClipboardMode = 'off';
+            return { success: false, error: err.message };
+        }
+    }
+
+    if (mode === 'phone-to-pc') {
+        if (!fs.existsSync(SCRCPY_BIN)) {
+            return { success: false, error: 'Scrcpy bulunamadı: ' + SCRCPY_BIN };
+        }
+
+        try {
+            console.log(`[Clipboard Mobil -> PC]: Başlatılıyor -> ${target}`);
+            activeClipboardProcess = spawn(SCRCPY_BIN, [
+                '-s', target,
+                '--no-video',
+                '--no-audio',
+                '--no-window'
+            ], {
+                windowsHide: true,
+                stdio: ['ignore', 'ignore', 'pipe']
+            });
+
+            activeClipboardProcess.stderr.on('data', (data) => {
+                const msg = data.toString();
+                if (msg.includes('ERROR') || msg.includes('Aborted')) {
+                    console.warn('[Clipboard Sync]:', msg.trim());
+                }
+            });
+
+            activeClipboardProcess.on('exit', (code) => {
+                console.log(`[Clipboard Mobil -> PC]: Durdu (kod: ${code})`);
+                activeClipboardProcess = null;
+                if (currentClipboardMode === 'phone-to-pc') {
+                    currentClipboardMode = 'off';
+                    broadcast({ type: 'CLIPBOARD_MODE_CHANGED', mode: 'off' });
+                }
+            });
+
+            currentClipboardMode = 'phone-to-pc';
+            broadcast({ type: 'CLIPBOARD_MODE_CHANGED', mode: 'phone-to-pc', deviceId: target });
+            return { success: true, mode: 'phone-to-pc', deviceId: target };
+        } catch (err) {
+            console.error('[Clipboard Mobil -> PC Hatası]:', err.message);
+            currentClipboardMode = 'off';
+            return { success: false, error: err.message };
+        }
+    }
+
+    return { success: false, error: 'Bilinmeyen pano modu' };
+}
+
+// Clipboard REST Endpoints
+app.post('/api/clipboard/mode', async (req, res) => {
+    const { mode, deviceId } = req.body;
+    const result = await setClipboardMode(mode, deviceId);
+    res.json(result);
 });
 
-app.post('/api/clipboard/sync/stop', (req, res) => {
-    stopClipboardSync();
+app.get('/api/clipboard/status', (req, res) => {
+    res.json({
+        mode: currentClipboardMode,
+        deviceId: activeClipboardDevice,
+        active: currentClipboardMode !== 'off'
+    });
+});
+
+// Backward compatibility routes
+app.post('/api/clipboard/sync/start', async (req, res) => {
+    const { deviceId } = req.body;
+    const result = await setClipboardMode('phone-to-pc', deviceId);
+    res.json({ ...result, active: result.success });
+});
+
+app.post('/api/clipboard/sync/stop', async (req, res) => {
+    const result = await setClipboardMode('off');
     res.json({ success: true, active: false });
 });
 
 app.get('/api/clipboard/sync/status', (req, res) => {
-    res.json({ active: !!activeClipboardProcess, deviceId: activeClipboardDevice });
+    res.json({
+        mode: currentClipboardMode,
+        deviceId: activeClipboardDevice,
+        active: currentClipboardMode !== 'off'
+    });
 });
 
-app.post('/api/clipboard/send-text', (req, res) => {
+app.post('/api/clipboard/send-text', async (req, res) => {
     const { text, deviceId } = req.body;
     const target = deviceId || config.selectedAdbDevice;
     if (!target) return res.status(400).json({ error: 'Bağlı cihaz bulunamadı' });
     if (!text) return res.status(400).json({ error: 'Metin gerekli' });
 
-    const safeText = text.replace(/ /g, '%s').replace(/"/g, '\\"');
-    exec(`"${ADB_BIN}" -s ${target} shell input text "${safeText}"`, (err) => {
+    await ensureClipJar(target);
+    const b64 = Buffer.from(text, 'utf8').toString('base64');
+    exec(`"${ADB_BIN}" -s ${target} shell "CLASSPATH=/data/local/tmp/clip.jar app_process / com.brq.Clip set-b64 '${b64}'"`, (err) => {
         if (err) {
             return res.status(500).json({ error: err.message });
         }
@@ -1348,4 +1424,17 @@ server.listen(PORT, '0.0.0.0', () => {
     setupWatcher(config.watchFolder);
     scanFolder(config.watchFolder, 'folder-watcher');
     scanFolder(UPLOADS_DIR, 'upload');
+});
+
+// Graceful Cleanup
+process.on('SIGINT', () => {
+    stopAllClipboardProcesses();
+    process.exit(0);
+});
+process.on('SIGTERM', () => {
+    stopAllClipboardProcesses();
+    process.exit(0);
+});
+process.on('exit', () => {
+    stopAllClipboardProcesses();
 });

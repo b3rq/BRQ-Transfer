@@ -33,7 +33,6 @@
           <button class="nav-item active" data-tab="tab-deploy" data-i18n="nav_builds">Paketler</button>
           <button class="nav-item" data-tab="tab-adb" data-i18n="nav_devices">Cihazlar</button>
           <button class="nav-item" data-tab="tab-screen" data-i18n="nav_mirror">Ekran Yansıtma</button>
-          <button class="nav-item" data-tab="tab-logcat" data-i18n="nav_logcat">Logcat</button>
         </nav>
       </div>
 
@@ -51,12 +50,13 @@
           </span>
         </div>
 
-        <!-- Clipboard Sync (PC <-> Phone) -->
-        <button class="btn-icon" id="clipboard-toggle-btn" title="Pano Eşitleme (PC ↔ Telefon)" data-i18n-title="clipboard_sync" aria-label="Clipboard sync">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <!-- Clipboard Sync 3-Way Mode Selector (PC -> Mobil / Mobil -> PC / Kapalı) -->
+        <button class="clipboard-mode-btn mode-off" id="clipboard-toggle-btn" title="Pano: Kapalı (Tıkla: PC → Mobil)" data-i18n-title="clipboard_title_off" aria-label="Clipboard sync mode">
+          <svg class="clipboard-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
             <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
           </svg>
+          <span class="clipboard-mode-label" id="clipboard-mode-label" data-i18n="clipboard_off">Kapalı</span>
         </button>
 
         <!-- Language Switcher -->
@@ -313,54 +313,7 @@
         </div>
       </section>
 
-      <!-- TAB 4: LOGCAT TERMINAL -->
-      <section id="tab-logcat" class="tab-content" style="display: none;">
-        <div class="panel logcat-panel">
-          <!-- Terminal Header & Actions -->
-          <div class="panel-header-between">
-            <div class="header-group">
-              <h3 data-i18n="logcat_diagnostics">Logcat Teşhisi</h3>
-              <span class="badge-status" id="logcat-status-badge" data-i18n="idle">Kapalı</span>
-            </div>
-            <div class="btn-group">
-              <button class="btn btn-primary btn-sm" id="start-logcat-btn" data-i18n="start">Başlat</button>
-              <button class="btn btn-danger btn-sm" id="stop-logcat-btn" style="display: none;" data-i18n="stop">Durdur</button>
-              <button class="btn btn-secondary btn-sm" id="clear-logcat-btn" data-i18n="clear">Temizle</button>
-              <button class="btn btn-secondary btn-sm" id="copy-logcat-btn" data-i18n="copy">Kopyala</button>
-              <button class="btn btn-secondary btn-sm" id="export-logcat-btn" data-i18n="export">Dışa Aktar</button>
-            </div>
-          </div>
 
-          <!-- Terminal Filter Bar -->
-          <div class="terminal-toolbar">
-            <select id="logcat-level-select" class="select-field">
-              <option value="ALL" data-i18n="all_levels">Tüm Seviyeler</option>
-              <option value="ERROR" selected data-i18n="error_fatal">Hata & Fatal</option>
-              <option value="WARN" data-i18n="warn_error">Uyarı & Hata</option>
-              <option value="INFO" data-i18n="info_above">Bilgi ve Üzeri</option>
-            </select>
-
-            <div class="search-wrap">
-              <input type="text" id="logcat-search-input" class="input-text mono" data-i18n-placeholder="filter_placeholder" placeholder="Tag, mesaj veya paket adı filtrele...">
-            </div>
-
-            <label class="checkbox-row compact">
-              <input type="checkbox" id="logcat-autoscroll-checkbox" checked>
-              <span class="custom-check"></span>
-              <span class="checkbox-label" data-i18n="autoscroll">Otomatik Kaydır</span>
-            </label>
-          </div>
-
-          <!-- Terminal Canvas -->
-          <div class="console-box" id="terminal-window">
-            <div class="log-entry log-sys">
-              <span class="log-time" data-i18n="system_tag">[Sistem]</span>
-              <span class="log-tag">INIT</span>
-              <span class="log-msg" data-i18n="logcat_ready">Logcat sistemi hazır. Kayda başlamak için bağlı bir cihaz seçin.</span>
-            </div>
-          </div>
-        </div>
-      </section>
     </div>
   </div>
 
