@@ -10,4 +10,3 @@ tools/*
 !tools/clip.jar
 !tools/clipwatch.exe
 !tools/ClipWatch.cs
-!tools/scrcpy/
