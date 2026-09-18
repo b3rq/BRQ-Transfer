@@ -1,58 +1,64 @@
 ﻿# UnityDrop
 
-Local Wi-Fi APK deployment, wireless ADB manager, and testing hub for Unity and Android developers.
+High-speed local Wi-Fi file transfer, wireless ADB manager, live screen mirroring, and clipboard sync hub between PC and Android devices.
 
-This project was built with AI assistance to eliminate repetitive friction in daily Android game development and mobile QA testing workflows.
+This project was built with AI assistance to eliminate friction in daily Android device management, wireless file transfers, and mobile development workflows.
 
 ---
 
 ## The Problem & Why UnityDrop
 
-Testing Android builds during active development usually relies on two common methods, both of which introduce friction:
+Transferring files, testing APK builds, and controlling Android devices from a PC usually relies on two common methods:
 
 ### 1. USB Cable Tethering
 - Physical cables wear out charging ports through repeated plugging and unplugging.
-- Testing motion, gyroscope, AR, or handheld comfort is awkward while tethered to a desk.
-- Accidental cable nudges can disrupt data transfer mid-install.
+- Testing motion, gyroscope, camera, or general handheld use is awkward while physically tethered to a desk.
+- Accidental cable nudges can interrupt active transfers or ADB sessions.
 
-### 2. Cloud Storage (Google Drive / Dropbox / WeTransfer)
-- Uploading 100 MB to 500 MB builds depends on external internet upload speed and can take several minutes per iteration.
-- Cloud services apply virus-scanning or processing delays before download links become active.
-- On the phone, you must manually open the cloud app, wait for the file to appear, download it, locate it in the file manager, and trigger the package installer.
+### 2. Cloud Storage (Google Drive / Dropbox / WeTransfer / Messaging Apps)
+- Uploading large files (videos, assets, 100 MB to 500 MB APKs) consumes external internet bandwidth and takes several minutes.
+- Cloud providers introduce processing, upload, and virus-scanning delays.
+- On the phone, you have to manually open the app, find the download, save it, and hunt for it in file managers.
 
 ### The UnityDrop Solution
-UnityDrop runs entirely on your local Wi-Fi network (LAN). It bridges your PC and test devices directly:
-- **Fast Local Transfer**: Transfers run at full local network bandwidth (often 30 to 80+ MB/s over 5 GHz Wi-Fi), finishing in 2-5 seconds with zero internet data usage.
-- **Zero-Touch Deployment**: When paired with Wireless ADB, building in Unity triggers an automatic background install and launches the game on your device without touching the phone.
-- **Bidirectional Sharing**: Send test APKs and assets from PC to device, and upload screenshots, logs, or recordings from device back to PC.
-- **Zero-Friction Access**: Any phone on the same network can access the hub simply by scanning a QR code with its camera. No mandatory app store downloads required.
+UnityDrop runs locally on your Wi-Fi router (LAN). It directly connects your PC and Android devices:
+- **Universal Bidirectional File Transfer**: Send any file (photos, videos, music, documents, APKs) from PC to phone, or upload from phone back to PC at full local network speeds (often 30–80+ MB/s) with zero internet consumption.
+- **Wireless ADB Engine**: Connect over Wi-Fi with one click or QR pairing. Install APKs, launch apps, send key events, and monitor battery status without cables.
+- **Zero-Touch APK Auto-Install**: Automatically detects compiled APKs (from folder watching or Unity Editor) and silently installs and launches them on your connected device.
+- **Bidirectional Clipboard Sync**: Seamlessly sync text between PC and mobile clipboard in real time.
+- **Live 60 FPS Screen Mirroring**: View and control your Android screen directly from your PC desktop with ultra-low latency.
+- **Zero-Install Web Client**: Any device on your local network can connect instantly by scanning a QR code in any browser—no mandatory companion app installation required.
 
 ---
 
 ## Features
 
-- **Automatic Build Watcher**: Monitors your Unity build output directory. As soon as an APK is compiled, UnityDrop detects it, extracts metadata, and notifies connected devices.
-- **Unity Editor Integration**: Includes an optional Unity Editor script (`PostProcessBuild`) that hooks into `Ctrl + B` builds for instant deployment.
-- **Wireless ADB Integration**: Connect to Android 11+ devices via Wireless Debugging. Supports auto-install on new build, app launch, log inspection, and remote reboot.
 - **Bidirectional File Transfer**:
-  - PC to Mobile: Drag and drop files onto the dashboard for instant download.
-  - Mobile to PC: Upload files from your phone's browser or companion app to save them directly to your PC.
-- **Bidirectional Clipboard Sync**:
-  - PC to Mobile: Text copied on PC is automatically sent to the phone's clipboard.
-  - Mobile to PC: Text copied on phone is automatically received on PC.
-  - Off: Toggle synchronization off when not needed.
-- **Live Screen Mirroring**: Integrated `scrcpy` engine allows viewing and controlling your Android device at low latency directly from your PC.
-- **Device Status & Telemetry**: Monitor connected device battery percentage, charging state, and connection status in real time.
-- **APK Metadata Parsing**: Automatically reads package name, version, min SDK, and app label using `aapt` or pure JS fallback.
-- **Streamer / Privacy Mode**: One-click toggle to mask IP addresses, serial numbers, and device identifiers on the dashboard.
+  - **PC to Mobile**: Drag and drop any file onto the web dashboard for instant download to `/sdcard/Download`.
+  - **Mobile to PC**: Upload photos, videos, recordings, or documents directly from your phone's browser or companion app to your PC's `received/` folder.
+- **Wireless ADB Management**:
+  - One-click connect via IP & Port.
+  - Android 11+ Wireless Debugging QR code pairing with automatic port discovery.
+  - Direct APK installation, package uninstallation, force stop, and app launch.
+  - Remote navigation controls (Back, Home, App Switch, Power).
+- **Bidirectional Clipboard Synchronization**:
+  - `PC → Mobile`: Text copied on PC is automatically sent to the phone's clipboard.
+  - `Mobile → PC`: Text copied on phone is automatically received on PC.
+  - `Off`: Easily toggle synchronization off when not needed.
+- **High-FPS Screen Mirroring**: Integrated `scrcpy` engine for viewing and controlling your Android device at 60 FPS with low latency.
+- **Automatic Build Watcher & Unity Hook**:
+  - Monitors configured folders for new APK builds.
+  - Includes an optional Unity Editor post-build script for instant game testing upon compilation (`Ctrl + B`).
+- **Device Telemetry & Battery Monitor**: Real-time display of battery percentage, charging state, and device identifiers.
+- **Privacy / Streamer Mode**: One-click toggle on the dashboard to mask IP addresses, device serials, and sensitive identifiers.
 
 ---
 
 ## Quick Start
 
 ### Requirements
-- Node.js (v18 or newer recommended)
-- Android SDK Platform-Tools (`adb`) in PATH (automatically detected if installed via Unity Hub or Android Studio)
+- [Node.js](https://nodejs.org/) (v18 or newer recommended)
+- Android SDK Platform-Tools (`adb`) in PATH (automatically detected if installed via Android Studio or Unity Hub)
 
 ### Installation & Run
 
@@ -78,17 +84,17 @@ UnityDrop runs entirely on your local Wi-Fi network (LAN). It bridges your PC an
    http://localhost:4500
    ```
 
-5. Connect your mobile device to the same Wi-Fi network and scan the QR code displayed on the dashboard.
+5. Connect your phone to the same Wi-Fi network and scan the QR code displayed on the dashboard.
 
 ---
 
-## Unity Editor Integration
+## Optional: Unity Editor Integration
 
-To automatically deploy builds whenever you build inside Unity:
+If you use Unity, you can deploy builds automatically:
 
 1. Copy the `unity-package/Editor` folder into your Unity project's `Assets/Editor/` directory.
-2. In Unity, open the menu: **Tools -> UnityDrop Hub**.
-3. Every time you trigger a build (`Ctrl + B`), the hook automatically notifies UnityDrop to distribute or install the new APK.
+2. In Unity, open: **Tools -> UnityDrop Hub**.
+3. Every time you trigger an Android build (`Ctrl + B`), the hook automatically notifies UnityDrop to deploy the APK.
 
 ---
 
@@ -97,7 +103,7 @@ To automatically deploy builds whenever you build inside Unity:
 For Android 11 and newer:
 
 1. Enable Developer Options on your phone (Settings -> About Phone -> tap Build Number 7 times).
-2. Go to **Settings -> Developer Options -> Wireless Debugging** and turn it on.
+2. Go to **Settings -> Developer Options -> Wireless Debugging** and enable it.
 3. Tap **Wireless Debugging** to see your device IP address and port (e.g. `192.168.1.50:37855`).
 4. On the UnityDrop PC dashboard, enter the IP and port, then click **Connect**.
 5. Enable **Auto-install on new build** for zero-touch updates.
@@ -108,17 +114,18 @@ For Android 11 and newer:
 
 ```mermaid
 flowchart TD
-    subgraph PC["Development PC"]
-        Unity["Unity Editor (Build)"] -->|PostProcessBuild Hook| Server["UnityDrop Server (:4500)"]
+    subgraph PC["Development / Host PC"]
+        Server["UnityDrop Hub Server (:4500)"]
         Watcher["Folder Watcher (chokidar)"] --> Server
         Manual["Web Dashboard Drag & Drop"] --> Server
+        Unity["Unity Editor (Optional Hook)"] -->|POST /api/unity-build-done| Server
         Server --> ADB["Wireless ADB Engine"]
-        Server --> Scrcpy["scrcpy Stream Service"]
+        Server --> Scrcpy["scrcpy Screen Mirror"]
         Server --> Clip["Clipboard Daemon"]
     end
 
     subgraph Mobile["Android Device (Same Local Wi-Fi)"]
-        ADB -->|Direct Install & Launch| Game["Installed Game"]
+        ADB -->|Direct Install & Launch| Game["Installed Apps"]
         Server -->|HTTP / WebSocket| MobileWeb["Mobile Browser / PWA"]
         Server -->|HTTP / APK Install| Companion["Optional Companion APK"]
     end
@@ -133,7 +140,7 @@ unity-apk-hub/
 ├── android-companion/    # Optional lightweight Android companion app source
 ├── public/               # PC & Mobile web dashboards (HTML, CSS, JS)
 ├── tools/                # Clipboard sync and platform helper binaries
-├── unity-package/        # Unity Editor integration script
+├── unity-package/        # Optional Unity Editor integration script
 ├── server.js             # Core Node.js server, WebSocket, ADB manager
 ├── start-hub.bat         # Windows launch script
 └── launch.vbs            # Background launcher (no console window)
