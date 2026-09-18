@@ -73,6 +73,9 @@ const i18n = {
         copy_link: "Linki Kopyala",
         received_folder: "İndirilenler Klasörü",
         open_folder_title: "Gelen dosyalar klasörünü aç",
+        network_adapter: "Ağ:",
+        open_on_phone: "Telefonda Aç",
+        open_on_phone_title: "Mobil Aktarım Sayfasını Telefonda Aç (ADB)",
 
         // Devices
         wireless_pairing: "Kablosuz Eşleme",
@@ -164,7 +167,9 @@ const i18n = {
         toast_screenshot_pulled: "Ekran görüntüsü çekildi:",
         toast_screenshot_pull_err: "Ekran görüntüsü çekilemedi:",
         toast_file_received_from_phone: "Telefondan yeni dosya alındı:",
-        toast_transfer_deleted: "Transfer silindi"
+        toast_transfer_deleted: "Transfer silindi",
+        toast_ip_changed: "Ağ kartı seçildi: ",
+        toast_opened_on_phone: "Mobil aktarım sayfası telefonda açıldı!"
     },
     en: {
         // Navigation
@@ -235,6 +240,9 @@ const i18n = {
         copy_link: "Copy Link",
         received_folder: "Received Folder",
         open_folder_title: "Open received files folder",
+        network_adapter: "Network:",
+        open_on_phone: "Open on Phone",
+        open_on_phone_title: "Open Mobile Transfer Webpage on Phone (ADB)",
 
         // Devices
         wireless_pairing: "Wireless Pairing",
@@ -326,7 +334,9 @@ const i18n = {
         toast_screenshot_pulled: "Screenshot pulled:",
         toast_screenshot_pull_err: "Failed to pull screenshot:",
         toast_file_received_from_phone: "File received from phone:",
-        toast_transfer_deleted: "Transfer deleted"
+        toast_transfer_deleted: "Transfer deleted",
+        toast_ip_changed: "Network adapter switched to: ",
+        toast_opened_on_phone: "Mobile transfer page opened on phone!"
     }
 };
 
@@ -627,11 +637,13 @@ document.querySelectorAll('.nav-item, .tab-btn').forEach(btn => {
     };
 });
 
-// --- Mobile to PC Web Transfer QR & Link ---
+// --- Mobile to PC Web Transfer QR & Link with Network Adapter Selection ---
 async function loadMobileTransferQr() {
     const mobileQrImg = document.getElementById('mobile-transfer-qr');
     const mobileUrlLink = document.getElementById('mobile-transfer-url-link');
     const mobileUrlText = document.getElementById('mobile-transfer-url-text');
+    const mobileIpSelect = document.getElementById('mobile-ip-select');
+    const openOnPhoneBtn = document.getElementById('open-on-phone-btn');
     if (!mobileQrImg) return;
 
     try {
@@ -641,6 +653,55 @@ async function loadMobileTransferQr() {
             mobileQrImg.src = data.qrDataUrl;
             if (mobileUrlLink) mobileUrlLink.href = data.url;
             if (mobileUrlText) mobileUrlText.textContent = data.url;
+        }
+
+        // Populate IP selector dropdown if available
+        if (mobileIpSelect && data.availableIps && data.availableIps.length > 0) {
+            mobileIpSelect.innerHTML = data.availableIps.map(item => {
+                const isSel = (item.ip === data.ip) ? 'selected' : '';
+                const label = `${item.ip} - ${item.friendlyName || item.name}`;
+                return `<option value="${item.ip}" ${isSel}>${label}</option>`;
+            }).join('');
+
+            mobileIpSelect.onchange = async () => {
+                const newIp = mobileIpSelect.value;
+                try {
+                    await fetch('/api/config', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ selectedIp: newIp })
+                    });
+                    showToast(`${i18n[currentLang].toast_ip_changed} ${newIp}`, 'var(--success)');
+                    loadMobileTransferQr();
+                } catch (err) {}
+            };
+        }
+
+        // Show "Telefonda Aç" button if an ADB device is connected
+        if (openOnPhoneBtn) {
+            if (currentDevices && currentDevices.length > 0) {
+                openOnPhoneBtn.style.display = 'inline-flex';
+                openOnPhoneBtn.onclick = async () => {
+                    try {
+                        const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
+                        const r = await fetch('/api/adb/open-mobile-web', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ deviceId: target })
+                        });
+                        const resData = await r.json();
+                        if (resData.success) {
+                            showToast(i18n[currentLang].toast_opened_on_phone, 'var(--success)', 4000);
+                        } else {
+                            showToast(resData.error || 'Hata', 'var(--danger)');
+                        }
+                    } catch (err) {
+                        showToast(err.message, 'var(--danger)');
+                    }
+                };
+            } else {
+                openOnPhoneBtn.style.display = 'none';
+            }
         }
     } catch (e) {
         console.error('Mobile QR load error:', e);
@@ -1177,16 +1238,16 @@ function connectWs() {
             currentApks = data.apks || [];
             currentTransfers = data.transfers || [];
             currentDevices = data.devices || [];
-            renderApks();
-            renderTransfers();
-            renderDevices();
             if (data.config) {
-                watchFolderInput.value = data.config.watchFolder || '';
-                currentWatchLabel.textContent = data.config.watchFolder || i18n[currentLang].default_watch_folder;
+                if (watchFolderInput) watchFolderInput.value = data.config.watchFolder || '';
+                if (currentWatchLabel) currentWatchLabel.textContent = data.config.watchFolder || i18n[currentLang].default_watch_folder;
                 if (autoAdbCheckbox) autoAdbCheckbox.checked = !!data.config.autoInstallOnAdb;
                 if (autoLaunchCheckbox) autoLaunchCheckbox.checked = data.config.autoLaunchAfterInstall !== false;
                 selectedDevice = data.config.selectedAdbDevice || '';
             }
+            renderApks();
+            renderTransfers();
+            renderDevices();
             if (data.pairingSession && adbQrImg) {
                 adbQrImg.src = data.pairingSession.qrDataUrl;
                 handleAdbPairStatus(data.pairingSession);
@@ -1238,6 +1299,25 @@ function connectWs() {
         } else if (data.type === 'DEVICES_UPDATED') {
             currentDevices = data.devices || [];
             renderDevices();
+            const openOnPhoneBtn = document.getElementById('open-on-phone-btn');
+            if (openOnPhoneBtn) {
+                openOnPhoneBtn.style.display = (currentDevices && currentDevices.length > 0) ? 'inline-flex' : 'none';
+            }
+        } else if (data.type === 'MOBILE_QR_UPDATED') {
+            const mobileQrImg = document.getElementById('mobile-transfer-qr');
+            const mobileUrlLink = document.getElementById('mobile-transfer-url-link');
+            const mobileUrlText = document.getElementById('mobile-transfer-url-text');
+            const mobileIpSelect = document.getElementById('mobile-ip-select');
+            if (mobileQrImg && data.qrDataUrl) mobileQrImg.src = data.qrDataUrl;
+            if (mobileUrlLink && data.url) mobileUrlLink.href = data.url;
+            if (mobileUrlText && data.url) mobileUrlText.textContent = data.url;
+            if (mobileIpSelect && data.availableIps) {
+                mobileIpSelect.innerHTML = data.availableIps.map(item => {
+                    const isSel = (item.ip === data.ip) ? 'selected' : '';
+                    const label = `${item.ip} - ${item.friendlyName || item.name}`;
+                    return `<option value="${item.ip}" ${isSel}>${label}</option>`;
+                }).join('');
+            }
         } else if (data.type === 'CLIPBOARD_MODE_CHANGED' || data.type === 'CLIPBOARD_SYNC_STATUS') {
             updateClipboardUI(data.mode || (data.active ? 'phone-to-pc' : 'off'));
         } else if (data.type === 'ADB_PAIR_STATUS') {
@@ -1327,19 +1407,6 @@ function renderApks() {
         </div>
       </div>
     `).join('');
-}
-
-function updateHeaderDevicePill() {
-    if (!headerDevicePill || !headerDeviceText) return;
-    if (currentDevices && currentDevices.length > 0) {
-        const cur = currentDevices.find(d => d.id === selectedDevice) || currentDevices[0];
-        headerDevicePill.classList.add('connected');
-        const displayVal = isPrivacyMode ? maskIdentifier(cur.model || cur.id) : (cur.model || cur.id);
-        headerDeviceText.textContent = displayVal;
-    } else {
-        headerDevicePill.classList.remove('connected');
-        headerDeviceText.textContent = i18n[currentLang].no_device;
-    }
 }
 
 // Render Transferred Files List
@@ -1853,7 +1920,7 @@ async function uploadFile(file) {
             } else {
                 const dest = (data.transfer && data.transfer.targetDir) || '/sdcard/Download';
                 showToast(`${i18n[currentLang].toast_transferred} ${file.name} → ${dest}`, 'var(--success)', 4500);
-                if (data.transfer) {
+                if (data.transfer && !currentTransfers.some(t => t.id === data.transfer.id)) {
                     currentTransfers.unshift(data.transfer);
                     renderTransfers();
                 }

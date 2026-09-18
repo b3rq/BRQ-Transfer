@@ -55,33 +55,79 @@ function saveConfig() {
     }
 }
 
-// Smart Local IP Detection
+// Smart Local IP Detection with Subnet & Hotspot Prioritization
+let lastDetectedConnectedIp = '';
+
 function getAllLocalIps() {
     const interfaces = os.networkInterfaces();
     const candidates = [];
 
+    // Find if an active ADB device is connected over Wi-Fi
+    let targetSubnet = null;
+    const activeDevice = config.selectedAdbDevice || lastDetectedConnectedIp;
+    if (activeDevice && activeDevice.includes(':')) {
+        const devIp = activeDevice.split(':')[0];
+        const parts = devIp.split('.');
+        if (parts.length === 4) {
+            targetSubnet = `${parts[0]}.${parts[1]}.${parts[2]}.`;
+        }
+    }
+
     for (const name of Object.keys(interfaces)) {
-        const isVirtual = /[\*]|vEthernet|Virtual|Host-Only|Loopback|WSL/i.test(name);
         for (const iface of interfaces[name]) {
             if (iface.family === 'IPv4' && !iface.internal) {
-                const isHotspot = iface.address.startsWith('192.168.137.');
-                let priority = 1;
-                if (!isVirtual && !isHotspot) priority = 3;
-                else if (!isVirtual && isHotspot) priority = 2;
-                else priority = 0;
+                const ip = iface.address;
+                if (ip.startsWith('169.254.')) continue; // Skip unassigned APIPA
 
-                candidates.push({ ip: iface.address, name, priority });
+                const isHotspot = ip.startsWith('192.168.137.');
+                const isVirtual = !isHotspot && (/vEthernet|Virtual|Host-Only|Loopback|WSL/i.test(name) || /[\*]/.test(name));
+
+                let priority = 1;
+                if (targetSubnet && ip.startsWith(targetSubnet)) {
+                    // Highest priority: matches the subnet of the connected phone!
+                    priority = 30;
+                } else if (isHotspot) {
+                    // Windows Mobile Hotspot adapter: connected phones rely on this
+                    priority = 20;
+                } else if (!isVirtual) {
+                    priority = 10;
+                } else {
+                    priority = 0;
+                }
+
+                let friendlyName = name;
+                if (isHotspot) {
+                    friendlyName = 'Mobil Etkin Nokta (Hotspot)';
+                } else if (/wi-?fi/i.test(name)) {
+                    friendlyName = 'Wi-Fi';
+                } else if (/ethernet/i.test(name)) {
+                    friendlyName = 'Ethernet';
+                }
+
+                candidates.push({ ip, name, friendlyName, priority });
             }
         }
     }
 
-    candidates.sort((a, b) => b.priority - a.priority);
-    return candidates;
+    // Deduplicate by IP address
+    const seen = new Set();
+    const unique = [];
+    for (const c of candidates) {
+        if (!seen.has(c.ip)) {
+            seen.add(c.ip);
+            unique.push(c);
+        }
+    }
+
+    unique.sort((a, b) => b.priority - a.priority);
+    return unique;
 }
 
 function getPrimaryIp() {
-    if (config.selectedIp) return config.selectedIp;
     const ips = getAllLocalIps();
+    if (config.selectedIp && ips.some(i => i.ip === config.selectedIp)) {
+        return config.selectedIp;
+    }
     return ips.length > 0 ? ips[0].ip : '127.0.0.1';
 }
 
@@ -436,6 +482,11 @@ function getAdbDevices() {
                 await Promise.all(devices.map(async (d) => {
                     if (d.state === 'device') {
                         d.battery = await getAdbBattery(d.id);
+                        if (d.id.includes(':')) {
+                            lastDetectedConnectedIp = d.id;
+                        }
+                        // Reverse forward port 4500 so phone can always access localhost:4500
+                        exec(`"${ADB_BIN}" -s ${d.id} reverse tcp:${PORT} tcp:${PORT}`, () => {});
                     }
                 }));
             } catch (e) {}
@@ -1221,8 +1272,32 @@ app.post('/api/config', (req, res) => {
     if (selectedIp !== undefined) config.selectedIp = selectedIp;
     if (language) config.language = language;
     saveConfig();
+    
+    // Broadcast updated QR when config or selected IP changes
+    const primaryIp = getPrimaryIp();
+    const qrUrl = `http://${primaryIp}:${PORT}/mobile`;
+    QRCode.toDataURL(qrUrl, { width: 320, margin: 2, color: { dark: '#000000', light: '#ffffff' } })
+        .then(qrDataUrl => {
+            broadcast({ type: 'MOBILE_QR_UPDATED', url: qrUrl, qrDataUrl, ip: primaryIp, availableIps: getAllLocalIps() });
+        }).catch(() => {});
+
     broadcast({ type: 'CONFIG_UPDATED', config });
-    res.json({ success: true, config });
+    res.json({ success: true, config, primaryIp });
+});
+
+// Launch Mobile Web transfer interface directly on phone via ADB
+app.post('/api/adb/open-mobile-web', (req, res) => {
+    const { deviceId } = req.body;
+    const target = deviceId || config.selectedAdbDevice || lastDetectedConnectedIp;
+    if (!target) {
+        return res.status(400).json({ error: 'Bağlı cihaz bulunamadı' });
+    }
+    exec(`"${ADB_BIN}" -s ${target} reverse tcp:${PORT} tcp:${PORT}`, () => {
+        exec(`"${ADB_BIN}" -s ${target} shell am start -a android.intent.action.VIEW -d "http://localhost:${PORT}/mobile"`, (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ success: true, message: 'Mobil arayüz telefonda açıldı' });
+        });
+    });
 });
 
 app.get('/api/adb/devices', async (req, res) => {
@@ -1714,18 +1789,45 @@ app.get('/mobile', (req, res) => {
 
 app.get('/api/qr', async (req, res) => {
     try {
-        const ip = getPrimaryIp();
+        const ip = req.query.ip || getPrimaryIp();
         const url = `http://${ip}:${PORT}/mobile`;
         const qrDataUrl = await QRCode.toDataURL(url, {
             width: 320,
             margin: 2,
             color: { dark: '#000000', light: '#ffffff' }
         });
-        res.json({ url, qrDataUrl });
+        res.json({ url, qrDataUrl, ip, availableIps: getAllLocalIps() });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
+
+// Periodic ADB Device & Battery Monitor (every 4 seconds)
+let lastDevicesSnapshotJson = '';
+setInterval(async () => {
+    try {
+        const devices = await getAdbDevices();
+        const currentSnapshot = JSON.stringify(devices.map(d => ({
+            id: d.id,
+            state: d.state,
+            battery: d.battery ? d.battery.level : null
+        })));
+
+        if (currentSnapshot !== lastDevicesSnapshotJson) {
+            lastDevicesSnapshotJson = currentSnapshot;
+            broadcast({ type: 'DEVICES_UPDATED', devices });
+
+            const primaryIp = getPrimaryIp();
+            const qrUrl = `http://${primaryIp}:${PORT}/mobile`;
+            const qrDataUrl = await QRCode.toDataURL(qrUrl, {
+                width: 320,
+                margin: 2,
+                color: { dark: '#000000', light: '#ffffff' }
+            });
+            broadcast({ type: 'MOBILE_QR_UPDATED', url: qrUrl, qrDataUrl, ip: primaryIp, availableIps: getAllLocalIps() });
+        }
+    } catch (e) {}
+}, 4000);
 
 // Start Server
 server.listen(PORT, '0.0.0.0', () => {
