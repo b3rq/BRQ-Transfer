@@ -9,12 +9,16 @@ const i18n = {
         nav_builds: "Paketler & Transfer",
         nav_devices: "Cihazlar",
         nav_mirror: "Ekran Yansıtma",
-        nav_logcat: "Logcat",
 
         // Topbar
         brand_slogan: "Kablolar için fazla üşengeç",
         no_device: "Bağlı Cihaz Yok",
-        clipboard_sync: "Pano Eşitleme (PC ↔ Telefon)",
+        clipboard_off: "Kapalı",
+        clipboard_pc_to_phone: "PC → Mobil",
+        clipboard_phone_to_pc: "Mobil → PC",
+        clipboard_title_off: "Pano: Kapalı (Tıkla: PC → Mobil)",
+        clipboard_title_pc: "Pano: PC → Mobil (Tıkla: Mobil → PC)",
+        clipboard_title_phone: "Pano: Mobil → PC (Tıkla: Kapat)",
         battery_title: "Cihaz Bataryası",
         charging: "Şarj Oluyor",
         sound_on: "Ses Açık",
@@ -102,22 +106,6 @@ const i18n = {
         modal_preview_title: "Görüntü İnceleme",
         close: "Kapat",
 
-        // Logcat
-        logcat_diagnostics: "Logcat Teşhisi",
-        streaming: "Akıyor",
-        start: "Başlat",
-        clear: "Temizle",
-        copy: "Kopyala",
-        export: "Dışa Aktar",
-        all_levels: "Tüm Seviyeler",
-        error_fatal: "Hata & Fatal",
-        warn_error: "Uyarı & Hata",
-        info_above: "Bilgi ve Üzeri",
-        filter_placeholder: "Tag, mesaj veya paket adı filtrele...",
-        autoscroll: "Otomatik Kaydır",
-        logcat_ready: "Logcat sistemi hazır. Kayda başlamak için bağlı bir cihaz seçin.",
-        system_tag: "[Sistem]",
-
         // Dynamic Toasts
         toast_only_apk: "Sadece .apk dosyaları kabul edilir",
         toast_uploading: "Yükleniyor:",
@@ -152,13 +140,12 @@ const i18n = {
         toast_launch_failed: "Başlatılamadı:",
         toast_stopped: "Durduruldu:",
         toast_saving_path: "Klasör yolu kaydediliyor...",
-        toast_logcat_started: "Logcat başlatıldı",
-        toast_logcat_stopped: "Logcat durduruldu",
         toast_tcpip_switching: "TCP/IP moduna geçiriliyor (5555)...",
         toast_privacy_on: "Gizlilik modu aktif (Bilgiler gizlendi)",
         toast_privacy_off: "Gizlilik modu kapalı",
-        toast_clipboard_started: "Pano eşitleme aktif (PC ↔ Telefon)",
-        toast_clipboard_stopped: "Pano eşitleme durduruldu",
+        toast_clipboard_pc_to_phone: "Pano Modu: PC → Mobil aktif",
+        toast_clipboard_phone_to_pc: "Pano Modu: Mobil → PC aktif",
+        toast_clipboard_off: "Pano eşitleme kapatıldı",
         toast_connect_first: "Lütfen önce bir cihaz bağlayın"
     },
     en: {
@@ -166,12 +153,16 @@ const i18n = {
         nav_builds: "Builds & Transfer",
         nav_devices: "Devices",
         nav_mirror: "Mirror",
-        nav_logcat: "Logcat",
 
         // Topbar
         brand_slogan: "Too lazy for cables",
         no_device: "No Device",
-        clipboard_sync: "Clipboard Sync (PC ↔ Phone)",
+        clipboard_off: "Off",
+        clipboard_pc_to_phone: "PC → Mobile",
+        clipboard_phone_to_pc: "Mobile → PC",
+        clipboard_title_off: "Clipboard: Off (Click: PC → Mobile)",
+        clipboard_title_pc: "Clipboard: PC → Mobile (Click: Mobile → PC)",
+        clipboard_title_phone: "Clipboard: Mobile → PC (Click: Off)",
         battery_title: "Device Battery",
         charging: "Charging",
         sound_on: "Audio On",
@@ -259,22 +250,6 @@ const i18n = {
         modal_preview_title: "Image Preview",
         close: "Close",
 
-        // Logcat
-        logcat_diagnostics: "Logcat Diagnostics",
-        streaming: "Streaming",
-        start: "Start",
-        clear: "Clear",
-        copy: "Copy",
-        export: "Export",
-        all_levels: "All Levels",
-        error_fatal: "Error & Fatal",
-        warn_error: "Warn & Error",
-        info_above: "Info & Above",
-        filter_placeholder: "Filter by tag, message, or package...",
-        autoscroll: "Autoscroll",
-        logcat_ready: "Logcat subsystem ready. Select an attached device to begin capture.",
-        system_tag: "[System]",
-
         // Dynamic Toasts
         toast_only_apk: "Only .apk files allowed",
         toast_uploading: "Uploading:",
@@ -309,13 +284,12 @@ const i18n = {
         toast_launch_failed: "Launch failed:",
         toast_stopped: "Stopped:",
         toast_saving_path: "Saving folder path...",
-        toast_logcat_started: "Logcat started",
-        toast_logcat_stopped: "Logcat stopped",
         toast_tcpip_switching: "Switching to TCP/IP (5555)...",
         toast_privacy_on: "Privacy mode enabled (Identifiers masked)",
         toast_privacy_off: "Privacy mode disabled",
-        toast_clipboard_started: "Clipboard sync enabled (PC ↔ Phone)",
-        toast_clipboard_stopped: "Clipboard sync stopped",
+        toast_clipboard_pc_to_phone: "Clipboard Mode: PC → Mobile active",
+        toast_clipboard_phone_to_pc: "Clipboard Mode: Mobile → PC active",
+        toast_clipboard_off: "Clipboard sync turned off",
         toast_connect_first: "Please connect a device first"
     }
 };
@@ -330,7 +304,6 @@ let selectedDevice = '';
 let activeDeployTab = 'apks';
 let isPrivacyMode = localStorage.getItem('apkdrop_privacy') === 'true';
 let isSoundEnabled = localStorage.getItem('apkdrop_sound') !== 'false';
-let isLogcatRunning = false;
 let isWebStreaming = false;
 let jmuxerInstance = null;
 let phonePhysicalWidth = 1080;
@@ -341,7 +314,7 @@ let touchStartY = 0;
 let lastPairedIp = '192.168.137.74';
 let capturedScreenshots = [];
 let currentPairingSession = null;
-let isClipboardSyncActive = false;
+let currentClipboardMode = 'off';
 let currentBattery = null;
 
 // DOM References
@@ -357,6 +330,7 @@ const headerBattery = document.getElementById('header-battery');
 const batteryText = document.getElementById('battery-text');
 const batteryIconSvg = document.getElementById('battery-icon-svg');
 const clipboardToggleBtn = document.getElementById('clipboard-toggle-btn');
+const clipboardModeLabel = document.getElementById('clipboard-mode-label');
 
 const tabBtnApks = document.getElementById('tab-btn-apks');
 const tabBtnTransfers = document.getElementById('tab-btn-transfers');
@@ -404,16 +378,6 @@ const modalImg = document.getElementById('modal-img');
 const modalCloseBtn = document.getElementById('modal-close-btn');
 const modalTitle = document.getElementById('modal-title');
 
-const logcatStatusBadge = document.getElementById('logcat-status-badge');
-const startLogcatBtn = document.getElementById('start-logcat-btn');
-const stopLogcatBtn = document.getElementById('stop-logcat-btn');
-const clearLogcatBtn = document.getElementById('clear-logcat-btn');
-const copyLogcatBtn = document.getElementById('copy-logcat-btn');
-const exportLogcatBtn = document.getElementById('export-logcat-btn');
-const logcatLevelSelect = document.getElementById('logcat-level-select');
-const logcatSearchInput = document.getElementById('logcat-search-input');
-const logcatAutoscrollCheckbox = document.getElementById('logcat-autoscroll-checkbox');
-const terminalWindow = document.getElementById('terminal-window');
 const toast = document.getElementById('toast');
 
 // --- Privacy / Streamer Masking Engine ---
@@ -532,7 +496,7 @@ function setLanguage(lang) {
     renderDevices();
     renderCapturesList();
     updatePairStatusBadge();
-    updateClipboardSyncUI(isClipboardSyncActive);
+    updateClipboardUI(currentClipboardMode);
 }
 
 if (langToggleBtn) {
@@ -1152,7 +1116,9 @@ function connectWs() {
                 adbQrImg.src = data.pairingSession.qrDataUrl;
                 handleAdbPairStatus(data.pairingSession);
             }
-            setLogcatRunningUI(!!data.isLogcatRunning);
+            if (data.clipboardMode) {
+                updateClipboardUI(data.clipboardMode);
+            }
         } else if (data.type === 'NEW_APK') {
             currentApks.unshift(data.apk);
             renderApks();
@@ -1180,20 +1146,14 @@ function connectWs() {
         } else if (data.type === 'DEVICES_UPDATED') {
             currentDevices = data.devices || [];
             renderDevices();
-        } else if (data.type === 'CLIPBOARD_SYNC_STATUS') {
-            updateClipboardSyncUI(data.active);
+        } else if (data.type === 'CLIPBOARD_MODE_CHANGED' || data.type === 'CLIPBOARD_SYNC_STATUS') {
+            updateClipboardUI(data.mode || (data.active ? 'phone-to-pc' : 'off'));
         } else if (data.type === 'ADB_PAIR_STATUS') {
             handleAdbPairStatus(data.session);
         } else if (data.type === 'SCREEN_STREAM_STATUS') {
             if (!data.running && isWebStreaming) {
                 stopWebScreenStream();
             }
-        } else if (data.type === 'LOGCAT_LINE') {
-            handleLogcatLine(data.line);
-        } else if (data.type === 'LOGCAT_STARTED') {
-            setLogcatRunningUI(true);
-        } else if (data.type === 'LOGCAT_STOPPED') {
-            setLogcatRunningUI(false);
         }
     };
 
@@ -1410,53 +1370,67 @@ setInterval(() => {
     }
 }, 20000);
 
-// --- Two-Way Clipboard Sync Controller ---
-function updateClipboardSyncUI(active) {
-    isClipboardSyncActive = !!active;
+// --- 3-Way Clipboard Sync Controller (PC → Mobil / Mobil → PC / Kapalı) ---
+function updateClipboardUI(mode) {
+    currentClipboardMode = mode || 'off';
     if (!clipboardToggleBtn) return;
-    if (isClipboardSyncActive) {
-        clipboardToggleBtn.classList.add('active');
-        clipboardToggleBtn.title = `${i18n[currentLang].clipboard_sync} (${i18n[currentLang].active})`;
-    } else {
-        clipboardToggleBtn.classList.remove('active');
-        clipboardToggleBtn.title = i18n[currentLang].clipboard_sync;
+
+    clipboardToggleBtn.classList.remove('mode-off', 'mode-pc-to-phone', 'mode-phone-to-pc');
+    clipboardToggleBtn.classList.add(`mode-${currentClipboardMode}`);
+
+    if (clipboardModeLabel) {
+        if (currentClipboardMode === 'pc-to-phone') {
+            clipboardModeLabel.textContent = i18n[currentLang].clipboard_pc_to_phone;
+            clipboardToggleBtn.title = i18n[currentLang].clipboard_title_pc;
+        } else if (currentClipboardMode === 'phone-to-pc') {
+            clipboardModeLabel.textContent = i18n[currentLang].clipboard_phone_to_pc;
+            clipboardToggleBtn.title = i18n[currentLang].clipboard_title_phone;
+        } else {
+            clipboardModeLabel.textContent = i18n[currentLang].clipboard_off;
+            clipboardToggleBtn.title = i18n[currentLang].clipboard_title_off;
+        }
     }
 }
 
 if (clipboardToggleBtn) {
     clipboardToggleBtn.onclick = async () => {
         const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
-        if (!target) {
+        if (!target && currentClipboardMode === 'off') {
             showToast(i18n[currentLang].toast_connect_first, 'var(--danger)');
             return;
         }
 
-        if (isClipboardSyncActive) {
-            try {
-                await fetch('/api/clipboard/sync/stop', { method: 'POST' });
-                updateClipboardSyncUI(false);
-                showToast(i18n[currentLang].toast_clipboard_stopped);
-            } catch (e) {
-                showToast(e.message, 'var(--danger)');
-            }
+        // Cycle: off -> pc-to-phone -> phone-to-pc -> off
+        let nextMode = 'off';
+        if (currentClipboardMode === 'off') {
+            nextMode = 'pc-to-phone';
+        } else if (currentClipboardMode === 'pc-to-phone') {
+            nextMode = 'phone-to-pc';
         } else {
-            try {
-                showToast(i18n[currentLang].clipboard_sync + '...');
-                const res = await fetch('/api/clipboard/sync/start', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ deviceId: target })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    updateClipboardSyncUI(true);
-                    showToast(i18n[currentLang].toast_clipboard_started, 'var(--success)');
+            nextMode = 'off';
+        }
+
+        try {
+            const res = await fetch('/api/clipboard/mode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: nextMode, deviceId: target })
+            });
+            const data = await res.json();
+            if (data.success) {
+                updateClipboardUI(data.mode);
+                if (data.mode === 'pc-to-phone') {
+                    showToast(i18n[currentLang].toast_clipboard_pc_to_phone, 'var(--accent)');
+                } else if (data.mode === 'phone-to-pc') {
+                    showToast(i18n[currentLang].toast_clipboard_phone_to_pc, 'var(--success)');
                 } else {
-                    showToast(data.error || 'Sync başlatılamadı', 'var(--danger)');
+                    showToast(i18n[currentLang].toast_clipboard_off);
                 }
-            } catch (e) {
-                showToast(e.message, 'var(--danger)');
+            } else {
+                showToast(data.error || 'İşlem başarısız', 'var(--danger)');
             }
+        } catch (e) {
+            showToast(e.message, 'var(--danger)');
         }
     };
 }
@@ -1688,152 +1662,7 @@ async function uploadFile(file) {
     }
 }
 
-// --- Logcat Terminal ---
-function setLogcatRunningUI(running) {
-    isLogcatRunning = running;
-    if (running) {
-        startLogcatBtn.style.display = 'none';
-        stopLogcatBtn.style.display = 'inline-flex';
-        logcatStatusBadge.textContent = i18n[currentLang].streaming;
-        logcatStatusBadge.style.color = 'var(--success)';
-    } else {
-        startLogcatBtn.style.display = 'inline-flex';
-        stopLogcatBtn.style.display = 'none';
-        logcatStatusBadge.textContent = i18n[currentLang].idle;
-        logcatStatusBadge.style.color = 'var(--text-tertiary)';
-    }
-}
 
-startLogcatBtn.onclick = () => {
-    const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
-    if (!target) return showToast(i18n[currentLang].toast_no_device, 'var(--danger)');
-
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-            action: 'START_LOGCAT',
-            deviceId: target,
-            level: logcatLevelSelect.value,
-            filter: logcatSearchInput.value.trim()
-        }));
-        setLogcatRunningUI(true);
-        showToast(i18n[currentLang].toast_logcat_started);
-    }
-};
-
-stopLogcatBtn.onclick = () => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ action: 'STOP_LOGCAT' }));
-    }
-    setLogcatRunningUI(false);
-    showToast(i18n[currentLang].toast_logcat_stopped);
-};
-
-clearLogcatBtn.onclick = () => {
-    terminalWindow.innerHTML = '';
-    const target = selectedDevice || (currentDevices[0] && currentDevices[0].id);
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ action: 'CLEAR_LOGCAT', deviceId: target }));
-    }
-    showToast(i18n[currentLang].toast_buffer_cleared);
-};
-
-copyLogcatBtn.onclick = () => {
-    const text = Array.from(terminalWindow.querySelectorAll('.log-entry'))
-        .map(el => el.innerText)
-        .join('\n');
-    if (!text) return;
-    navigator.clipboard.writeText(text);
-    showToast(i18n[currentLang].toast_copied, 'var(--success)');
-};
-
-exportLogcatBtn.onclick = () => {
-    const text = Array.from(terminalWindow.querySelectorAll('.log-entry'))
-        .map(el => el.innerText)
-        .join('\n');
-    if (!text) return;
-
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `logcat_${new Date().toISOString().slice(0, 10)}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast(i18n[currentLang].toast_exported, 'var(--success)');
-};
-
-logcatLevelSelect.onchange = applyLogcatFilter;
-logcatSearchInput.oninput = applyLogcatFilter;
-
-function applyLogcatFilter() {
-    const level = logcatLevelSelect.value;
-    const search = logcatSearchInput.value.toLowerCase().trim();
-
-    const entries = terminalWindow.querySelectorAll('.log-entry');
-    entries.forEach(entry => {
-        const text = entry.innerText.toLowerCase();
-        let matchesLevel = true;
-
-        if (level === 'ERROR') {
-            matchesLevel = entry.classList.contains('error');
-        } else if (level === 'WARN') {
-            matchesLevel = entry.classList.contains('warn') || entry.classList.contains('error');
-        } else if (level === 'INFO') {
-            matchesLevel = entry.classList.contains('info') || entry.classList.contains('warn') || entry.classList.contains('error');
-        }
-
-        const matchesSearch = !search || text.includes(search);
-        entry.style.display = (matchesLevel && matchesSearch) ? 'flex' : 'none';
-    });
-}
-
-function handleLogcatLine(rawLine) {
-    if (!rawLine) return;
-
-    let type = 'debug';
-    let tag = 'DBG';
-    if (rawLine.includes(' E ') || rawLine.includes('E/') || rawLine.includes('FATAL') || rawLine.includes('Exception') || rawLine.includes('CRASH')) {
-        type = 'error';
-        tag = 'ERR';
-    } else if (rawLine.includes(' W ') || rawLine.includes('W/')) {
-        type = 'warn';
-        tag = 'WRN';
-    } else if (rawLine.includes(' I ') || rawLine.includes('I/')) {
-        type = 'info';
-        tag = 'INF';
-    }
-
-    const currentFilterLevel = logcatLevelSelect.value;
-    if (currentFilterLevel === 'ERROR' && type !== 'error') return;
-    if (currentFilterLevel === 'WARN' && type !== 'error' && type !== 'warn') return;
-    if (currentFilterLevel === 'INFO' && type === 'debug') return;
-
-    const search = logcatSearchInput.value.toLowerCase().trim();
-    if (search && !rawLine.toLowerCase().includes(search)) return;
-
-    const div = document.createElement('div');
-    div.className = `log-entry ${type}`;
-
-    const timeMatch = rawLine.match(/^(\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d+)/);
-    const timeStr = timeMatch ? timeMatch[1] : '';
-    const bodyText = timeMatch ? rawLine.substring(timeMatch[1].length).trim() : rawLine;
-
-    div.innerHTML = `
-      ${timeStr ? `<span class="log-time">${timeStr}</span>` : ''}
-      <span class="log-tag">${tag}</span>
-      <span class="log-msg">${escapeHtml(bodyText)}</span>
-    `;
-
-    terminalWindow.appendChild(div);
-
-    if (terminalWindow.children.length > 900) {
-        terminalWindow.removeChild(terminalWindow.firstChild);
-    }
-
-    if (logcatAutoscrollCheckbox.checked) {
-        terminalWindow.scrollTop = terminalWindow.scrollHeight;
-    }
-}
 
 function escapeHtml(str) {
     return (str || '')

@@ -25,7 +25,7 @@ Say goodbye to uploading APKs to Google Drive, waiting for processing, downloadi
 | ❌ Upload 50–200 MB over internet upload speed (minutes) | 🚀 **Transfer over Gigabit Wi-Fi at 30–100 MB/s (1–3 seconds)** |
 | ❌ Drive app sync delays & caching bugs | ⚡ **Zero internet used; runs completely on your local router** |
 | ❌ Manual download & searching in phone downloads | 📲 **Instant install notification & 1-tap install** |
-| ❌ No logcat or crash inspection | 📜 **Live Unity Logcat terminal right in your browser** |
+| ❌ Manual copy-pasting of links & test keys | 📋 **Seamless 3-Way Clipboard Sync (PC → Mobile & Mobile → PC)** |
 | ❌ Phone interaction needed every single build | 🤖 **Zero-Touch Mode: auto-installs & launches game via Wireless ADB** |
 
 ---
@@ -34,10 +34,10 @@ Say goodbye to uploading APKs to Google Drive, waiting for processing, downloadi
 
 - 📂 **Automatic Unity Build Watcher**: Monitors your Unity `Builds/` folder. The millisecond Unity finishes compiling, the APK is prepared and announced to your devices.
 - ⚡ **Zero-Touch Wireless ADB Deploy**: Pair your Android phone over Wi-Fi once. When Unity finishes building, UnityDrop automatically installs the APK and launches the game on your phone—without touching the phone screen!
+- 📋 **Seamless 3-Way Clipboard Sync**: Instant real-time clipboard synchronization with 3 modes: `PC → Mobile` (copy on PC, pastes immediately on phone), `Mobile → PC` (copy on phone, pastes immediately on PC), and `Off`.
 - 📲 **Ultra-Lightweight Android Companion App (16 KB)**: Built-in native companion APK with automatic install triggers.
 - 🌐 **Zero-Install Web/PWA Client**: Scan the QR code on your PC screen with your phone's camera, bookmark the page, and enjoy 1-tap download & install.
 - 🔍 **Automated APK Metadata Inspection**: Extracts package name, version, SDK levels, and game label using `aapt`.
-- 📜 **Live Browser Logcat Terminal**: Watch Unity `Debug.Log`, warnings, and crashes in real time with keyword filtering.
 - 📸 **Live Phone Screen Capture**: Grab instant snapshots from the running device directly in your PC browser.
 - 🔔 **Melodic Synthesizer Chimes**: Web Audio API notification sounds when your build is ready so you can multitask freely.
 - 🌐 **Multi-Language**: Instant toggle between English and Turkish.
