@@ -1,4 +1,4 @@
-﻿# UnityDrop
+# BRQ Transfer
 
 High-speed local Wi-Fi file transfer, wireless ADB manager, live screen mirroring, and clipboard sync hub between PC and Android devices.
 
@@ -6,7 +6,7 @@ This project was built with AI assistance to eliminate friction in daily Android
 
 ---
 
-## The Problem & Why UnityDrop
+## The Problem & Why BRQ Transfer
 
 Transferring files, testing APK builds, and controlling Android devices from a PC usually relies on two common methods:
 
@@ -20,8 +20,8 @@ Transferring files, testing APK builds, and controlling Android devices from a P
 - Cloud providers introduce processing, upload, and virus-scanning delays.
 - On the phone, you have to manually open the app, find the download, save it, and hunt for it in file managers.
 
-### The UnityDrop Solution
-UnityDrop runs locally on your Wi-Fi router (LAN). It directly connects your PC and Android devices:
+### The BRQ Transfer Solution
+BRQ Transfer runs locally on your Wi-Fi router (LAN). It directly connects your PC and Android devices:
 - **Universal Bidirectional File Transfer**: Send any file (photos, videos, music, documents, APKs) from PC to phone, or upload from phone back to PC at full local network speeds (often 30–80+ MB/s) with zero internet consumption.
 - **Wireless ADB Engine**: Connect over Wi-Fi with one click or QR pairing. Install APKs, launch apps, send key events, and monitor battery status without cables.
 - **Zero-Touch APK Auto-Install**: Automatically detects compiled APKs (from folder watching or Unity Editor) and silently installs and launches them on your connected device.
@@ -64,8 +64,8 @@ UnityDrop runs locally on your Wi-Fi router (LAN). It directly connects your PC 
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/unitydrop.git
-   cd unitydrop
+   git clone https://github.com/b3rq/BRQ-Transfer.git
+   cd BRQ-Transfer
    ```
 
 2. Install dependencies:
