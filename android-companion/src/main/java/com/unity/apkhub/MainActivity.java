@@ -27,11 +27,10 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-
 public class MainActivity extends Activity {
     private static final String PREF_NAME = "UnityHubPrefs";
     private static final String KEY_HUB_IP = "hub_ip";
-    private static final String DEFAULT_HUB_IP = "192.168.1.208";
+    private static final String DEFAULT_HUB_IP = "";
     private static final String DEFAULT_HUB_PORT = "4500";
 
     private WebView webView;

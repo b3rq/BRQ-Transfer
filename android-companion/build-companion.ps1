@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Stop"
 
 $JAVA_HOME = "C:\Program Files\Unity\Hub\Editor\6000.0.72f1\Editor\Data\PlaybackEngines\AndroidPlayer\OpenJDK"
 $env:JAVA_HOME = $JAVA_HOME
@@ -15,9 +15,10 @@ $ZIPALIGN = "$env:LOCALAPPDATA\Android\Sdk\build-tools\36.0.0\zipalign.exe"
 $APKSIGNER = "$env:LOCALAPPDATA\Android\Sdk\build-tools\36.0.0\apksigner.bat"
 $ANDROID_JAR = "$env:LOCALAPPDATA\Android\Sdk\platforms\android-36.1\android.jar"
 
-$PROJECT = "C:\Users\aliha\.gemini\antigravity\scratch\unity-apk-hub\android-companion"
+$PROJECT = $PSScriptRoot
 $SRC = "$PROJECT\src\main"
 $BUILD = "$PROJECT\build"
+$PUBLIC = "$PROJECT\..\public"
 
 Write-Host "1. Temizleniyor..."
 if (Test-Path $BUILD) { Remove-Item $BUILD -Recurse -Force }
@@ -57,7 +58,7 @@ if (-not (Test-Path $KEYSTORE)) {
 & cmd /c "$APKSIGNER sign --ks $KEYSTORE --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android --out $BUILD\UnityCompanion.apk $BUILD\app.aligned.apk"
 
 Write-Host "9. Public klasörüne kopyalanıyor..."
-Copy-Item "$BUILD\UnityCompanion.apk" "C:\Users\aliha\.gemini\antigravity\scratch\unity-apk-hub\public\UnityCompanion.apk" -Force
+Copy-Item "$BUILD\UnityCompanion.apk" "$PUBLIC\UnityCompanion.apk" -Force
 
 Write-Host "=========================================="
 Write-Host "🎉 BAŞARILI! UnityCompanion.apk üretildi!"

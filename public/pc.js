@@ -357,7 +357,7 @@ let phonePhysicalHeight = 2400;
 let isTouchDown = false;
 let touchStartX = 0;
 let touchStartY = 0;
-let lastPairedIp = '192.168.137.74';
+let lastPairedIp = '';
 let capturedScreenshots = [];
 let currentPairingSession = null;
 let currentClipboardMode = 'off';
@@ -431,7 +431,7 @@ const toast = document.getElementById('toast');
 // --- Privacy / Streamer Masking Engine ---
 function maskIdentifier(str) {
     if (!isPrivacyMode || !str) return str;
-    // Mask IP:port like 192.168.137.74:32893 -> 192.168.***.**:*****
+    // Mask IP:port like 192.168.1.50:32893 -> 192.168.***.**:*****
     if (/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?\b/.test(str)) {
         return str.replace(/\b(\d{1,3}\.\d{1,3}\.)\d{1,3}\.\d{1,3}(:\d+)?\b/g, '$1***.***:*****');
     }
@@ -778,8 +778,11 @@ if (quickPortBtn) {
             showToast(i18n[currentLang].toast_port_required, 'var(--danger)');
             return;
         }
-        const ip = lastPairedIp || '192.168.137.74';
-        showToast(`${ip}:${port}...`);
+        const ip = lastPairedIp || (currentPairingSession && currentPairingSession.pairedIp) || '';
+        if (!ip) {
+            showToast(i18n[currentLang].toast_ip_required, 'var(--danger)');
+            return;
+        }
         try {
             const res = await fetch('/api/adb/connect', {
                 method: 'POST',
