@@ -41,7 +41,8 @@ let config = {
 
 if (fs.existsSync(CONFIG_FILE)) {
     try {
-        config = { ...config, ...JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')) };
+        const rawConfig = fs.readFileSync(CONFIG_FILE, 'utf8').replace(/^\uFEFF/, '');
+        config = { ...config, ...JSON.parse(rawConfig) };
     } catch (e) {
         console.error('Config read error:', e.message);
     }
