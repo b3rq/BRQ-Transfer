@@ -1,65 +1,72 @@
-$ErrorActionPreference = "Stop"
-
-$JAVA_HOME = "C:\Program Files\Unity\Hub\Editor\6000.0.72f1\Editor\Data\PlaybackEngines\AndroidPlayer\OpenJDK"
-$env:JAVA_HOME = $JAVA_HOME
-$env:PATH = "$JAVA_HOME\bin;$env:PATH"
-
-$JAVA = "$JAVA_HOME\bin\java.exe"
-$JAVAC = "$JAVA_HOME\bin\javac.exe"
-$JAR = "$JAVA_HOME\bin\jar.exe"
-$KEYTOOL = "$JAVA_HOME\bin\keytool.exe"
-
-$AAPT2 = "$env:LOCALAPPDATA\Android\Sdk\build-tools\36.0.0\aapt2.exe"
-$D8 = "$env:LOCALAPPDATA\Android\Sdk\build-tools\36.0.0\d8.bat"
-$ZIPALIGN = "$env:LOCALAPPDATA\Android\Sdk\build-tools\36.0.0\zipalign.exe"
-$APKSIGNER = "$env:LOCALAPPDATA\Android\Sdk\build-tools\36.0.0\apksigner.bat"
-$ANDROID_JAR = "$env:LOCALAPPDATA\Android\Sdk\platforms\android-36.1\android.jar"
-
-$PROJECT = $PSScriptRoot
-$SRC = "$PROJECT\src\main"
-$BUILD = "$PROJECT\build"
-$PUBLIC = "$PROJECT\..\public"
-
-Write-Host "1. Temizleniyor..."
-if (Test-Path $BUILD) { Remove-Item $BUILD -Recurse -Force }
-New-Item -ItemType Directory -Path "$BUILD\compiled_res", "$BUILD\gen", "$BUILD\classes" -Force | Out-Null
-
-Write-Host "2. Kaynaklar derleniyor (aapt2 compile)..."
-& $AAPT2 compile "$SRC\res\values\strings.xml" -o "$BUILD\compiled_res"
-& $AAPT2 compile "$SRC\res\xml\file_paths.xml" -o "$BUILD\compiled_res"
-
-Write-Host "3. Paket bağlanıyor (aapt2 link)..."
-$zipFiles = Get-ChildItem -Path "$BUILD\compiled_res" -Filter "*.flat" | ForEach-Object { $_.FullName }
-& $AAPT2 link -I $ANDROID_JAR --manifest "$SRC\AndroidManifest.xml" --java "$BUILD\gen" -o "$BUILD\app.unaligned.apk" $zipFiles --auto-add-overlay
-
-Write-Host "4. Java derleniyor (javac)..."
-$javaFiles = Get-ChildItem -Path "$SRC\java", "$BUILD\gen" -Filter "*.java" -Recurse | ForEach-Object { $_.FullName }
-& $JAVAC -cp $ANDROID_JAR -d "$BUILD\classes" -source 1.8 -target 1.8 $javaFiles
-
-Write-Host "5. Dex oluşturuluyor (d8)..."
-$classFiles = Get-ChildItem -Path "$BUILD\classes\com\unity\apkhub" -Filter "*.class" -Recurse | ForEach-Object { $_.FullName }
-& cmd /c "$D8 --output $BUILD --lib $ANDROID_JAR $($classFiles -join ' ')"
-
-Write-Host "6. classes.dex APK'ya ekleniyor..."
-$origDir = Get-Location
-Set-Location $BUILD
-& $JAR uf "$BUILD\app.unaligned.apk" classes.dex
-Set-Location $origDir
-
-Write-Host "7. Zipalign yapılıyor..."
-& $ZIPALIGN -f -p 4 "$BUILD\app.unaligned.apk" "$BUILD\app.aligned.apk"
-
-Write-Host "8. Keystore kontrolü ve İmzalama..."
-$KEYSTORE = "$BUILD\debug.keystore"
-if (-not (Test-Path $KEYSTORE)) {
-    & $KEYTOOL -genkeypair -validity 10000 -dname "CN=UnityHub,O=Dev,C=TR" -keystore $KEYSTORE -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048
+﻿param(
+    [string]$JavaHome = $env:JAVA_HOME,
+    [string]$AndroidSdk = $env:ANDROID_HOME,
+    [string]$BuildToolsVersion = '36.0.0',
+    [string]$Platform = 'android-36.1',
+    [string]$Keystore = $env:BRQ_KEYSTORE,
+    [string]$KeyAlias = 'androiddebugkey',
+    [switch]$ValidateOnly
+)
+$ErrorActionPreference = 'Stop'
+if (-not $JavaHome) { $JavaHome = 'C:\Program Files\Unity\Hub\Editor\6000.0.72f1\Editor\Data\PlaybackEngines\AndroidPlayer\OpenJDK' }
+if (-not $AndroidSdk) { $AndroidSdk = Join-Path $env:LOCALAPPDATA 'Android\Sdk' }
+$projectDir = $PSScriptRoot
+$sourceDir = Join-Path $projectDir 'src\main'
+$toolsDir = Join-Path $AndroidSdk "build-tools\$BuildToolsVersion"
+$androidJar = Join-Path $AndroidSdk "platforms\$Platform\android.jar"
+$java = Join-Path $JavaHome 'bin\java.exe'
+$javac = Join-Path $JavaHome 'bin\javac.exe'
+$jar = Join-Path $JavaHome 'bin\jar.exe'
+$aapt = Join-Path $toolsDir 'aapt2.exe'
+$zipalign = Join-Path $toolsDir 'zipalign.exe'
+$d8 = Join-Path $toolsDir 'lib\d8.jar'
+$signer = Join-Path $toolsDir 'lib\apksigner.jar'
+foreach ($tool in @($java, $javac, $jar, $aapt, $zipalign, $d8, $signer, $androidJar)) {
+    if (-not (Test-Path -LiteralPath $tool -PathType Leaf)) { throw "Gerekli araç bulunamadı: $tool" }
 }
-
-& cmd /c "$APKSIGNER sign --ks $KEYSTORE --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android --out $BUILD\UnityCompanion.apk $BUILD\app.aligned.apk"
-
-Write-Host "9. Public klasörüne kopyalanıyor..."
-Copy-Item "$BUILD\UnityCompanion.apk" "$PUBLIC\UnityCompanion.apk" -Force
-
-Write-Host "=========================================="
-Write-Host "🎉 BAŞARILI! UnityCompanion.apk üretildi!"
-Write-Host "=========================================="
+function Invoke-Native([string]$Tool, [string[]]$Arguments) {
+    & $Tool @Arguments
+    if ($LASTEXITCODE -ne 0) { throw "Araç başarısız: $([IO.Path]::GetFileName($Tool)), exit=$LASTEXITCODE" }
+}
+# Preserve the old key before any build operation. No build directory is deleted.
+if (-not $Keystore) { $Keystore = Join-Path $projectDir 'signing\debug.keystore' }
+$oldKey = Join-Path $projectDir 'build\debug.keystore'
+if (-not (Test-Path -LiteralPath $Keystore) -and (Test-Path -LiteralPath $oldKey)) {
+    New-Item -ItemType Directory -Path (Split-Path $Keystore) -Force | Out-Null
+    Copy-Item -LiteralPath $oldKey -Destination $Keystore
+}
+if (-not $ValidateOnly -and -not (Test-Path -LiteralPath $Keystore -PathType Leaf)) {
+    throw 'Önceki imza anahtarı bulunamadı. BRQ_KEYSTORE ile aynı anahtarı belirtin. Mevcut APK korunuyor; yeni anahtar otomatik oluşturulmaz.'
+}
+$buildDir = Join-Path $projectDir ('build\run-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path "$buildDir\compiled_res", "$buildDir\gen", "$buildDir\classes" -Force | Out-Null
+Invoke-Native $aapt @('compile', "$sourceDir\res\values\strings.xml", '-o', "$buildDir\compiled_res")
+Invoke-Native $aapt @('compile', "$sourceDir\res\xml\file_paths.xml", '-o', "$buildDir\compiled_res")
+$resources = @(Get-ChildItem -LiteralPath "$buildDir\compiled_res" -Filter '*.flat' | ForEach-Object { $_.FullName })
+Invoke-Native $aapt (@('link', '-I', $androidJar, '--manifest', "$sourceDir\AndroidManifest.xml", '--java', "$buildDir\gen", '-o', "$buildDir\app.unaligned.apk", '--auto-add-overlay') + $resources)
+$sources = @(Get-ChildItem -Path "$sourceDir\java", "$buildDir\gen" -Filter '*.java' -Recurse | ForEach-Object { $_.FullName })
+Invoke-Native $javac (@('-cp', $androidJar, '-d', "$buildDir\classes", '-source', '8', '-target', '8') + $sources)
+$classes = @(Get-ChildItem -LiteralPath "$buildDir\classes" -Filter '*.class' -Recurse | ForEach-Object { $_.FullName })
+Invoke-Native $java (@('-cp', $d8, 'com.android.tools.r8.D8', '--output', $buildDir, '--lib', $androidJar) + $classes)
+$previousDirectory = Get-Location
+try {
+    Set-Location -LiteralPath $buildDir
+    Invoke-Native $jar @('uf', "$buildDir\app.unaligned.apk", 'classes.dex')
+} finally { Set-Location -LiteralPath $previousDirectory.Path }
+Invoke-Native $zipalign @('-f', '-p', '4', "$buildDir\app.unaligned.apk", "$buildDir\app.aligned.apk")
+$entries = @(Invoke-Native $jar @('tf', "$buildDir\app.aligned.apk"))
+if ('classes.dex' -notin $entries -or 'AndroidManifest.xml' -notin $entries) { throw 'APK dex/manifest doğrulaması başarısız.' }
+if ($ValidateOnly) { Write-Host 'Kaynak/resource/dex doğrulandı. Public APK değiştirilmedi.'; return }
+if (-not $env:BRQ_KEYSTORE_PASSWORD) { throw 'BRQ_KEYSTORE_PASSWORD ortam değişkenini ayarlayın. Public APK değiştirilmedi.' }
+Invoke-Native $java @('-jar', $signer, 'sign', '--ks', $Keystore, '--ks-pass', 'env:BRQ_KEYSTORE_PASSWORD', '--ks-key-alias', $KeyAlias, '--key-pass', 'env:BRQ_KEYSTORE_PASSWORD', '--out', "$buildDir\UnityCompanion.apk", "$buildDir\app.aligned.apk")
+$newCertificate = @(Invoke-Native $java @('-jar', $signer, 'verify', '--print-certs', "$buildDir\UnityCompanion.apk")) | Where-Object { $_ -match '^Signer #1 certificate SHA-256 digest:' }
+$publicApk = [IO.Path]::GetFullPath((Join-Path $projectDir '..\public\UnityCompanion.apk'))
+if (Test-Path -LiteralPath $publicApk) {
+    $oldCertificate = @(Invoke-Native $java @('-jar', $signer, 'verify', '--print-certs', $publicApk)) | Where-Object { $_ -match '^Signer #1 certificate SHA-256 digest:' }
+    if (-not $oldCertificate -or $oldCertificate -ne $newCertificate) { throw 'İmza önceki APK ile uyuşmuyor. Mevcut APK korunuyor.' }
+}
+$staging = $publicApk + '.' + [guid]::NewGuid().ToString('N') + '.tmp'
+Copy-Item -LiteralPath "$buildDir\UnityCompanion.apk" -Destination $staging
+if (Test-Path -LiteralPath $publicApk) { [IO.File]::Replace($staging, $publicApk, $null) }
+else { [IO.File]::Move($staging, $publicApk) }
+Write-Host 'APK doğrulandı, aynı imzayla güncellendi.'

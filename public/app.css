@@ -442,8 +442,17 @@ body {
 
 @media (max-width: 980px) {
   .split-view {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
+  .topbar { height: auto; min-height: 56px; flex-wrap: wrap; gap: 10px; padding: 12px 24px; }
+  .topbar-left, .topbar-right { flex-wrap: wrap; min-width: 0; gap: 10px; }
+  .topbar-left { flex: 1 1 100%; }
+  .topbar-right { justify-content: flex-end; width: 100%; }
+  .nav-links { flex-wrap: wrap; }
+  .transfer-card { flex-wrap: wrap; gap: 10px; }
+  .transfer-card .transfer-right { flex-wrap: wrap; flex-shrink: 1; }
+  .transfer-path, .device-card label { overflow-wrap: anywhere; }
+  .toast { max-width: calc(100vw - 32px); overflow-wrap: anywhere; }
 }
 
 /* Panels */
@@ -837,6 +846,92 @@ body {
   margin-bottom: 12px;
 }
 
+.pairing-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pairing-workspace {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 620px) minmax(320px, 380px);
+  justify-content: center;
+  align-items: start;
+  gap: 24px;
+  padding-top: 24px;
+}
+
+.pairing-methods {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pairing-methods .btn {
+  justify-content: flex-start;
+  text-align: left;
+  white-space: normal;
+}
+
+.pairing-methods .active {
+  border-color: var(--border-focus);
+  color: var(--text-primary);
+  background: var(--bg-surface-elevated);
+}
+
+.pairing-center { min-width: 0; }
+.pairing-devices { grid-column: 3; min-width: 0; }
+.pairing-devices .panel-header-between { flex-wrap: wrap; }
+.pairing-workspace [hidden] { display: none !important; }
+
+@media (max-width: 1100px) {
+  .pairing-workspace { grid-template-columns: minmax(0, 1fr) minmax(320px, 380px); }
+  .pairing-methods { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .pairing-devices { grid-column: 2; }
+}
+
+@media (max-width: 650px) {
+  .pairing-workspace { grid-template-columns: minmax(0, 1fr); padding-top: 0; }
+  .pairing-methods { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pairing-devices { grid-column: 1; }
+}
+
+.pairing-form[hidden] {
+  display: none;
+}
+
+.pairing-form label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.pairing-help {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.pairing-code-input {
+  min-width: 0;
+  letter-spacing: 0.12em;
+}
+
+.pairing-alternative {
+  margin: 12px 0;
+  font-size: 12px;
+}
+
+.pairing-alternative summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.pairing-form .input-text {
+  box-sizing: border-box;
+}
+
 .port-input-box {
   background: var(--success-surface);
   border: 1px solid var(--success-border);
@@ -868,6 +963,14 @@ body {
   padding-top: 14px;
   border-top: 1px solid var(--border-subtle);
 }
+
+.saved-phones-panel { margin-top: 18px; }
+.saved-phones-panel .pairing-help { margin-bottom: 12px; }
+.saved-phone-card { gap: 12px; }
+.saved-phone-info { min-width: 0; overflow-wrap: anywhere; }
+.saved-phone-name { font-weight: 600; }
+.saved-phone-address { color: var(--text-secondary); font-size: 12px; margin-top: 4px; }
+.saved-phone-card .btn { flex-shrink: 0; }
 
 .sub-panel h4 {
   font-size: 12px;

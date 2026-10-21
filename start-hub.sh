@@ -1,13 +1,5 @@
 #!/usr/bin/env bash
+set -e
 cd "$(dirname "$0")"
-echo "=================================================="
-echo "  🚀 Starting UnityDrop Hub & Wireless ADB..."
-echo "=================================================="
-
-if command -v xdg-open > /dev/null; then
-  xdg-open http://localhost:4500 &
-elif command -v open > /dev/null; then
-  open http://localhost:4500 &
-fi
-
-node server.js
+node -e "const v=process.versions.node.split('.').map(Number);process.exit(v[0]>22||(v[0]===22&&v[1]>=12)?0:1)" || { echo 'Node >=22.12.0 required'; exit 1; }
+BRQ_OPEN_BROWSER=1 node server.js

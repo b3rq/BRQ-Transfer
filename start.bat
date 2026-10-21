@@ -1,46 +1,30 @@
-﻿@echo off
-setlocal enabledelayedexpansion
+@echo off
+setlocal
 cd /d "%~dp0"
 title BRQ Transfer
-
-echo ========================================================
-echo                 BRQ Transfer Baslatiliyor
-echo ========================================================
-echo.
-
-:: 1. Node.js kontrolu
 where node >nul 2>&1
-if %ERRORLEVEL% NEQ 0 (
-    echo [HATA] Sisteminizde Node.js kurulu degil veya PATH'e eklenmemis.
-    echo Lutfen Node.js LTS surumunu kurun: https://nodejs.org/
-    echo.
-    pause
-    exit /b 1
+if errorlevel 1 (
+    echo [HATA] Node.js 22.12.0 veya daha yeni bir surum gerekli.
+    goto failure
 )
-
-:: 2. node_modules kontrolu (Ilk calistirma)
-if not exist "node_modules\" (
-    echo [BILGI] Ilk calistirma tespit edildi.
-    echo Paketler yukleniyor (npm install), lutfen bekleyin...
-    echo.
-    call npm install
-    if %ERRORLEVEL% NEQ 0 (
-        echo.
-        echo [HATA] Paketler yuklenirken bir sorun olustu.
-        pause
-        exit /b 1
-    )
-    echo [BASARILI] Kurulum tamamlandi!
-    echo.
+node -e "const v=process.versions.node.split('.').map(Number);process.exit(v[0]>22||(v[0]===22&&v[1]>=12)?0:1)"
+if errorlevel 1 (
+    echo [HATA] Node.js en az 22.12.0 olmali.
+    goto failure
 )
-
-:: 3. Masaustu Uygulamasini (Electron) Baslat
-echo Masaustu arayuzu aciliyor...
-call npm run desktop
-if %ERRORLEVEL% NEQ 0 (
-    echo.
-    echo [BILGI] Masaustu penceresi acilamadi, tarayici modunda baslatiliyor...
-    timeout /t 1 /nobreak >nul
-    start http://localhost:4500
-    node server.js
+node -e "require('express');require('ws');require('multer');if(!require('fs').existsSync('node_modules/electron/dist/electron.exe'))process.exit(1)" >nul 2>&1
+if errorlevel 1 (
+    echo Paketler dogrulaniyor: npm ci
+    call npm.cmd ci
+    if errorlevel 1 goto failure
 )
+call npm.cmd run desktop
+if not errorlevel 1 exit /b 0
+echo [BILGI] Masaustu acilamadi. Tarayici modu baslatiliyor.
+set BRQ_OPEN_BROWSER=1
+node server.js
+if errorlevel 1 goto failure
+exit /b 0
+:failure
+if not "%BRQ_SILENT%"=="1" pause
+exit /b 1

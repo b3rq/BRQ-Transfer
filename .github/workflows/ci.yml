@@ -1,0 +1,32 @@
+name: Validation
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  node:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run test:ui
+
+  android-source:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Android compilation targets
+        shell: pwsh
+        run: |
+          & "$env:ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager.bat" 'platforms;android-36.1' 'build-tools;36.0.0'
+          if ($LASTEXITCODE -ne 0) { throw 'Android SDK installation failed' }
+      - name: Validate resources, Java and dex without replacing the signed APK
+        shell: pwsh
+        run: ./android-companion/build-companion.ps1 -JavaHome $env:JAVA_HOME_17_X64 -AndroidSdk $env:ANDROID_HOME -ValidateOnly

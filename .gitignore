@@ -16,3 +16,13 @@ tools/*
 !tools/clipwatch.exe
 !tools/ClipWatch.cs
 push-github.bat
+.validation/
+.superpowers/
+.dashboard-session.json
+.dashboard-session.json.*.tmp
+config.json.bak
+config.json.*.tmp
+transfers.json.bak
+transfers.json.*.tmp
+android-companion/signing/
+*.keystore

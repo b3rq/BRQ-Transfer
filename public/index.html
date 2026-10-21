@@ -223,16 +223,59 @@
 
       <!-- TAB 2: ADB & DEVICES -->
       <section id="tab-adb" class="tab-content" style="display: none;">
-        <div class="split-view">
-          <!-- Left: QR Code Pairing -->
-          <aside class="sidebar-panel">
+        <div class="pairing-workspace">
+          <nav class="pairing-methods panel" aria-label="Eşleşme yöntemi">
+            <button type="button" class="btn btn-secondary active" data-pairing-method="discover" aria-pressed="true" data-i18n="discover_phones">Telefonları Bul</button>
+            <button type="button" class="btn btn-secondary" data-pairing-method="qr" aria-pressed="false" data-i18n="qr_pairing_alternative">QR ile eşle</button>
+            <button type="button" class="btn btn-secondary" data-pairing-method="code" aria-pressed="false" data-i18n="code_pairing_method">Eşleşme kodu ile eşle</button>
+            <button type="button" class="btn btn-secondary" data-pairing-method="ip" aria-pressed="false" data-i18n="ip_connection_method">IP adresi ile bağlan</button>
+          </nav>
+          <div class="pairing-center">
             <div class="panel">
               <div class="panel-header">
                 <h3 data-i18n="wireless_pairing">Kablosuz Eşleme</h3>
               </div>
-              <div class="qr-container">
-                <div class="qr-canvas-wrap">
-                  <img id="adb-qr-img" class="qr-img" alt="Pairing QR">
+              <form id="adb-code-form" class="pairing-form">
+                <p class="pairing-help" data-i18n="code_pairing_hint">Telefonda Kablosuz hata ayıklamayı açın. Telefonunuzu seçip Eşle / Bağlan'a basın. Yetki gerekiyorsa eşleşme kodu istenir.</p>
+                <div id="pairing-discovery-fields" class="pairing-form">
+                  <label for="pairing-device-select" data-i18n="pairing_device">Telefon</label>
+                  <select id="pairing-device-select" class="input-text" aria-describedby="pairing-discovery-status"></select>
+                  <div id="pairing-discovery-status" class="pairing-help" role="status" aria-live="polite"></div>
+                  <button type="button" class="btn btn-secondary w-full" id="discover-pairing-btn" data-i18n="discover_phones">Telefonları Bul</button>
+                  <button type="button" class="btn btn-primary w-full" id="connect-phone-btn" data-i18n="pair_or_connect" disabled>Eşle / Bağlan</button>
+                </div>
+                <div id="pairing-code-fields" class="pairing-form" hidden>
+                  <p class="pairing-help" data-i18n="pairing_first_time">Telefonda “Eşleşme koduyla cihaz eşleştir” ekranını açıp güncel kodu girin. Telefon bulunamazsa aşağıdan eşleşme IP:Port bilgisini ekleyin.</p>
+                  <label for="pairing-code-input" data-i18n="pairing_code_label">6 haneli eşleşme kodu</label>
+                  <div class="form-row">
+                    <input id="pairing-code-input" class="input-text mono pairing-code-input" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="123456" autocomplete="one-time-code">
+                    <button type="submit" class="btn btn-primary" id="pairing-code-btn" data-i18n="pair_with_code">Eşleştir</button>
+                  </div>
+                </div>
+                <label id="pairing-address-choice" class="pairing-help" hidden><input id="pairing-use-address" type="checkbox"> <span data-i18n="pairing_use_address">IP:Port bilgisini kendim gireceğim</span></label>
+                <div id="manual-pairing-details" class="pairing-form" hidden>
+                  <p class="pairing-help" data-i18n="manual_pairing_hint">Eşleşme kodu ekranındaki IP adresi ve portu kullanın. Ana ekrandaki bağlantı portu farklıdır.</p>
+                  <label for="pairing-address-input" data-i18n="pairing_address_label">Eşleşme IP:Port</label>
+                  <input id="pairing-address-input" class="input-text mono" type="text" placeholder="192.168.1.50:37855" spellcheck="false">
+                </div>
+              </form>
+
+              <div id="qr-pairing-details" class="pairing-form" hidden>
+                <p class="pairing-help" data-i18n="scan_qr_hint">Telefonunuzdan "Cihazı QR koduyla eşle"yi açıp bu kodu tarayın...</p>
+                <div class="qr-container">
+                  <div class="qr-canvas-wrap">
+                    <img id="adb-qr-img" class="qr-img" alt="Pairing QR">
+                  </div>
+                </div>
+                <button type="button" class="btn btn-secondary w-full" id="refresh-adb-qr-btn" data-i18n="generate_new_qr">Yeni QR Kod Üret</button>
+              </div>
+
+              <div id="ip-connection-fields" class="pairing-form" hidden>
+                <p class="pairing-help" data-i18n="ip_connection_hint">Kablosuz hata ayıklama ana ekranındaki güncel IP:Port bilgisini girin. İlk eşleşme için kod veya QR kullanın.</p>
+                <label for="adb-ip-input" data-i18n="direct_connection">Doğrudan Bağlantı</label>
+                <div class="form-row">
+                  <input type="text" id="adb-ip-input" class="input-text mono" placeholder="192.168.1.50:40793">
+                  <button class="btn btn-primary" id="adb-connect-btn" data-i18n="connect">Bağlan</button>
                 </div>
               </div>
 
@@ -245,23 +288,18 @@
                 </div>
               </div>
 
-              <div id="adb-pair-status-badge" class="status-banner" data-i18n="awaiting_scan">
-                Telefonun taraması bekleniyor...
+              <div id="adb-pair-status-badge" class="status-banner" role="status" aria-live="polite" data-i18n="pairing_ready">
+                İlk eşleşmeden sonra, kablosuz hata ayıklama açıkken yeniden bağlantı otomatik denenir.
               </div>
-
-              <button class="btn btn-secondary w-full" id="refresh-adb-qr-btn" data-i18n="generate_new_qr">Yeni QR Kod Üret</button>
             </div>
-          </aside>
+          </div>
 
-          <!-- Right: Devices List & Manual Connection -->
-          <main class="main-panel">
+          <!-- Connected devices to the right of the pairing panel -->
+          <main class="pairing-devices">
             <div class="panel">
               <div class="panel-header-between">
                 <h3 data-i18n="attached_devices">Bağlı Cihazlar</h3>
                 <div class="btn-group">
-                  <button class="btn btn-secondary btn-sm" id="tcpip-btn" data-i18n="usb_to_tcpip" title="Switch connected USB device to TCP/IP port 5555">
-                    USB → TCP/IP (5555)
-                  </button>
                   <button class="btn btn-secondary btn-sm" id="refresh-devices-btn" data-i18n="refresh">Yenile</button>
                 </div>
               </div>
@@ -270,13 +308,14 @@
                 <div class="loading-state" data-i18n="scanning_devices">Bağlı cihazlar taranıyor...</div>
               </div>
 
-              <div class="sub-panel">
-                <h4 data-i18n="direct_connection">Doğrudan Bağlantı</h4>
-                <div class="form-row">
-                  <input type="text" id="adb-ip-input" class="input-text mono" placeholder="192.168.1.50:5555">
-                  <button class="btn btn-primary" id="adb-connect-btn" data-i18n="connect">Bağlan</button>
-                </div>
+            </div>
+            <div class="panel saved-phones-panel">
+              <div class="panel-header-between">
+                <h3 data-i18n="saved_phones">Kayıtlı Telefonlar</h3>
+                <button type="button" class="btn btn-danger btn-sm" id="forget-all-phones-btn" data-i18n="forget_all_phones" disabled>Tümünü sil</button>
               </div>
+              <p class="pairing-help" data-i18n="saved_phones_hint">Silinen telefon BRQ'da yeniden kod veya QR ile eşleştirme ister. Android'deki bilgisayar yetkisini de kaldırmak için telefondan bu bilgisayarı unutun.</p>
+              <div id="saved-phones-list" class="device-list-wrap" aria-live="polite"></div>
             </div>
           </main>
         </div>

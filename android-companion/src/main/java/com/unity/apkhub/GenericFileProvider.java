@@ -18,6 +18,7 @@ public class GenericFileProvider extends ContentProvider {
 
     @Override
     public ParcelFileDescriptor openFile(Uri uri, String mode) throws FileNotFoundException {
+        if (!"r".equals(mode)) throw new FileNotFoundException("Yalnız okuma destekleniyor");
         File file = findFile(uri);
         if (file != null && file.exists()) {
             return ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY);
@@ -26,13 +27,16 @@ public class GenericFileProvider extends ContentProvider {
     }
 
     private File findFile(Uri uri) {
-        String path = uri.getPath();
-        if (path.startsWith("/")) path = path.substring(1);
-        File file = new File(getContext().getExternalFilesDir(null), path);
-        if (file.exists()) return file;
-        File cacheFile = new File(getContext().getCacheDir(), path);
-        if (cacheFile.exists()) return cacheFile;
-        return file;
+        String name = uri.getLastPathSegment();
+        if (name == null || !name.matches("download-[a-zA-Z0-9-]+\\.apk")) return null;
+        for (File root : new File[] { getContext().getExternalFilesDir(null), getContext().getCacheDir() }) {
+            if (root == null) continue;
+            try {
+                File file = new File(root, name).getCanonicalFile();
+                if (root.getCanonicalFile().equals(file.getParentFile()) && file.isFile()) return file;
+            } catch (java.io.IOException ignored) { }
+        }
+        return null;
     }
 
     @Override

@@ -600,6 +600,13 @@
 
     let currentLang = localStorage.getItem('brq_mobile_lang') || 'tr';
     let selectedFiles = [];
+    let isUploading = false;
+    let activeUpload = null;
+    let mobileSocket = null;
+    let reconnectTimer;
+    let reconnectAttempts = 0;
+    let closing = false;
+    let toastTimer;
     let apks = [];
 
     // DOM
@@ -702,7 +709,7 @@
         sendBtn.disabled = true;
       } else {
         queueContainer.classList.remove('hidden');
-        sendBtn.disabled = false;
+        sendBtn.disabled = isUploading;
         selectedFilesList.innerHTML = selectedFiles.map((f, i) => `
           <div class="file-item">
             <div class="file-item-info">
@@ -738,7 +745,14 @@
 
     // Upload to PC
     sendBtn.onclick = async () => {
-      if (selectedFiles.length === 0) return;
+      if (isUploading || selectedFiles.length === 0) return;
+      isUploading = true;
+      const snapshot = [...selectedFiles];
+      if (snapshot.length > 50 || snapshot.some(file => file.size > 2000 * 1024 * 1024) || snapshot.reduce((total, file) => total + file.size, 0) > 4000 * 1024 * 1024) {
+        isUploading = false;
+        showToast(currentLang === 'tr' ? 'En fazla 50 dosya; dosya başına 2000 MiB, gönderim toplamı 4000 MiB.' : 'Up to 50 files; 2000 MiB per file, 4000 MiB total.', true);
+        return;
+      }
 
       const dict = i18n[currentLang];
       sendBtn.disabled = true;
@@ -747,11 +761,12 @@
       progressText.textContent = `${dict.uploading} %0`;
 
       const formData = new FormData();
-      for (const file of selectedFiles) {
+      for (const file of snapshot) {
         formData.append('files', file);
       }
 
       const xhr = new XMLHttpRequest();
+      activeUpload = xhr;
       xhr.open('POST', '/api/upload/mobile-to-pc', true);
 
       xhr.upload.onprogress = (e) => {
@@ -762,26 +777,33 @@
         }
       };
 
+      xhr.timeout = 15 * 60 * 1000;
       xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
+        activeUpload = null;
+        isUploading = false;
+        let result;
+        try { result = JSON.parse(xhr.responseText); } catch (_) {}
+        if (xhr.status >= 200 && xhr.status < 300 && result?.success === true) {
           progressBar.style.width = '100%';
           progressText.textContent = '100%';
           showToast(dict.upload_success);
           if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
 
-          selectedFiles = [];
+          selectedFiles = selectedFiles.filter(file => !snapshot.includes(file));
           renderQueue();
           setTimeout(() => {
             progressContainer.classList.add('hidden');
             progressBar.style.width = '0%';
           }, 2000);
         } else {
-          showToast(`${dict.upload_error} ${xhr.responseText}`, true);
+          showToast(result?.error?.message || (typeof result?.error === 'string' ? result.error : dict.upload_error), true);
           sendBtn.disabled = false;
         }
       };
 
-      xhr.onerror = () => {
+      xhr.onerror = xhr.ontimeout = xhr.onabort = () => {
+        activeUpload = null;
+        isUploading = false;
         showToast(dict.upload_error, true);
         sendBtn.disabled = false;
       };
@@ -816,11 +838,11 @@
             </div>
           </div>
           <div class="apk-card-meta">
-            <span class="meta-chip">v${apk.versionName || '1.0'}</span>
-            <span class="meta-chip">${apk.size}</span>
+            <span class="meta-chip">v${escapeHtml(apk.versionName || '?')}</span>
+            <span class="meta-chip">${escapeHtml(apk.size)}</span>
             <span class="meta-chip">${new Date(apk.updatedAt).toLocaleTimeString()}</span>
           </div>
-          <a href="${escapeHtml(apk.downloadUrl)}" class="btn-apk-install" download="${escapeHtml(apk.name)}">
+          <a href="/download/${encodeURIComponent(apk.id)}" class="btn-apk-install" download="${escapeHtml(apk.name)}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
             ${dict.install}
           </a>
@@ -832,20 +854,21 @@
       toast.textContent = msg;
       toast.style.borderColor = isError ? 'var(--danger)' : 'var(--border)';
       toast.classList.add('show');
-      setTimeout(() => toast.classList.remove('show'), 3000);
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
     }
 
     function escapeHtml(str) {
-      return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
     // Health check & WS
     async function checkHealth() {
       try {
-        const res = await fetch('/api/status');
+        const res = await fetch('/api/health');
         const data = await res.json();
         connStatus.classList.add('connected');
-        connText.textContent = `${data.localIp}:${data.port}`;
+        connText.textContent = location.host;
       } catch (e) {
         connStatus.classList.remove('connected');
         connText.textContent = i18n[currentLang].conn_searching;
@@ -853,23 +876,32 @@
     }
 
     function setupWs() {
+      if (closing) return;
+      clearTimeout(reconnectTimer);
       const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsUrl = `${protocol}//${location.host}`;
       const ws = new WebSocket(wsUrl);
+      mobileSocket = ws;
 
       ws.onopen = () => {
+        if (ws !== mobileSocket || closing) return;
+        reconnectAttempts = 0;
         connStatus.classList.add('connected');
       };
 
       ws.onmessage = (e) => {
+        if (ws !== mobileSocket || closing) return;
         try {
           const data = JSON.parse(e.data);
           if (data.type === 'INIT') {
-            apks = data.apks || [];
+            apks = (data.apks || []).slice(0, 50);
             renderApks();
-            connText.textContent = `${data.localIp}:${data.port}`;
+            connText.textContent = location.host;
+          } else if (data.type === 'APKS_UPDATED') {
+            apks = (data.apks || []).slice(0, 50);
+            renderApks();
           } else if (data.type === 'NEW_APK') {
-            apks.unshift(data.apk);
+            apks = [data.apk, ...apks.filter(apk => apk.id !== data.apk.id)].slice(0, 50);
             renderApks();
             showToast(`Yeni APK: ${data.apk.name}`);
           }
@@ -877,11 +909,22 @@
       };
 
       ws.onclose = () => {
+        if (ws !== mobileSocket || closing) return;
         connStatus.classList.remove('connected');
         connText.textContent = i18n[currentLang].conn_searching;
-        setTimeout(setupWs, 3000);
+        clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(setupWs, Math.min(30000, 1000 * 2 ** Math.min(reconnectAttempts++, 5)));
       };
+      ws.onerror = () => ws.close();
     }
+
+    window.addEventListener('beforeunload', () => {
+      closing = true;
+      clearTimeout(reconnectTimer);
+      clearTimeout(toastTimer);
+      activeUpload?.abort();
+      mobileSocket?.close();
+    });
 
     applyLang(currentLang);
     checkHealth();
