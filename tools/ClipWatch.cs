@@ -2,7 +2,6 @@
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading;
 using System.Windows.Forms;
 
 class ClipboardListener : Form {
@@ -16,40 +15,44 @@ class ClipboardListener : Form {
 
     const int WM_CLIPBOARDUPDATE = 0x031D;
     private string lastText = "";
+    private int retryCount;
+    private readonly Timer retryTimer = new Timer { Interval = 40 };
 
     public ClipboardListener() {
         this.WindowState = FormWindowState.Minimized;
         this.ShowInTaskbar = false;
-        AddClipboardFormatListener(this.Handle);
+        if (!AddClipboardFormatListener(this.Handle)) throw new InvalidOperationException("Clipboard listener unavailable");
+        retryTimer.Tick += (sender, args) => { retryTimer.Stop(); CheckClipboard(); };
     }
 
     private void CheckClipboard() {
-        for (int i = 0; i < 5; i++) {
-            try {
-                if (Clipboard.ContainsText()) {
-                    string text = Clipboard.GetText();
-                    if (!string.IsNullOrEmpty(text) && text != lastText) {
-                        lastText = text;
-                        string b64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(text));
-                        Console.WriteLine("CLIP:" + b64);
-                        Console.Out.Flush();
-                    }
+        try {
+            if (Clipboard.ContainsText()) {
+                string text = Clipboard.GetText();
+                if (!string.IsNullOrEmpty(text) && text != lastText) {
+                    lastText = text;
+                    Console.WriteLine("CLIP:" + Convert.ToBase64String(Encoding.UTF8.GetBytes(text)));
+                    Console.Out.Flush();
                 }
-                break;
-            } catch {
-                Thread.Sleep(40);
             }
+            retryCount = 0;
+        } catch {
+            if (++retryCount < 5) retryTimer.Start();
+            else Console.Error.WriteLine("ERROR:CLIPBOARD_BUSY");
         }
     }
 
     protected override void WndProc(ref Message m) {
         if (m.Msg == WM_CLIPBOARDUPDATE) {
+            retryCount = 0;
+            retryTimer.Stop();
             CheckClipboard();
         }
         base.WndProc(ref m);
     }
 
     protected override void Dispose(bool disposing) {
+        if (disposing) retryTimer.Dispose();
         try {
             RemoveClipboardFormatListener(this.Handle);
         } catch {}
@@ -59,6 +62,7 @@ class ClipboardListener : Form {
     [STAThread]
     static void Main() {
         Console.OutputEncoding = Encoding.UTF8;
-        Application.Run(new ClipboardListener());
+        try { Application.Run(new ClipboardListener()); }
+        catch { Console.Error.WriteLine("ERROR:CLIPBOARD_LISTENER"); Environment.ExitCode = 1; }
     }
 }

@@ -5,17 +5,26 @@
   "main": "electron.js",
   "scripts": {
     "start": "node server.js",
-    "desktop": "electron electron.js"
+    "desktop": "node node_modules/electron/cli.js electron.js",
+    "test": "node --test",
+    "panel": "node open-dashboard.js",
+    "check": "node --check server.js && node --check electron.js && node --check public/pc.js && node --check open-dashboard.js",
+    "test:ui": "node node_modules/electron/cli.js tests/electron-ui.cjs",
+    "validate:local": "node tests/local-validation.cjs",
+    "benchmark:watcher": "node tests/watcher-benchmark.cjs"
   },
   "dependencies": {
-    "chokidar": "^3.6.0",
+    "chokidar": "^4.0.3",
     "cors": "^2.8.5",
     "express": "^4.19.2",
-    "multer": "^1.4.5-lts.1",
+    "multer": "^2.4.0",
     "qrcode": "^1.5.3",
     "ws": "^8.16.0"
   },
   "devDependencies": {
     "electron": "^44.4.1"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   }
 }
