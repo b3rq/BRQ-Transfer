@@ -2,6 +2,8 @@
 
 High-speed local Wi-Fi file transfer, wireless ADB manager, live screen mirroring, and clipboard sync hub between PC and Android devices.
 
+See the [changelog](CHANGELOG.md) for recent improvements and validation results.
+
 ![BRQ Transfer Dashboard](docs/preview.png)
 
 This tool was created with AI assistance to remove daily friction in moving files, managing Android devices, and testing mobile applications without physical cables or cloud workarounds.
@@ -61,7 +63,7 @@ BRQ Transfer connects your PC and Android devices directly over your local Wi-Fi
   - **Mobile to PC**: Upload photos, videos, recordings, or documents directly from your phone's browser or companion app to your PC's `received/` folder.
 - **Wireless ADB Management**:
   - Pair using only the phone's 6-digit code, with automatic IP and port discovery.
-  - Automatically reconnect previously paired devices as their IP or port changes.
+  - Discover previously paired devices on demand and reconnect reachable disconnected phones without pairing again.
   - Manual IP & Port connection as a fallback when network discovery is blocked.
   - Android 11+ Wireless Debugging QR code pairing with automatic port resolution.
   - Direct APK installation, package uninstallation, force stop, and app launch.
