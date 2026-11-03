@@ -686,7 +686,9 @@ async function getAdbDevices(strict = false) {
                 try { serial = await runAdbCommand(['-s', id, 'shell', 'getprop', 'ro.serialno'], 2500); } catch (_) {}
                 serial = normalizePhoneSerial(serial);
             }
-            const model = line.match(/model:([^\s]+)/)?.[1]?.replace(/_/g, ' ') || 'Android Cihaz';
+            const rawModel = line.match(/model:([^\s]+)/)?.[1]?.replace(/_/g, ' ') || '';
+            const identity = state === 'device' ? await readWirelessPhoneIdentity(id) : {};
+            const model = resolveDeviceModel(identity.model || rawModel) || 'Android Cihaz';
             const phoneId = serial ? 'phone-' + crypto.createHash('sha256').update(serial).digest('hex').slice(0, 24) : 'transport-' + id;
             let device = devices.find(d => d.phoneId === phoneId);
             if (device) { device.transports.push({ id, state, isWifi }); continue; }
@@ -896,17 +898,23 @@ let discoveryExpiresAt = 0;
 const wirelessPhoneIdentityCache = new Map();
 const discoverySockets = new Set();
 
+function resolveDeviceModel(model) {
+    const normalized = (model || '').trim();
+    if (/^SM[-_ ]N975F(?:\/DS)?$/i.test(normalized)) return 'Galaxy Note10+';
+    return normalized;
+}
+
 async function readWirelessPhoneIdentity(deviceId) {
     const cached = wirelessPhoneIdentityCache.get(deviceId);
     if (cached && Date.now() < cached.expiresAt) return cached.promise;
     const promise = runAdbCommand(['-s', deviceId, 'shell',
-        'echo BRQ_DEVICE_IDENTITY; getprop ro.product.marketname; getprop ro.product.model; settings get global device_name'], 3000)
+        'echo BRQ_DEVICE_IDENTITY; getprop ro.product.marketname; getprop ro.product.model; settings get global device_name; settings get secure bluetooth_name 2>/dev/null; settings get system bluetooth_name 2>/dev/null'], 3000)
         .then(output => {
             const values = output.split(/\r?\n/).slice(1).map(value => {
                 const cleaned = value.replace(/[\x00-\x1f\x7f]/g, '').trim().slice(0, 100);
                 return /^(null|undefined|unknown)$/i.test(cleaned) ? '' : cleaned;
             });
-            return { model: values[0] || values[1] || '', deviceName: values[2] || '' };
+            return { model: resolveDeviceModel(values[0] || values[1]), deviceName: values[2] || values[3] || values[4] || '' };
         }).catch(() => ({}));
     wirelessPhoneIdentityCache.set(deviceId, { promise, expiresAt: Date.now() + 60000 });
     if (wirelessPhoneIdentityCache.size > 100) {
@@ -929,11 +937,11 @@ async function describeWirelessPhones(services) {
         const known = (config.knownWirelessDevices || []).find(entry => isKnownWirelessService(phone, entry));
         const device = devices.find(parts => deviceMatchesService(parts[0], phone) ||
             (known?.serial && parts[0] === known.serial));
-        let identity = { model: known?.model || '', deviceName: known?.deviceName || '' };
+        let identity = { model: resolveDeviceModel(known?.model), deviceName: known?.deviceName || '' };
         if (device) {
             const live = await readWirelessPhoneIdentity(device[0]);
             const modelField = device.find(part => part.startsWith('model:'));
-            identity = { model: live.model || modelField?.slice(6).replace(/_/g, ' ') || identity.model,
+            identity = { model: resolveDeviceModel(live.model || modelField?.slice(6).replace(/_/g, ' ') || identity.model),
                 deviceName: live.deviceName || identity.deviceName };
             if (known && (known.model !== identity.model || known.deviceName !== identity.deviceName)) {
                 Object.assign(known, identity);
@@ -1128,9 +1136,11 @@ function wirelessPhoneServices(services) {
     for (const service of codePairingServices(services)) {
         if (![...phones.values()].some(phone => phone.ip === service.ip)) phones.set(service.name + service.type, service);
     }
-    return [...phones.values()].map(service => ({ ...service,
-        known: (config.knownWirelessDevices || []).some(known => isKnownWirelessService(service, known))
-    }));
+    return [...phones.values()].map(service => {
+        const known = (config.knownWirelessDevices || []).some(known => isKnownWirelessService(service, known));
+        return { ...service, known, reconnectable: known && service.type !== '_adb-tls-pairing._tcp' &&
+            isWirelessServicePaused(service) && !requiresWirelessPairing(service.ip, services) };
+    });
 }
 
 function deviceMatchesService(deviceId, service) {
@@ -1654,6 +1664,34 @@ app.post('/api/transfers/delete', (req, res) => {
 const uploadRequests = new Map();
 const transferRetries = new Set();
 
+async function pushTransferWithProgress(record) {
+    const totalBytes = record.rawSize ?? fs.statSync(record.localPath).size;
+    let active = true;
+    let reading = false;
+    const remotePath = "'" + record.remotePath.replace(/'/g, "'\\''") + "'";
+    const timer = setInterval(async () => {
+        if (!active || reading || totalBytes <= 0) return;
+        reading = true;
+        try {
+            const output = await runAdbCommand(['-s', record.deviceId, 'shell',
+                `stat -c %s ${remotePath} 2>/dev/null`], 2000);
+            if (!active || !/^\d+$/.test(output)) return;
+            const progress = Math.min(99, Math.floor(Number(output) * 100 / totalBytes));
+            if (progress > record.progress) {
+                record.progress = progress;
+                broadcast({ type: 'TRANSFER_PROGRESS', id: record.id, operationId: record.operationId, progress });
+            }
+        } catch (_) { /* Size queries must not interrupt the file transfer. */ }
+        finally { reading = false; }
+    }, 1000);
+    try {
+        await runAdbCommand(['-s', record.deviceId, 'push', record.localPath, record.remotePath], { timeout: 15 * 60 * 1000 });
+    } finally {
+        active = false;
+        clearInterval(timer);
+    }
+}
+
 function enqueueTransfer(record) {
     const fail = error => {
         record.status = 'error';
@@ -1666,10 +1704,12 @@ function enqueueTransfer(record) {
             throw Object.assign(new Error('Telefon kimliği değişti. Doğru telefonu bağlayıp yeniden deneyin.'), { code: 'DEVICE_IDENTITY_CHANGED', status: 409 });
         }
         record.status = 'transferring';
+        record.progress = 0;
         saveTransfers();
         broadcast({ type: 'TRANSFERS_UPDATED', transfers: transfersList });
-        await runAdbCommand(['-s', record.deviceId, 'push', record.localPath, record.remotePath], { timeout: 15 * 60 * 1000 });
+        await pushTransferWithProgress(record);
         record.status = 'transferred';
+        record.progress = 100;
         saveTransfers();
         broadcast({ type: 'TRANSFER_COMPLETED', operationId: record.operationId, transfer: record, transfers: transfersList });
     }).catch(fail);
@@ -1689,6 +1729,7 @@ app.post('/api/transfers/retry', async (req, res) => {
         requireTransferCapacity();
         const previous = { ...record };
         record.status = 'queued';
+        record.progress = 0;
         record.operationId = crypto.randomUUID();
         delete record.error;
         try { saveTransfers(); } catch (error) { Object.assign(record, previous); throw error; }
@@ -1738,9 +1779,12 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     const record = { id: operationId, operationId, filename: file.originalname, originalName: file.originalname,
         size: formatBytes(file.size), rawSize: file.size, category: meta.category, direction: 'pc-to-phone',
         localPath: file.path, remotePath, targetDir: meta.dir, deviceId: target, phoneSerial,
-        timestamp: new Date().toLocaleTimeString(), status: target ? 'queued' : 'saved' };
+        timestamp: new Date().toLocaleTimeString(), status: target ? 'queued' : 'saved', progress: 0 };
     transfersList.unshift(record);
     saveTransfers();
+    // APK metadata extraction can take seconds; it must not delay the phone push.
+    broadcast({ type: target ? 'TRANSFERS_UPDATED' : 'TRANSFER_SAVED', transfer: record, transfers: transfersList });
+    if (target) enqueueTransfer(record);
     const isApk = path.extname(file.originalname).toLowerCase() === '.apk';
     const registeredApk = isApk ? await registerApk(file.path, 'drag-drop', file.originalname) : null;
     const result = { success: true, operationId, status: record.status, isApk, apk: registeredApk, transfer: record };
@@ -1748,10 +1792,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
         uploadRequests.set(requestId, result);
         if (uploadRequests.size > 1000) uploadRequests.delete(uploadRequests.keys().next().value);
     }
-    broadcast({ type: target ? 'TRANSFERS_UPDATED' : 'TRANSFER_SAVED', transfer: record, transfers: transfersList });
     res.status(target ? 202 : 200).json(result);
-    if (!target) return;
-    enqueueTransfer(record);
 });
 
 // Mobile to PC Upload (Receives files over Wi-Fi)
@@ -1820,7 +1861,7 @@ function transferFileById(id) {
 }
 function openInExplorer(args) {
     return new Promise((resolve, reject) => {
-        const proc = spawn('explorer.exe', args, { windowsHide: true });
+        const proc = spawn('explorer.exe', args, { windowsHide: false });
         proc.once('error', () => reject(new Error('Dosya açılamadı. Dosya erişimini kontrol edin.')));
         proc.once('spawn', resolve);
     });
@@ -1830,7 +1871,7 @@ app.post('/api/transfers/open', async (req, res) => {
     res.json({ success: true });
 });
 app.post('/api/transfers/open-folder', async (req, res) => {
-    const args = req.body.id ? ['/select,' + transferFileById(req.body.id)] : [RECEIVED_DIR];
+    const args = req.body.id ? ['/select,', transferFileById(req.body.id)] : [RECEIVED_DIR];
     await openInExplorer(args);
     res.json({ success: true });
 });
@@ -2613,8 +2654,6 @@ app.use((error, req, res, next) => {
 });
 
 // Periodic ADB Device & Battery Monitor (every 4 seconds)
-const reconnectTimer = setInterval(() => { if (!shuttingDown) reconnectKnownWirelessDevices(); }, 10000);
-reconnectKnownWirelessDevices();
 let lastDevicesSnapshotJson = '';
 let lastQrUrl = '';
 const monitorTimer = setInterval(async () => {
@@ -2674,7 +2713,6 @@ function shutdown() {
     if (shutdownPromise) return shutdownPromise;
     shuttingDown = true;
     serverReady = false;
-    clearInterval(reconnectTimer);
     clearInterval(monitorTimer);
     for (const socket of discoverySockets) { try { socket.close(); } catch (_) {} }
     if (currentPairingSession) currentPairingSession.cancelled = true;

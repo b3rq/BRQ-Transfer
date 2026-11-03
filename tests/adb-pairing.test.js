@@ -145,7 +145,7 @@ test('saved phone UI uses safe text nodes and masks names and addresses in priva
     const ui = createSavedPhonesUiHarness();
     ui.context.renderSavedPhones();
     const card = ui.elements['saved-phones-list'].children[0];
-    assert.equal(card.children[0].children[0].textContent, '<Galaxy> · My Phone');
+    assert.equal(card.children[0].children[0].textContent, 'My Phone · <Galaxy>');
     assert.equal(card.children[1].textContent, 'Sil');
     const privateUi = createSavedPhonesUiHarness({ privacy: true });
     privateUi.context.renderSavedPhones();
@@ -427,6 +427,27 @@ test('known devices reconnect at their new IP and port; unknown devices are igno
     assert.equal(harness.config.selectedAdbDevice, '192.168.1.50:61000');
 });
 
+test('disconnected phone offers direct reconnection only while its connection service is discovered', async () => {
+    const harness = createHarness({ mdns: connection, connected: ['192.168.1.20:59876'], config: {
+        knownWirelessDevices: [{ serviceName: 'adb-PHONE-random', serial: 'PHONE', deviceId: '192.168.1.20:59876' }]
+    } });
+    await harness.request('POST', '/api/adb/disconnect', { deviceId: '192.168.1.20:59876' });
+    let response = await harness.request('GET', '/api/adb/wireless-phones');
+    assert.equal(response.body.services[0].reconnectable, true);
+    harness.context.discoverAdbServices = async () => [];
+    response = await harness.request('GET', '/api/adb/wireless-phones');
+    assert.deepEqual(response.body.services, []);
+    assert.equal(harness.config.knownWirelessDevices.length, 1);
+    harness.context.discoverAdbServices = async () => [{ name: 'adb-PHONE-new', type: '_adb-tls-connect._tcp', ip: '192.168.1.20', port: 61000 }];
+    response = await harness.request('GET', '/api/adb/wireless-phones');
+    assert.equal(response.body.services[0].reconnectable, true);
+    await harness.request('POST', '/api/adb/connect', { serviceName: 'adb-PHONE-new' });
+    response = await harness.request('GET', '/api/adb/wireless-phones');
+    assert.equal(response.body.services[0].reconnectable, false);
+    assert.equal(harness.commands.some(args => args[0] === 'pair'), false);
+    assert.ok(harness.commands.some(args => args[0] === 'connect' && args[1] === '192.168.1.20:61000'));
+});
+
 test('explicit disconnect suppresses background reconnection; manual connect resumes it', async () => {
     const harness = createHarness({ mdns: connection, connected: ['192.168.1.20:59876'], config: {
         selectedAdbDevice: '192.168.1.20:59876', knownWirelessDevices: [
@@ -565,12 +586,30 @@ test('discovered phone identity is read once, saved and reused after its address
     assert.equal(harness.commands.some(args => ['connect', 'pair'].includes(args[0])), false);
 });
 
-test('an empty marketing name preserves the model and ignores null device names', async () => {
+test('an empty marketing name resolves the known model and ignores null device names', async () => {
     const harness = createHarness({ mdns: connection, connected: ['192.168.1.20:59876'],
         identity: 'BRQ_DEVICE_IDENTITY\n\nSM-N975F\nnull' });
     const response = await harness.request('GET', '/api/adb/wireless-phones');
-    assert.equal(response.body.services[0].model, 'SM-N975F');
+    assert.equal(response.body.services[0].model, 'Galaxy Note10+');
     assert.equal(response.body.services[0].deviceName, '');
+});
+
+test('bluetooth name fills a missing device name and remains saved for offline discovery', async () => {
+    const harness = createHarness({ mdns: connection, connected: ['192.168.1.20:59876'],
+        identity: 'BRQ_DEVICE_IDENTITY\nGalaxy Note10+\nSM-N975F\nnull\nAli Bluetooth\nnull',
+        config: { knownWirelessDevices: [{ serviceName: 'adb-PHONE-old', serial: 'PHONE' }] } });
+    const response = await harness.request('GET', '/api/adb/wireless-phones');
+    assert.equal(response.body.services[0].deviceName, 'Ali Bluetooth');
+    harness.connected.clear();
+    const offline = await harness.request('GET', '/api/adb/wireless-phones');
+    assert.equal(offline.body.services[0].deviceName, 'Ali Bluetooth');
+});
+
+test('custom device name takes priority over bluetooth', async () => {
+    const harness = createHarness({ mdns: connection, connected: ['192.168.1.20:59876'],
+        identity: 'BRQ_DEVICE_IDENTITY\nGalaxy\nSM-N975F\nAli Phone\nOther Name\nnull' });
+    const response = await harness.request('GET', '/api/adb/wireless-phones');
+    assert.equal(response.body.services[0].deviceName, 'Ali Phone');
 });
 
 test('an unavailable identity keeps saved names and unknown phones do not receive shell commands', async () => {
@@ -681,6 +720,7 @@ test('DNS parser reads compressed SRV and IPv4 records and rejects pointer loops
 function createPhoneUiHarness(responseData) {
     const uiSource = fs.readFileSync(path.join(__dirname, '..', 'public', 'pc.js'), 'utf8');
     const element = () => ({ value: '', disabled: false, hidden: false, checked: false, dataset: {}, children: [],
+        setAttribute(name, value) { this[name] = value; },
         focus() { this.focused = true; }, replaceChildren() { this.value = ''; this.children = []; },
         appendChild(child) { this.children.push(child); } });
     const elements = Object.fromEntries(['pairingDeviceSelect', 'pairingDiscoveryStatus', 'connectPhoneBtn',
@@ -692,8 +732,9 @@ function createPhoneUiHarness(responseData) {
     const requests = [];
     const context = vm.createContext({ ...elements, currentLang: 'tr', isPrivacyMode: false,
         pairingServices: [{ name: 'adb-PHONE-random', ip: '192.168.137.20' }],
-        pairingDiscoveryState: 'pairing_found', pairingDiscoveryInProgress: false, codePairingInProgress: false,
+        pairingDiscoveryState: 'pairing_found', pairingDiscoveryInProgress: false, pairingDiscoveryFeedbackTimer: null, codePairingInProgress: false,
         currentPairingSession: null, currentDevices: [], pairingMethod: 'discover', qrPairingRequestId: 0,
+        window: {}, devicesRequestVersion: 0,
         document: { createElement: element, querySelectorAll: () => [], getElementById: id => {
             if (!panels.has(id)) panels.set(id, element());
             return panels.get(id);
@@ -706,8 +747,8 @@ function createPhoneUiHarness(responseData) {
     });
     loadUiRequestHelpers(context, uiSource);
     vm.runInContext(uiSource.slice(uiSource.indexOf('const i18n ='), uiSource.indexOf('let currentLang')), context);
-    vm.runInContext(uiSource.slice(uiSource.indexOf('function renderPairingDiscovery()'),
-        uiSource.indexOf('setInterval(() => {', uiSource.indexOf('function renderPairingDiscovery()'))), context);
+    vm.runInContext(uiSource.slice(uiSource.indexOf('function updatePairingFormState()'),
+        uiSource.indexOf('function updatePairStatusBadge()')), context);
     return { elements, context, requests, panels };
 }
 
@@ -716,7 +757,7 @@ test('phone list shows model and device name without exposing the technical serv
     Object.assign(ui.context.pairingServices[0], { model: 'Galaxy Note10+', deviceName: 'Ali’nin telefonu' });
     ui.context.renderPairingDiscovery();
     assert.equal(ui.elements.pairingDeviceSelect.children[1].textContent,
-        'Galaxy Note10+ · Ali’nin telefonu · 192.168.137.20');
+          'Ali’nin telefonu · Galaxy Note10+ · 192.168.137.20');
     assert.equal(ui.elements.pairingDeviceSelect.value, '192.168.137.20');
     ui.context.pairingServices[0].deviceName = 'Galaxy Note10+';
     ui.context.renderPairingDiscovery();
@@ -813,7 +854,7 @@ function createDisconnectUiHarness(fetch) {
         currentPairingSession: { status: 'connected' }, lastPairedIp: '192.168.1.20',
         quickPortBox: { style: {} }, currentLang: 'tr',
         i18n: { tr: { toast_disconnected: 'Kesildi:', toast_device_refreshed: 'Liste güncellendi' } },
-        renderDevices() {}, updatePairStatusBadge() {}, showToast: message => messages.push(message)
+        renderDevices() {}, discoverPairingPhones: async () => {}, updatePairStatusBadge() {}, showToast: message => messages.push(message)
     });
     loadUiRequestHelpers(context, uiSource);
     vm.runInContext(uiSource.slice(uiSource.indexOf('window.disconnectDevice ='),

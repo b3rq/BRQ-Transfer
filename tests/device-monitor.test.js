@@ -1,6 +1,32 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const createHarness = require('./helpers/server-harness');
+
+test('backgroundMonitorsDoNotSearchForOrReconnectWirelessPhones', async () => {
+    const h = createHarness();
+    let searches = 0;
+    let reconnects = 0;
+    h.context.discoverAdbServices = async () => { searches++; return []; };
+    h.context.reconnectKnownWirelessDevices = async () => { reconnects++; };
+    for (const tick of h.intervals) await tick();
+    assert.equal(searches, 0);
+    assert.equal(reconnects, 0);
+});
+
+test('disconnectStillRemovesOfflineWirelessTransportAliases', async () => {
+    const attached = new Set(['192.168.1.20:59876', 'adb-PHONE-random._adb-tls-connect._tcp']);
+    const h = createHarness({ command: args => {
+        if (args[0] === 'devices') return 'List of devices attached\n' + [...attached].map(id => id + '\toffline').join('\n');
+        if (args[0] === 'mdns') return 'adb-PHONE-random _adb-tls-connect._tcp 192.168.1.20:59876';
+        if (args[0] === 'disconnect') { attached.delete(args[1]); return 'disconnected'; }
+        return '';
+    } });
+    const response = await h.request('POST', '/api/adb/disconnect', { deviceId: '192.168.1.20:59876' });
+    assert.equal(response.body.success, true);
+    assert.deepEqual(h.commands.filter(args => args[0] === 'disconnect').map(args => args[1]).sort(),
+        ['192.168.1.20:59876', 'adb-PHONE-random._adb-tls-connect._tcp']);
+    assert.equal(attached.size, 0);
+});
 test('concurrentDeviceReadsSharePollBatteryAndReverse', async () => {
     const h = createHarness({ command: args => args[0] === 'devices' ? 'List of devices attached\nUSB\tdevice' : args.includes('ro.serialno') ? 'SERIAL' : 'level: 80\nUSB powered: true' });
     await h.eval('Promise.all(Array.from({length:5},()=>getAdbDevices()))');

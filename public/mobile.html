@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0a0d14">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -20,6 +20,7 @@
       --border-focus: rgba(37, 99, 235, 0.45);
       --text: #f3f4f6;
       --text-muted: #9ca3af;
+      color-scheme: dark;
       --accent: #2563eb;
       --accent-hover: #1d4ed8;
       --accent-glow: rgba(37, 99, 235, 0.25);
@@ -109,8 +110,7 @@
       background: currentColor;
     }
     .status-pill.connected .status-dot {
-      box-shadow: 0 0 6px var(--success);
-      animation: pulse-dot 2s infinite ease-in-out;
+      box-shadow: none;
     }
     @keyframes pulse-dot {
       0%, 100% { opacity: 1; transform: scale(1); }
@@ -315,7 +315,7 @@
       align-items: center;
       justify-content: center;
       gap: 8px;
-      box-shadow: 0 4px 12px var(--accent-glow);
+      box-shadow: none;
       transition: all 0.15s ease;
       font-family: inherit;
     }
@@ -437,6 +437,57 @@
       opacity: 1;
     }
 
+    /* Match the desktop tool's typography, spacing and interaction states. */
+    body { line-height: 1.6; padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+    button, a, [role="button"] { touch-action: manipulation; }
+    button svg, a svg { flex-shrink: 0; }
+    :where(button, a, [tabindex]):focus-visible { outline: 2px solid #60a5fa; outline-offset: 3px; }
+    button:disabled { cursor: not-allowed; }
+    .mobile-header { flex-wrap: wrap; gap: 12px; padding: 16px max(16px, env(safe-area-inset-left)); backdrop-filter: none; }
+    .brand-wrap, .header-right { min-width: 0; }
+    .header-right { flex: 1; justify-content: flex-end; }
+    .status-pill { min-width: 0; max-width: 260px; font-size: 12px; padding: 6px 10px; }
+    #conn-text { overflow-wrap: anywhere; }
+    .lang-btn { min-height: 44px; min-width: 44px; font-size: 13px; }
+    .mobile-container { max-width: 640px; padding: 24px 16px; gap: 20px; }
+    .mobile-heading h1 { font-size: 24px; letter-spacing: -0.03em; line-height: 1.3; }
+    .mobile-heading p { color: var(--text-muted); font-size: 14px; margin-top: 8px; }
+    .tab-btn { min-height: 44px; padding: 10px 8px; font-size: 14px; }
+    .tab-btn.active { background: var(--surface-elevated); color: var(--text); box-shadow: none; }
+    .card { padding: 20px; gap: 16px; border-radius: 10px; min-width: 0; }
+    .card-title { font-size: 16px; }
+    .upload-box { width: 100%; padding: 24px 16px; border-width: 1px; }
+    .upload-prompt { font-size: 16px; }
+    .upload-sub { font-size: 14px; margin-top: 4px; }
+    .picker-btn { min-height: 48px; padding: 10px 8px; font-size: 14px; }
+    .picker-btn:hover, .file-item-remove:hover { background: var(--surface-elevated); }
+    .file-item { padding: 12px; }
+    .file-item-name { white-space: normal; overflow-wrap: anywhere; font-size: 14px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .file-item-size { font-size: 12px; }
+    .file-item-remove { min-width: 44px; min-height: 44px; border-radius: 6px; flex-shrink: 0; }
+    #clear-queue-btn { min-height: 44px; padding: 8px; font-size: 13px !important; }
+    .selected-files-list { max-height: 300px; }
+    .btn-send-main { min-height: 48px; font-size: 15px; }
+    .btn-send-main:not(:disabled):hover { background: var(--accent-hover); }
+    .upload-box:active, .btn-send-main:not(:disabled):active { transform: none; }
+    .progress-text { font-size: 13px; }
+    .apk-card-header > div { min-width: 0; }
+    .apk-card-title { font-size: 16px; overflow-wrap: anywhere; }
+    .apk-card-pkg { font-size: 12px; }
+    .meta-chip { font-size: 12px; }
+    .btn-apk-install { min-height: 48px; font-size: 14px; }
+    .btn-apk-install:hover { background: var(--success); opacity: 0.9; }
+    .mobile-toast { width: max-content; max-width: calc(100vw - 32px); max-height: 30vh; overflow-y: auto; white-space: normal; overflow-wrap: anywhere; border-radius: 10px; font-size: 14px; bottom: max(16px, env(safe-area-inset-bottom)); }
+    .mobile-toast.show { pointer-events: auto; }
+    @media (max-width: 480px) {
+      .mobile-header { position: static; }
+      .brand-wrap { flex: 1 1 100%; }
+      .header-right { justify-content: space-between; }
+      .card { padding: 16px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+    }
     .hidden { display: none !important; }
   </style>
 </head>
@@ -464,14 +515,18 @@
 
   <!-- Main Container -->
   <main class="mobile-container">
+    <div class="mobile-heading">
+      <h1 id="mobile-heading">Telefonunuzdan, kablosuz.</h1>
+      <p id="mobile-description">Bilgisayarınıza dosya gönderin veya hazır APK paketlerini indirin.</p>
+    </div>
     <!-- View Switcher -->
     <nav class="segment-tabs">
-      <button class="tab-btn active" id="tab-send-btn">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+      <button class="tab-btn active" id="tab-send-btn" aria-pressed="true" aria-controls="view-send">
+        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
         <span id="label-tab-send">PC'ye Gönder</span>
       </button>
-      <button class="tab-btn" id="tab-apks-btn">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+      <button class="tab-btn" id="tab-apks-btn" aria-pressed="false" aria-controls="view-apks">
+        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
         <span id="label-tab-apks">APK İndir</span>
       </button>
     </nav>
@@ -479,14 +534,14 @@
     <!-- TAB 1: SEND TO PC -->
     <section id="view-send" class="card">
       <div class="card-title">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
         <span id="card-title-send">Bilgisayara Dosya Fırlat</span>
       </div>
 
       <!-- Hero Upload Box -->
-      <div class="upload-box" id="drop-trigger">
+      <div class="upload-box" id="drop-trigger" role="button" tabindex="0" aria-labelledby="prompt-select-files" aria-describedby="prompt-sub">
         <div class="upload-icon-circle">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+          <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
         </div>
         <div>
           <div class="upload-prompt" id="prompt-select-files">Dosyaları Seçmek İçin Dokunun</div>
@@ -497,11 +552,11 @@
       <!-- Quick Pickers -->
       <div class="quick-pickers">
         <button class="picker-btn" id="pick-media-btn">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
           <span id="label-pick-media">Fotoğraf / Video</span>
         </button>
         <button class="picker-btn" id="pick-files-btn">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
           <span id="label-pick-files">Tüm Dosyalar</span>
         </button>
       </div>
@@ -524,12 +579,12 @@
         <div class="progress-wrap">
           <div class="progress-bar" id="progress-bar"></div>
         </div>
-        <div class="progress-text" id="progress-text">Aktarılıyor... %0</div>
+        <div class="progress-text" id="progress-text" role="status" aria-live="polite">Aktarılıyor... %0</div>
       </div>
 
       <!-- Submit Button -->
       <button class="btn-send-main" id="send-btn" disabled>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
         <span id="send-btn-label">PC'ye Gönder</span>
       </button>
     </section>
@@ -537,7 +592,7 @@
     <!-- TAB 2: DOWNLOAD APKS -->
     <section id="view-apks" class="card hidden">
       <div class="card-title">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
         <span id="card-title-apks">PC'deki Hazır APK'lar</span>
       </div>
 
@@ -550,17 +605,20 @@
   </main>
 
   <!-- Toast -->
-  <div id="toast" class="mobile-toast"></div>
+  <div id="toast" class="mobile-toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <script>
     const i18n = {
       tr: {
+        page_heading: "Telefonunuzdan, kablosuz.",
+        page_description: "Bilgisayarınıza dosya gönderin veya hazır APK paketlerini indirin.",
+        remove_file: "Dosyayı kaldır",
         lang_btn: "EN",
         conn_searching: "PC Aranıyor",
         conn_ready: "PC Bağlı",
         tab_send: "PC'ye Gönder",
         tab_apks: "APK İndir",
-        card_title_send: "Bilgisayara Dosya Fırlat",
+        card_title_send: "Bilgisayara dosya gönder",
         prompt_select: "Dosyaları Seçmek İçin Dokunun",
         prompt_sub: "Fotoğraf, video, belge veya APK",
         pick_media: "Fotoğraf / Video",
@@ -576,6 +634,9 @@
         upload_error: "Aktarım hatası:"
       },
       en: {
+        page_heading: "From your phone, wirelessly.",
+        page_description: "Send files to your computer or download available APK packages.",
+        remove_file: "Remove file",
         lang_btn: "TR",
         conn_searching: "Searching PC",
         conn_ready: "Connected",
@@ -637,6 +698,10 @@
       currentLang = lang;
       localStorage.setItem('brq_mobile_lang', lang);
       const dict = i18n[lang];
+      document.documentElement.lang = lang;
+      document.getElementById('mobile-heading').textContent = dict.page_heading;
+      document.getElementById('mobile-description').textContent = dict.page_description;
+      langBtn.setAttribute('aria-label', lang === 'tr' ? 'Switch to English' : 'Türkçeye geç');
 
       langBtn.textContent = dict.lang_btn;
       document.getElementById('label-tab-send').textContent = dict.tab_send;
@@ -650,6 +715,7 @@
       clearQueueBtn.textContent = dict.clear;
       document.getElementById('card-title-apks').textContent = dict.card_title_apks;
       updateSendButton();
+      renderQueue();
       renderApks();
     }
 
@@ -659,6 +725,8 @@
     tabSendBtn.onclick = () => {
       tabSendBtn.classList.add('active');
       tabApksBtn.classList.remove('active');
+      tabSendBtn.setAttribute('aria-pressed', 'true');
+      tabApksBtn.setAttribute('aria-pressed', 'false');
       viewSend.classList.remove('hidden');
       viewApks.classList.add('hidden');
     };
@@ -666,6 +734,8 @@
     tabApksBtn.onclick = () => {
       tabApksBtn.classList.add('active');
       tabSendBtn.classList.remove('active');
+      tabApksBtn.setAttribute('aria-pressed', 'true');
+      tabSendBtn.setAttribute('aria-pressed', 'false');
       viewApks.classList.remove('hidden');
       viewSend.classList.add('hidden');
       fetchApks();
@@ -673,6 +743,12 @@
 
     // Pickers
     dropTrigger.onclick = () => fileInput.click();
+    dropTrigger.onkeydown = event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        fileInput.click();
+      }
+    };
     pickMediaBtn.onclick = () => mediaInput.click();
     pickFilesBtn.onclick = () => fileInput.click();
 
@@ -713,10 +789,10 @@
         selectedFilesList.innerHTML = selectedFiles.map((f, i) => `
           <div class="file-item">
             <div class="file-item-info">
-              <div class="file-item-name">${escapeHtml(f.name)}</div>
+              <div class="file-item-name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</div>
               <div class="file-item-size">${formatBytes(f.size)}</div>
             </div>
-            <button class="file-item-remove" onclick="removeFile(${i})">✕</button>
+            <button class="file-item-remove" onclick="removeFile(${i})" aria-label="${i18n[currentLang].remove_file}: ${escapeHtml(f.name)}">✕</button>
           </div>
         `).join('');
       }
@@ -735,11 +811,16 @@
 
     function updateSendButton() {
       const dict = i18n[currentLang];
+      sendBtn.setAttribute('aria-busy', String(isUploading));
+      if (isUploading) {
+        sendBtnLabel.textContent = dict.uploading;
+        return;
+      }
       if (selectedFiles.length === 0) {
         sendBtnLabel.textContent = dict.send_btn;
       } else {
         const totalSize = selectedFiles.reduce((acc, f) => acc + f.size, 0);
-        sendBtnLabel.textContent = `${dict.send_btn} (${selectedFiles.length} &bull; ${formatBytes(totalSize)})`;
+        sendBtnLabel.textContent = `${dict.send_btn} (${selectedFiles.length} · ${formatBytes(totalSize)})`;
       }
     }
 
@@ -756,8 +837,11 @@
 
       const dict = i18n[currentLang];
       sendBtn.disabled = true;
+      updateSendButton();
       progressContainer.classList.remove('hidden');
       progressBar.style.width = '0%';
+      progressBar.style.background = '';
+      progressText.style.color = '';
       progressText.textContent = `${dict.uploading} %0`;
 
       const formData = new FormData();
@@ -781,6 +865,7 @@
       xhr.onload = () => {
         activeUpload = null;
         isUploading = false;
+        updateSendButton();
         let result;
         try { result = JSON.parse(xhr.responseText); } catch (_) {}
         if (xhr.status >= 200 && xhr.status < 300 && result?.success === true) {
@@ -796,7 +881,11 @@
             progressBar.style.width = '0%';
           }, 2000);
         } else {
-          showToast(result?.error?.message || (typeof result?.error === 'string' ? result.error : dict.upload_error), true);
+          const message = result?.error?.message || (typeof result?.error === 'string' ? result.error : dict.upload_error);
+          progressText.textContent = message;
+          progressText.style.color = 'var(--danger)';
+          progressBar.style.background = 'var(--danger)';
+          showToast(message, true);
           sendBtn.disabled = false;
         }
       };
@@ -804,6 +893,10 @@
       xhr.onerror = xhr.ontimeout = xhr.onabort = () => {
         activeUpload = null;
         isUploading = false;
+        updateSendButton();
+        progressText.textContent = dict.upload_error;
+        progressText.style.color = 'var(--danger)';
+        progressBar.style.background = 'var(--danger)';
         showToast(dict.upload_error, true);
         sendBtn.disabled = false;
       };
@@ -843,7 +936,7 @@
             <span class="meta-chip">${new Date(apk.updatedAt).toLocaleTimeString()}</span>
           </div>
           <a href="/download/${encodeURIComponent(apk.id)}" class="btn-apk-install" download="${escapeHtml(apk.name)}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
             ${dict.install}
           </a>
         </div>
