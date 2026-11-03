@@ -5,8 +5,16 @@
 // --- Complete i18n Dictionary (Turkish & English) ---
 const i18n = {
     tr: {
+        skip_content: "İçeriğe geç",
+        deploy_heading: "Dosya Transferleri",
+        deploy_description: "Dosyalarınızı telefon ve PC arasında aktarın, durumlarını takip edin.",
+        devices_heading: "Cihazlarınız",
+        devices_description: "Telefonunuzu bağlayın ve işlemler için hedef cihazı seçin.",
+        mirror_heading: "Ekran yansıtma",
+        mirror_description: "Bağlı cihazın ekranını görüntüleyin, kontrol edin ve görüntü yakalayın.",
+        choose_apk: "APK seç",
         // Navigation
-        nav_builds: "Paketler & Transfer",
+        nav_builds: "Dosya Transferleri",
         nav_devices: "Cihazlar",
         nav_mirror: "Ekran Yansıtma",
 
@@ -33,22 +41,15 @@ const i18n = {
         upload_title: "Dosya & Paket Yükle",
         drop_files_here: "Dosyaları buraya bırakın",
         drop_files_sub: "veya seçmek için tıklayın",
-        build_watcher: "Build İzleyici",
-        watch_folder_placeholder: "Örn: C:\\Projelerim\\Builds",
         save: "Kaydet",
-        loading_path: "Yol yükleniyor...",
-        default_watch_folder: "Varsayılan izleme klasörü",
         automation: "Otomasyon",
         auto_install: "Yeni derlemeleri otomatik yükle",
         auto_launch: "Yükleme sonrası otomatik başlat",
         active_target: "Hedef Cihaz:",
         scanning: "Taranıyor...",
-        available_packages: "Hazır Paketler",
         device_transfers: "Dosya Transferleri",
         target_prefix: "Hedef:",
         none: "Yok",
-        no_packages_detected: "Hazır paket bulunamadı",
-        no_packages_sub: "APK sürükleyin veya sol panelden build izleyicisini ayarlayın.",
         no_transfers: "Henüz dosya aktarılmadı",
         no_transfers_sub: "APK, resim, video, ses veya belge sürükleyip bırakın.",
         source_watcher: "İzleyici",
@@ -61,12 +62,13 @@ const i18n = {
         status_saved: "Sunucuda Hazır",
         status_received: "PC'ye Alındı",
         status_error: "Aktarım Başarısız",
-        dir_pc_to_phone: "PC ➔ Tel",
-        dir_phone_to_pc: "Tel ➔ PC",
+        dir_pc_to_phone: "PC → Telefon",
+        dir_phone_to_pc: "Telefon → PC",
+        transfer_location: "Dosya konumu",
         open_file: "Aç",
         show_in_folder: "Klasör",
         delete: "Sil",
-        mobile_transfer_title: "📱 Telefondan PC'ye Aktar",
+        mobile_transfer_title: "Telefondan PC'ye aktar",
         wifi_transfer_badge: "Wi-Fi Web",
         adb_push_badge: "ADB Push",
         mobile_qr_desc: "Telefon kamerasıyla QR kodu tarayın; fotoğraf, video ve belgeleri kablosuz PC'ye gönderin.",
@@ -89,26 +91,30 @@ const i18n = {
         pairing_retry_hint: "Bağlantı kurulamadı. Telefonda bu bilgisayarı unuttuysanız güncel eşleşme kodunu girin. IP veya bağlantı portu da değişmiş olabilir.",
         pairing_device: "Telefon",
         saved_phones: "Kayıtlı Telefonlar",
+        saved_phones_info: "Kayıtlı telefonlar hakkında bilgi",
         saved_phones_hint: "Silinen telefon BRQ'da yeniden kod veya QR ile eşleştirme ister. Android'deki bilgisayar yetkisini de kaldırmak için telefondan bu bilgisayarı unutun.",
         no_saved_phones: "Kayıtlı telefon yok.",
         forget_phone: "Sil",
         forget_all_phones: "Tümünü sil",
-        forget_phone_confirm: "Bu telefonun kaydı silinsin ve bağlantısı kesilsin mi? BRQ'da tekrar bağlamak için kod veya QR ile eşleştirme gerekecek.",
-        forget_all_phones_confirm: "Tüm kayıtlı telefonlar silinsin ve bağlantıları kesilsin mi? BRQ'da tekrar bağlamak için kod veya QR ile eşleştirme gerekecek.",
+        forget_phone_confirm: "Bu telefonun kaydı silinsin ve bağlantısı kesilsin mi? BRQ'da tekrar bağlamak için eşleşme kodu gerekecek.",
+        forget_all_phones_confirm: "Tüm kayıtlı telefonlar silinsin ve bağlantıları kesilsin mi? BRQ'da tekrar bağlamak için eşleşme kodu gerekecek.",
         phones_forgotten: "Telefon kaydı silindi. Tekrar bağlamak için yeniden eşleştirin.",
         pairing_code_label: "6 haneli eşleşme kodu",
+        pairing_required_title: "İlk bağlantı · Eşleştirme gerekli",
+        required_field: "Zorunlu",
         pair_with_code: "Eşleştir",
-        discover_phones: "Telefonları Bul",
+        discover_phones: "Telefon Bul",
+        pairing_idle: "Telefon aramak için Telefon Bul'a basın.",
         pairing_searching: "Telefonlar aranıyor…",
         pairing_found: "Telefon bulundu. Seçip devam edin.",
         pairing_multiple: "Birden fazla telefon bulundu. Kendi telefonunuzu seçin.",
-        pairing_missing: "Telefon bulunamadı. Telefonda Kablosuz hata ayıklamayı açıp bu ağa izin verin. Hotspot / VPN / güvenlik duvarı keşfi engelliyorsa manuel IP:Port ile bağlanın veya eşleştirin.",
-        pairing_discovery_error: "Ağ keşfi çalışmıyor. ADB / Platform-Tools ve ağ bağlantısını kontrol edin veya manuel adresi kullanın.",
+        pairing_missing: "Telefon bulunamadı. Telefonu bilgisayarla aynı ağa bağlayın, Kablosuz hata ayıklamayı açıp bu ağa izin verin ve Telefon Bul'a basın.",
+        pairing_discovery_error: "Ağ keşfi çalışmıyor. ADB / Platform-Tools, ağ bağlantısı, VPN ve güvenlik duvarı ayarlarını kontrol edip yeniden deneyin.",
         pairing_select: "Telefon seçin",
         pairing_code_invalid: "6 haneli eşleşme kodunu girin.",
         pairing_address_invalid: "Eşleşme kodu ekranındaki IP:Port bilgisini girin.",
         pairing_failed: "Eşleştirme tamamlanamadı. Telefonda kod ekranını açık tutup güncel kodla yeniden deneyin.",
-        pairing_ready: "İlk eşleşmeden sonra, kablosuz hata ayıklama açıkken yeniden bağlantı otomatik denenir.",
+        pairing_ready: "Bağlantıyı Kes ile durdurduğunuz telefonu aynı ağdayken Tekrar Bağlan ile bağlayabilirsiniz.",
         manual_pairing_hint: "Eşleşme kodu ekranındaki IP adresi ve portu kullanın. Ana ekrandaki bağlantı portu farklıdır.",
         pairing_address_label: "Eşleşme IP:Port",
         qr_pairing_alternative: "QR koduyla eşleştir",
@@ -118,15 +124,17 @@ const i18n = {
         awaiting_scan: "Telefonun taraması bekleniyor...",
         pairing_in_progress: "Cihaz algılandı, eşleştiriliyor...",
         pairing_connecting: "Eşleşme başarılı, bağlanılıyor...",
-        pairing_timeout: "Eşleşme zaman aşımına uğradı. QR kodu yenileyip tekrar deneyin.",
+        pairing_timeout: "Eşleşme zaman aşımına uğradı. Telefonda eşleşme kodu ekranını açıp güncel kodla yeniden deneyin.",
         or_browse: "veya seçmek için tıklayın",
         generate_new_qr: "Yeni QR Kod Üret",
         attached_devices: "Bağlı Cihazlar",
         refresh: "Yenile",
         scanning_devices: "Bağlı cihazlar taranıyor...",
-        no_devices_attached: "Bağlı cihaz yok. Soldan 6 haneli kodla eşleştirin veya USB ile bağlayın.",
+        no_devices_attached: "Bağlı cihaz yok. Telefon Bul ile telefonunuzu seçin veya USB ile bağlayın.",
         direct_connection: "Doğrudan Bağlantı",
         disconnect: "Bağlantıyı Kes",
+        reconnect: "Tekrar Bağlan",
+        disconnected: "Bağlantı kesildi",
         disconnecting: "Kesiliyor…",
         device_offline: "Çevrimdışı",
         device_unauthorized: "Yetki gerekli",
@@ -150,7 +158,7 @@ const i18n = {
         power: "Güç",
         captures_title: "Ekran Görüntüleri",
         no_captures: "Henüz görüntü alınmadı",
-        no_captures_sub: "Görüntü yakalamak için Capture butonuna tıklayın.",
+        no_captures_sub: "Bağlı cihazdan görüntü almak için Fotoğraf Çek butonunu kullanın.",
         save_capture: "Kaydet",
         delete_capture: "Sil",
         preview_modal_title: "Ekran Görüntüsü İnceleme",
@@ -190,7 +198,6 @@ const i18n = {
         toast_launched: "Başlatıldı:",
         toast_launch_failed: "Başlatılamadı:",
         toast_stopped: "Durduruldu:",
-        toast_saving_path: "Klasör yolu kaydediliyor...",
         toast_privacy_on: "Gizlilik modu aktif (Bilgiler gizlendi)",
         toast_privacy_off: "Gizlilik modu kapalı",
         toast_clipboard_pc_to_phone: "Pano Modu: PC → Mobil aktif",
@@ -206,8 +213,16 @@ const i18n = {
         toast_opened_on_phone: "Mobil aktarım sayfası telefonda açıldı!"
     },
     en: {
+        skip_content: "Skip to content",
+        deploy_heading: "File Transfers",
+        deploy_description: "Transfer files between your phone and PC and track their status.",
+        devices_heading: "Your devices",
+        devices_description: "Connect your phone and choose the target device for your actions.",
+        mirror_heading: "Screen mirror",
+        mirror_description: "View and control your connected device, and capture screenshots.",
+        choose_apk: "Choose APK",
         // Navigation
-        nav_builds: "Builds & Transfer",
+        nav_builds: "File Transfers",
         nav_devices: "Devices",
         nav_mirror: "Mirror",
 
@@ -234,22 +249,15 @@ const i18n = {
         upload_title: "Upload Files & Packages",
         drop_files_here: "Drop files here",
         drop_files_sub: "or click to browse",
-        build_watcher: "Build Watcher",
-        watch_folder_placeholder: "e.g. C:\\Projects\\Builds\\Android",
         save: "Save",
-        loading_path: "Loading path...",
-        default_watch_folder: "Default watch folder",
         automation: "Automation",
         auto_install: "Auto-install new builds",
         auto_launch: "Auto-launch after install",
         active_target: "Active Target:",
         scanning: "Scanning...",
-        available_packages: "Available Packages",
         device_transfers: "File Transfers",
         target_prefix: "Target:",
         none: "None",
-        no_packages_detected: "No packages detected",
-        no_packages_sub: "Drop an APK file or configure the build watcher on the left.",
         no_transfers: "No files transferred yet",
         no_transfers_sub: "Drag and drop APK, images, videos, audio or documents.",
         source_watcher: "Watcher",
@@ -264,10 +272,11 @@ const i18n = {
         status_error: "Transfer Failed",
         dir_pc_to_phone: "PC ➔ Phone",
         dir_phone_to_pc: "Phone ➔ PC",
+        transfer_location: "File location",
         open_file: "Open",
         show_in_folder: "Folder",
         delete: "Delete",
-        mobile_transfer_title: "📱 Mobile to PC Transfer",
+        mobile_transfer_title: "Phone to PC transfer",
         wifi_transfer_badge: "Wi-Fi Web",
         adb_push_badge: "ADB Push",
         mobile_qr_desc: "Scan QR with your phone camera to send photos, videos, and documents directly to PC over Wi-Fi.",
@@ -290,26 +299,30 @@ const i18n = {
         pairing_retry_hint: "Connection failed. If you forgot this computer on your phone, enter a new pairing code. The IP or connection port may also have changed.",
         pairing_device: "Phone",
         saved_phones: "Saved Phones",
-        saved_phones_hint: "Deleted phones require a new code or QR pairing in BRQ. To also revoke Android's host authorization, forget this computer on the phone.",
+        saved_phones_info: "About saved phones",
+        saved_phones_hint: "Deleted phones require pairing again with a code or QR in BRQ. To also revoke Android's host authorization, forget this computer on the phone.",
         no_saved_phones: "No saved phones.",
         forget_phone: "Delete",
         forget_all_phones: "Delete all",
-        forget_phone_confirm: "Delete this saved phone and disconnect it? Connecting again in BRQ will require code or QR pairing.",
-        forget_all_phones_confirm: "Delete all saved phones and disconnect them? Connecting again in BRQ will require code or QR pairing.",
+        forget_phone_confirm: "Delete this saved phone and disconnect it? Connecting again in BRQ will require a pairing code.",
+        forget_all_phones_confirm: "Delete all saved phones and disconnect them? Connecting again in BRQ will require a pairing code.",
         phones_forgotten: "Phone record deleted. Pair again to reconnect.",
         pairing_code_label: "6-digit pairing code",
+        pairing_required_title: "First connection · Pairing required",
+        required_field: "Required",
         pair_with_code: "Pair",
-        discover_phones: "Find Phones",
+        discover_phones: "Find Phone",
+        pairing_idle: "Click Find Phone to search for phones.",
         pairing_searching: "Searching for phones…",
         pairing_found: "Phone found. Press Connect.",
         pairing_multiple: "Multiple phones found. Select your phone.",
-        pairing_missing: "No phone found. Enable Wireless debugging and allow this network on your phone. If hotspot / VPN / firewall blocks discovery, connect or pair using a manual IP:Port.",
-        pairing_discovery_error: "Network discovery is unavailable. Check ADB / Platform-Tools and your network, or use the manual address.",
+        pairing_missing: "No phone found. Connect your phone to the same network as your PC, enable Wireless debugging, allow this network, and press Find Phone.",
+        pairing_discovery_error: "Network discovery is unavailable. Check ADB / Platform-Tools, your network, VPN, and firewall settings, then retry.",
         pairing_select: "Select a phone",
         pairing_code_invalid: "Enter the 6-digit pairing code.",
         pairing_address_invalid: "Enter the IP:Port shown in the pairing code dialog.",
         pairing_failed: "Pairing could not finish. Keep the pairing dialog open and retry with the current code.",
-        pairing_ready: "After the first pairing, reconnection is attempted automatically while wireless debugging is enabled.",
+        pairing_ready: "After using Disconnect, use Reconnect while the phone is on the same network.",
         manual_pairing_hint: "Use the IP address and port from the pairing code dialog. The connection port on the main screen is different.",
         pairing_address_label: "Pairing IP:Port",
         qr_pairing_alternative: "Pair with QR code",
@@ -319,15 +332,17 @@ const i18n = {
         awaiting_scan: "Awaiting device scan...",
         pairing_in_progress: "Device detected, pairing...",
         pairing_connecting: "Pairing successful, connecting...",
-        pairing_timeout: "Pairing timed out. Generate a new QR code and retry.",
+        pairing_timeout: "Pairing timed out. Open the pairing code screen on your phone and retry with the current code.",
         or_browse: "or click to browse",
         generate_new_qr: "Generate New QR",
         attached_devices: "Attached Devices",
         refresh: "Refresh",
         scanning_devices: "Scanning attached devices...",
-        no_devices_attached: "No devices attached. Pair using the 6-digit code on the left, or connect via USB.",
+        no_devices_attached: "No devices attached. Select your phone using Find Phone, or connect via USB.",
         direct_connection: "Direct Connection",
         disconnect: "Disconnect",
+        reconnect: "Reconnect",
+        disconnected: "Disconnected",
         disconnecting: "Disconnecting…",
         device_offline: "Offline",
         device_unauthorized: "Authorization required",
@@ -391,7 +406,6 @@ const i18n = {
         toast_launched: "Launched:",
         toast_launch_failed: "Launch failed:",
         toast_stopped: "Stopped:",
-        toast_saving_path: "Saving folder path...",
         toast_privacy_on: "Privacy mode enabled (Identifiers masked)",
         toast_privacy_off: "Privacy mode disabled",
         toast_clipboard_pc_to_phone: "Clipboard Mode: PC → Mobile active",
@@ -411,13 +425,11 @@ const i18n = {
 // Global State
 let currentLang = localStorage.getItem('apkdrop_lang') || 'tr';
 let ws = null;
-let currentApks = [];
 let currentTransfers = [];
 let currentDevices = [];
 let devicesRequestVersion = 0;
 const disconnectingDevices = new Set();
 let selectedDevice = '';
-let activeDeployTab = 'apks';
 let isPrivacyMode = localStorage.getItem('apkdrop_privacy') === 'true';
 let isSoundEnabled = localStorage.getItem('apkdrop_sound') !== 'false';
 let isWebStreaming = false;
@@ -433,8 +445,9 @@ let currentPairingSession = null;
 let pairingServices = [];
 let savedPhones = [];
 let forgettingPhones = false;
-let pairingDiscoveryState = 'pairing_searching';
+let pairingDiscoveryState = 'pairing_idle';
 let pairingDiscoveryInProgress = false;
+let pairingDiscoveryFeedbackTimer = null;
 let codePairingInProgress = false;
 let qrPairingRequestId = 0;
 let currentClipboardMode = 'off';
@@ -455,18 +468,11 @@ const batteryIconSvg = document.getElementById('battery-icon-svg');
 const clipboardToggleBtn = document.getElementById('clipboard-toggle-btn');
 const clipboardModeLabel = document.getElementById('clipboard-mode-label');
 
-const tabBtnApks = document.getElementById('tab-btn-apks');
-const tabBtnTransfers = document.getElementById('tab-btn-transfers');
-const transfersQuickActions = document.getElementById('transfers-quick-actions');
 const openReceivedFolderBtn = document.getElementById('open-received-folder-btn');
-const apkListContainer = document.getElementById('apk-list-container');
 const transfersListContainer = document.getElementById('transfers-list-container');
-const apkCountSpan = document.getElementById('apk-count');
+const transferCountSpan = document.getElementById('transfer-count');
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('file-input');
-const watchFolderInput = document.getElementById('watch-folder-input');
-const saveWatchBtn = document.getElementById('save-watch-btn');
-const currentWatchLabel = document.getElementById('current-watch-label');
 const autoAdbCheckbox = document.getElementById('auto-adb-checkbox');
 const autoLaunchCheckbox = document.getElementById('auto-launch-checkbox');
 const quickDeviceStatus = document.getElementById('quick-device-status');
@@ -535,12 +541,28 @@ function escapeHtml(str) {
     return (str || '').toString().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+function setPrivacyText(element, text) {
+    if (!element) return;
+    element.dataset.privacyText = text;
+    element.textContent = maskIdentifier(text);
+}
+
 function applyPrivacyVisibility() {
-    for (const id of ['mobile-transfer-qr', 'mobile-transfer-url-link', 'mobile-transfer-url-text', 'mobile-ip-select', 'adb-qr-img', 'paired-ip-label', 'pairing-device-select', 'adb-ip-input', 'pairing-address-input']) {
+    for (const id of ['mobile-transfer-qr', 'adb-qr-img']) {
         const element = document.getElementById(id);
         if (element) element.style.visibility = isPrivacyMode ? 'hidden' : '';
     }
-    if (pairingCodeInput) pairingCodeInput.type = isPrivacyMode ? 'password' : 'text';
+    for (const input of [adbIpInput, pairingAddressInput, pairingCodeInput]) {
+        if (input) input.type = isPrivacyMode ? 'password' : 'text';
+    }
+    const mobileIpSelect = document.getElementById('mobile-ip-select');
+    const textElements = [document.getElementById('mobile-transfer-url-text'), pairedIpLabel,
+        ...Array.from(mobileIpSelect?.options || [])];
+    for (const element of textElements) {
+        if (element?.dataset.privacyText !== undefined) {
+            element.textContent = maskIdentifier(element.dataset.privacyText);
+        }
+    }
 }
 function updatePrivacyUI() {
     applyPrivacyVisibility();
@@ -572,35 +594,11 @@ if (privacyToggleBtn) {
         updatePrivacyUI();
         showToast(isPrivacyMode ? i18n[currentLang].toast_privacy_on : i18n[currentLang].toast_privacy_off, isPrivacyMode ? '#10b981' : 'var(--text-tertiary)');
         renderDevices();
-        renderApks();
+
         renderTransfers();
         renderPairingDiscovery();
         renderSavedPhones();
         updatePairStatusBadge();
-    };
-}
-
-// --- Segment Switcher (APKs vs Transfers) ---
-if (tabBtnApks && tabBtnTransfers) {
-    tabBtnApks.onclick = () => {
-        activeDeployTab = 'apks';
-        tabBtnApks.classList.add('active');
-        tabBtnTransfers.classList.remove('active');
-        if (apkListContainer) apkListContainer.style.display = 'flex';
-        if (transfersListContainer) transfersListContainer.style.display = 'none';
-        if (transfersQuickActions) transfersQuickActions.style.display = 'none';
-        if (apkCountSpan) apkCountSpan.textContent = currentApks.length;
-    };
-
-    tabBtnTransfers.onclick = () => {
-        activeDeployTab = 'transfers';
-        tabBtnTransfers.classList.add('active');
-        tabBtnApks.classList.remove('active');
-        if (apkListContainer) apkListContainer.style.display = 'none';
-        if (transfersListContainer) transfersListContainer.style.display = 'flex';
-        if (transfersQuickActions) transfersQuickActions.style.display = 'flex';
-        renderTransfers();
-        if (apkCountSpan) apkCountSpan.textContent = currentTransfers.length;
     };
 }
 
@@ -645,7 +643,7 @@ function setLanguage(lang) {
     });
 
     // Re-render dynamic components
-    renderApks();
+
     renderTransfers();
     renderDevices();
     renderCapturesList();
@@ -725,19 +723,20 @@ if (soundToggleBtn) {
 // --- Navigation Tabs ---
 document.querySelectorAll('.nav-item, .tab-btn').forEach(btn => {
     btn.onclick = () => {
-        document.querySelectorAll('.nav-item, .tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.nav-item, .tab-btn').forEach(b => {
+            b.classList.remove('active');
+            b.setAttribute('aria-pressed', 'false');
+        });
         document.querySelectorAll('.tab-content').forEach(c => {
             c.classList.remove('active');
             c.style.display = 'none';
         });
         btn.classList.add('active');
+        btn.setAttribute('aria-pressed', 'true');
         const target = document.getElementById(btn.getAttribute('data-tab'));
         if (target) {
             target.classList.add('active');
             target.style.display = 'block';
-            if (btn.getAttribute('data-tab') === 'tab-adb') {
-                discoverPairingPhones();
-            }
         }
     };
 });
@@ -758,7 +757,7 @@ async function loadMobileTransferQr() {
         if (data && data.qrDataUrl) {
             mobileQrImg.src = data.qrDataUrl;
             if (mobileUrlLink) mobileUrlLink.href = data.url;
-            if (mobileUrlText) mobileUrlText.textContent = data.url;
+            setPrivacyText(mobileUrlText, data.url);
         }
 
         // Populate IP selector dropdown if available
@@ -766,7 +765,7 @@ async function loadMobileTransferQr() {
             mobileIpSelect.innerHTML = data.availableIps.map(item => {
                 const isSel = (item.ip === data.ip) ? 'selected' : '';
                 const label = `${item.ip} - ${item.friendlyName || item.name}`;
-                return `<option value="${escapeHtml(item.ip)}" ${isSel}>${escapeHtml(label)}</option>`;
+                return `<option value="${escapeHtml(item.ip)}" data-privacy-text="${escapeHtml(label)}" ${isSel}>${escapeHtml(maskIdentifier(label))}</option>`;
             }).join('');
 
             mobileIpSelect.onchange = async () => {
@@ -802,8 +801,9 @@ const copyMobileUrlBtn = document.getElementById('copy-mobile-url-btn');
 if (copyMobileUrlBtn) {
     copyMobileUrlBtn.onclick = () => {
         const urlText = document.getElementById('mobile-transfer-url-text');
-        if (urlText && urlText.textContent && !urlText.textContent.includes('...')) {
-            navigator.clipboard.writeText(urlText.textContent).then(() => showToast(i18n[currentLang].toast_copied, 'var(--success)')).catch(() => showToast(currentLang === 'tr' ? 'Panoya yazma izni verilmedi.' : 'Clipboard access denied.', 'var(--danger)'));
+        const url = urlText?.dataset.privacyText;
+        if (url) {
+            navigator.clipboard.writeText(url).then(() => showToast(i18n[currentLang].toast_copied, 'var(--success)')).catch(() => showToast(currentLang === 'tr' ? 'Panoya yazma izni verilmedi.' : 'Clipboard access denied.', 'var(--danger)'));
         }
     };
 }
@@ -830,7 +830,7 @@ function renderSavedPhones() {
         info.className = 'saved-phone-info';
         const name = document.createElement('div');
         name.className = 'saved-phone-name';
-        const names = [...new Set([phone.model, phone.deviceName].filter(Boolean))];
+        const names = [...new Set([phone.deviceName, phone.model].filter(Boolean))];
         name.textContent = names.length ? names.map(value => maskIdentifier(value)).join(' · ') : `${dict.pairing_device} ${index + 1}`;
         const address = document.createElement('div');
         address.className = 'saved-phone-address mono';
@@ -884,9 +884,25 @@ async function forgetSavedPhones(serviceName) {
 document.getElementById('forget-all-phones-btn').onclick = () => forgetSavedPhones();
 
 // --- ADB QR & Pairing ---
+function updatePairingFormState() {
+    const needsCode = !pairingCodeFields.hidden;
+    const needsAddress = needsCode && pairingUseAddress.checked;
+    pairingCodeInput.required = needsCode;
+    pairingCodeInput.disabled = !needsCode;
+    pairingAddressInput.required = needsAddress;
+    pairingAddressInput.disabled = !needsAddress;
+    connectPhoneBtn.hidden = pairingMethod !== 'discover' || needsCode;
+    pairingCodeBtn.hidden = !needsCode;
+}
+
 function renderPairingDiscovery() {
     if (!pairingDeviceSelect) return;
+    updatePairingFormState();
     const dict = i18n[currentLang];
+    const manualDiscoveryInProgress = discoverPairingBtn.dataset.discoveryState === 'loading';
+    discoverPairingBtn.disabled = manualDiscoveryInProgress;
+    discoverPairingBtn.setAttribute('aria-busy', String(manualDiscoveryInProgress));
+    document.getElementById('discover-pairing-label').textContent = dict.discover_phones;
     const optionsKey = JSON.stringify([currentLang, isPrivacyMode, pairingServices]);
     pairingDiscoveryStatus.textContent = dict[pairingDiscoveryState];
     connectPhoneBtn.disabled = codePairingInProgress || pairingUseAddress.checked || pairingServices.length === 0;
@@ -903,7 +919,7 @@ function renderPairingDiscovery() {
         option.value = service.ip;
         const model = (service.model || '').trim();
         const deviceName = (service.deviceName || '').trim();
-        const names = [model, deviceName].filter((name, position, values) => name &&
+        const names = [deviceName, model].filter((name, position, values) => name &&
             values.findIndex(value => value.toLocaleLowerCase() === name.toLocaleLowerCase()) === position);
         const label = names.length ? names.map(name => maskIdentifier(name)).join(' · ') : `${dict.pairing_device} ${index + 1}`;
         option.textContent = `${label} · ${maskIdentifier(service.ip)}`;
@@ -917,31 +933,48 @@ function renderPairingDiscovery() {
 }
 
 async function discoverPairingPhones() {
-    if (pairingDiscoveryInProgress || codePairingInProgress || !['discover', 'code'].includes(pairingMethod)) return;
+    if (codePairingInProgress || !['discover', 'code'].includes(pairingMethod)) return;
+    if (discoverPairingBtn.dataset.discoveryState !== 'loading') {
+        clearTimeout(pairingDiscoveryFeedbackTimer);
+        discoverPairingBtn.dataset.discoveryState = 'loading';
+        pairingDiscoveryState = 'pairing_searching';
+        renderPairingDiscovery();
+    }
+    if (pairingDiscoveryInProgress) return;
     pairingDiscoveryInProgress = true;
-    discoverPairingBtn.disabled = true;
+    const version = devicesRequestVersion;
+    renderPairingDiscovery();
     try {
         const response = await requestResponse('/api/adb/wireless-phones');
         const data = await response.json();
+        if (version !== devicesRequestVersion) return;
         if (!response.ok || !data.success) throw new Error('Discovery unavailable');
         pairingServices = data.services || [];
         pairingDiscoveryState = pairingServices.length > 1 ? 'pairing_multiple' :
             pairingServices.length === 1 ? 'pairing_found' : 'pairing_missing';
     } catch (e) {
+        if (version !== devicesRequestVersion) return;
         pairingServices = [];
         pairingDiscoveryState = 'pairing_discovery_error';
     } finally {
         pairingDiscoveryInProgress = false;
-        discoverPairingBtn.disabled = false;
+        if (discoverPairingBtn.dataset.discoveryState === 'loading') {
+            discoverPairingBtn.dataset.discoveryState = 'complete';
+            pairingDiscoveryFeedbackTimer = setTimeout(() => {
+                discoverPairingBtn.dataset.discoveryState = 'idle';
+            }, 240);
+        }
         renderPairingDiscovery();
+        renderDevices();
     }
 }
 
-if (discoverPairingBtn) discoverPairingBtn.onclick = discoverPairingPhones;
+if (discoverPairingBtn) discoverPairingBtn.onclick = () => discoverPairingPhones();
 
 pairingDeviceSelect.onchange = () => {
     pairingCodeInput.value = '';
     pairingCodeFields.hidden = pairingMethod !== 'code';
+    updatePairingFormState();
 };
 
 pairingUseAddress.onchange = () => {
@@ -984,7 +1017,6 @@ async function selectPairingMethod(method) {
     pairingDeviceSelect.disabled = false;
     updatePairStatusBadge();
     if (method === 'qr') await loadAdbPairingQr();
-    else if (['discover', 'code'].includes(method)) await discoverPairingPhones();
 }
 
 document.querySelectorAll('[data-pairing-method]').forEach(button => {
@@ -1000,6 +1032,7 @@ connectPhoneBtn.onclick = async () => {
     pairingDeviceSelect.disabled = true;
     pairingCodeBtn.disabled = true;
     refreshAdbQrBtn.disabled = true;
+    renderDevices();
     try {
         const response = await requestResponse('/api/adb/connect', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1008,6 +1041,7 @@ connectPhoneBtn.onclick = async () => {
         const data = await response.json();
         if (response.ok && data.needsPairing) {
             pairingCodeFields.hidden = false;
+            updatePairingFormState();
             pairingCodeInput.focus();
             document.getElementById('pairing-address-choice').hidden = false;
             showToast(i18n[currentLang][data.reason === 'connection_failed' ? 'pairing_retry_hint' : 'pairing_first_time'], 'var(--accent)', 7000);
@@ -1015,7 +1049,9 @@ connectPhoneBtn.onclick = async () => {
         }
         if (!response.ok || !data.success) throw new Error(data.error?.message || data.error || i18n[currentLang].pairing_failed);
         pairingCodeFields.hidden = true;
+        updatePairingFormState();
         pairingCodeInput.value = '';
+        service.reconnectable = false;
         currentDevices = data.devices;
         currentPairingSession = { mode: 'code', status: 'connected', pairedIp: service.ip };
         updatePairStatusBadge();
@@ -1029,7 +1065,21 @@ connectPhoneBtn.onclick = async () => {
         pairingCodeBtn.disabled = false;
         refreshAdbQrBtn.disabled = false;
         connectPhoneBtn.disabled = pairingUseAddress.checked || pairingServices.length === 0;
+        renderDevices();
     }
+};
+
+window.reconnectDevice = async (serviceName) => {
+    if (codePairingInProgress || disconnectingDevices.size > 0 || forgettingPhones) return;
+    const service = pairingServices.find(phone => phone.name === serviceName && phone.reconnectable);
+    if (!service) return showToast(i18n[currentLang].pairing_missing, 'var(--danger)');
+    pairingDeviceSelect.value = service.ip;
+    pairingUseAddress.checked = false;
+    pairingUseAddress.onchange();
+    pairingCodeInput.value = '';
+    pairingCodeFields.hidden = true;
+    updatePairingFormState();
+    await connectPhoneBtn.onclick();
 };
 
 if (codePairingForm) codePairingForm.onsubmit = async event => {
@@ -1083,11 +1133,6 @@ if (codePairingForm) codePairingForm.onsubmit = async event => {
         refreshAdbQrBtn.disabled = false;
     }
 };
-
-setInterval(() => {
-    if (!document.hidden && document.getElementById('tab-adb')?.classList.contains('active') &&
-        !['pairing', 'paired'].includes(currentPairingSession?.status)) discoverPairingPhones();
-}, 4000);
 
 function updatePairStatusBadge() {
     if (!adbPairStatusBadge) return;
@@ -1478,9 +1523,9 @@ function renderCapturesList() {
 
     capturesList.innerHTML = capturedScreenshots.map(c => `
       <div class="capture-item" data-id="${escapeHtml(c.id)}">
-        <div class="capture-thumb-box" data-capture-action="open" title="Click to view">
+        <button type="button" class="capture-thumb-box" data-capture-action="open" title="${i18n[currentLang].preview_modal_title}">
           <img src="${c.dataUrl}" class="capture-thumb" alt="Capture">
-        </div>
+        </button>
         <div class="capture-footer">
           <div class="capture-info">
             <span class="capture-time">${escapeHtml(c.time)}</span>
@@ -1551,24 +1596,42 @@ window.deleteCapture = (id) => {
     renderCapturesList();
 };
 
+let previewTrigger = null;
 window.openImageModal = (id) => {
     const item = capturedScreenshots.find(c => c.id == id);
     if (!item || !imageModal) return;
     modalImg.src = item.dataUrl;
     if (modalTitle) modalTitle.textContent = `${i18n[currentLang].preview_modal_title} (${item.time} - ${item.resolution})`;
     imageModal.style.display = 'flex';
+    previewTrigger = document.activeElement;
+    document.body.classList.add('modal-open');
+    modalCloseBtn?.focus?.();
 };
 
+function closeImageModal() {
+    if (imageModal) imageModal.style.display = 'none';
+    document.body.classList.remove('modal-open');
+    if (previewTrigger?.isConnected) previewTrigger.focus();
+}
+
 if (modalCloseBtn) {
-    modalCloseBtn.onclick = () => {
-        if (imageModal) imageModal.style.display = 'none';
-    };
+    modalCloseBtn.onclick = closeImageModal;
 }
 
 if (imageModal) {
     imageModal.onclick = (e) => {
-        if (e.target === imageModal) imageModal.style.display = 'none';
+        if (e.target === imageModal) closeImageModal();
     };
+    imageModal.addEventListener('keydown', event => {
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            closeImageModal();
+        } else if (event.key === 'Tab') {
+            // The close button is the preview's only interactive control.
+            event.preventDefault();
+            modalCloseBtn?.focus?.();
+        }
+    });
 }
 
 // Direct IP Connect
@@ -1670,11 +1733,10 @@ function connectWs() {
         }
 
         if (data.type === 'INIT') {
-            currentApks = data.apks || [];
             currentTransfers = data.transfers || [];
             currentDevices = data.devices || [];
             if (data.config) applyServerConfig(data.config);
-            renderApks();
+
             renderTransfers();
             renderDevices();
             if (data.pairingSession && adbQrImg) {
@@ -1686,12 +1748,15 @@ function connectWs() {
             }
             loadMobileTransferQr();
         } else if (data.type === 'NEW_APK') {
-            currentApks = [data.apk, ...currentApks.filter(apk => apk.id !== data.apk.id)].slice(0, 50);
-            renderApks();
+
             playChime();
             showToast(`${i18n[currentLang].toast_ready} ${data.apk.name}`, 'var(--success)');
-        } else if (data.type === 'APKS_UPDATED') {
-            currentApks = data.apks || []; renderApks();
+        } else if (data.type === 'TRANSFER_PROGRESS') {
+            const transfer = currentTransfers.find(item => item.id === data.id && item.operationId === data.operationId);
+            if (transfer?.status === 'transferring' && Number.isFinite(data.progress)) {
+                transfer.progress = Math.max(transfer.progress || 0, Math.min(99, Math.max(0, Math.floor(data.progress))));
+                renderTransfers();
+            }
         } else if (data.type === 'TRANSFER_FAILED') {
             currentTransfers = data.transfers || currentTransfers; renderTransfers();
             showToast(data.transfer?.error || 'Aktarım başarısız. Dosya PC’de korunuyor.', 'var(--danger)');
@@ -1712,12 +1777,7 @@ function connectWs() {
             if (data.allTransfers) currentTransfers = data.allTransfers;
             else if (data.transfers) currentTransfers = [...data.transfers, ...currentTransfers];
             
-            // Switch to Transfers tab so user immediately sees the received file
-            if (activeDeployTab !== 'transfers' && tabBtnTransfers) {
-                tabBtnTransfers.click();
-            } else {
-                renderTransfers();
-            }
+            renderTransfers();
             playChime();
             const count = data.transfers ? data.transfers.length : 1;
             showToast(data.message || `${i18n[currentLang].toast_file_received_from_phone} (${count})`, 'var(--success)', 5000);
@@ -1748,12 +1808,12 @@ function connectWs() {
             const mobileIpSelect = document.getElementById('mobile-ip-select');
             if (mobileQrImg && data.qrDataUrl) mobileQrImg.src = data.qrDataUrl;
             if (mobileUrlLink && data.url) mobileUrlLink.href = data.url;
-            if (mobileUrlText && data.url) mobileUrlText.textContent = data.url;
+            if (data.url) setPrivacyText(mobileUrlText, data.url);
             if (mobileIpSelect && data.availableIps) {
                 mobileIpSelect.innerHTML = data.availableIps.map(item => {
                     const isSel = (item.ip === data.ip) ? 'selected' : '';
                     const label = `${item.ip} - ${item.friendlyName || item.name}`;
-                    return `<option value="${escapeHtml(item.ip)}" ${isSel}>${escapeHtml(label)}</option>`;
+                    return `<option value="${escapeHtml(item.ip)}" data-privacy-text="${escapeHtml(label)}" ${isSel}>${escapeHtml(maskIdentifier(label))}</option>`;
                 }).join('');
             }
         } else if (['WATCHER_ERROR', 'PERSISTENCE_ERROR', 'CLIPBOARD_ERROR'].includes(data.type)) {
@@ -1799,7 +1859,7 @@ function handleAdbPairStatus(session) {
 
     if (session.pairedIp) {
         lastPairedIp = session.pairedIp;
-        if (pairedIpLabel) pairedIpLabel.textContent = `${session.pairedIp}:`;
+        setPrivacyText(pairedIpLabel, `${session.pairedIp}:`);
         if (adbIpInput && !adbIpInput.value) adbIpInput.value = `${session.pairedIp}:`;
     }
 
@@ -1812,6 +1872,7 @@ function handleAdbPairStatus(session) {
         showToast(i18n[currentLang].toast_pairing_ok, 'var(--success)', 5000);
     } else if (session.status === 'connected') {
         if (pairingCodeFields) pairingCodeFields.hidden = true;
+        updatePairingFormState();
         if (quickPortBox) quickPortBox.style.display = 'none';
         playChime();
         showToast(i18n[currentLang].toast_device_connected, 'var(--success)', 4000);
@@ -1820,72 +1881,10 @@ function handleAdbPairStatus(session) {
 }
 
 // Render APKs with active i18n
-function renderApks() {
-    if (apkCountSpan) apkCountSpan.textContent = currentApks.length;
-    if (!apkListContainer) return;
-
-    if (currentApks.length === 0) {
-        apkListContainer.innerHTML = `
-          <div class="empty-view">
-            <p class="empty-title">${i18n[currentLang].no_packages_detected}</p>
-            <p class="empty-sub">${i18n[currentLang].no_packages_sub}</p>
-          </div>
-        `;
-        return;
-    }
-
-    apkListContainer.innerHTML = currentApks.map(apk => {
-        const safeTitle = escapeHtml(apk.label || apk.name);
-        const safePkg = escapeHtml(apk.packageName || '');
-        const safeName = escapeHtml(apk.name || '');
-        const safeVersionName = escapeHtml(apk.versionName || '?');
-        const safeVersionCode = escapeHtml(apk.versionCode || '?');
-        const safeSize = escapeHtml(apk.size || '');
-        const safeMinSdk = escapeHtml(apk.minSdk || '?');
-        const safeTargetSdk = escapeHtml(apk.targetSdk || '?');
-        const safeId = escapeHtml(apk.id || '');
-        const safeDownloadUrl = '/download/' + encodeURIComponent(apk.id);
-        const timeStr = apk.updatedAt ? new Date(apk.updatedAt).toLocaleTimeString() : '';
-
-        return `
-      <div class="apk-card">
-        <div class="apk-header">
-          <div class="apk-title">${safeTitle}</div>
-          <span class="tag-version">${apk.source === 'folder-watcher' ? i18n[currentLang].source_watcher : i18n[currentLang].source_upload}</span>
-        </div>
-
-        <div class="apk-pkg mono">${safePkg} &bull; ${safeName}</div>
-
-        <div class="apk-tags">
-          <span class="apk-tag-pill">v${safeVersionName} (${safeVersionCode})</span>
-          <span class="apk-tag-pill">${safeSize}</span>
-          <span class="apk-tag-pill">SDK ${safeMinSdk}-${safeTargetSdk}</span>
-          <span class="apk-tag-pill">${timeStr}</span>
-        </div>
-
-        <div class="apk-actions">
-          <button class="btn btn-primary btn-sm btn-apk-install" data-id="${safeId}" data-name="${safeName}">
-            ${i18n[currentLang].install_and_launch}
-          </button>
-          <button class="btn btn-secondary btn-sm btn-apk-launch" data-pkg="${safePkg}" title="${i18n[currentLang].launch}" ${apk.packageName ? '' : 'disabled'}>
-            ${i18n[currentLang].launch}
-          </button>
-          <button class="btn btn-secondary btn-sm btn-apk-stop" data-pkg="${safePkg}" title="${i18n[currentLang].stop}" ${apk.packageName ? '' : 'disabled'}>
-            ${i18n[currentLang].stop}
-          </button>
-          <a href="${safeDownloadUrl}" class="btn btn-secondary btn-sm" download="${safeName}">
-            ${i18n[currentLang].download}
-          </a>
-        </div>
-      </div>
-    `;
-    }).join('');
-}
-
 // Render Transferred Files List
 function renderTransfers() {
-    if (activeDeployTab === 'transfers' && apkCountSpan) {
-        apkCountSpan.textContent = currentTransfers.length;
+    if (transferCountSpan) {
+        transferCountSpan.textContent = currentTransfers.length;
     }
     if (!transfersListContainer) return;
 
@@ -1911,23 +1910,27 @@ function renderTransfers() {
     transfersListContainer.innerHTML = currentTransfers.map(t => {
         const icon = categoryIcons[t.category] || categoryIcons.document;
         const isMobileToPc = t.direction === 'mobile-to-pc';
-        const targetDev = t.deviceId ? (isPrivacyMode ? maskIdentifier(t.deviceId) : t.deviceId) : '';
 
         const dirBadge = isMobileToPc
-            ? `<span class="badge-dir badge-dir-received">📱 ➔ 💻 ${dict.dir_phone_to_pc}</span>`
-            : `<span class="badge-dir badge-dir-sent">💻 ➔ 📱 ${dict.dir_pc_to_phone}</span>`;
+            ? `<span class="badge-dir badge-dir-received">${dict.dir_phone_to_pc}</span>`
+            : `<span class="badge-dir badge-dir-sent">${dict.dir_pc_to_phone}</span>`;
 
         let statusText = '';
         let statusColor = 'var(--success)';
+        const progress = t.status === 'transferred' ? 100 : Math.min(99, Math.max(0, Math.floor(Number(t.progress) || 0)));
+        const showProgress = !isMobileToPc && t.status === 'transferring';
 
         if (isMobileToPc) {
             statusText = dict.status_received || 'PC\'ye Alındı';
             statusColor = 'var(--success)';
         } else if (t.status === 'transferred') {
-            statusText = dict.status_transferred;
+            statusText = `${dict.status_transferred} · 100%`;
             statusColor = 'var(--success)';
-        } else if (['queued', 'transferring'].includes(t.status)) {
-            statusText = currentLang === 'tr' ? 'Aktarılıyor…' : 'Transferring…';
+        } else if (t.status === 'queued') {
+            statusText = currentLang === 'tr' ? 'Sırada' : 'Queued';
+            statusColor = 'var(--warning)';
+        } else if (t.status === 'transferring') {
+            statusText = `${currentLang === 'tr' ? 'Telefona aktarılıyor' : 'Sending to phone'} · ${progress}%`;
             statusColor = 'var(--warning)';
         } else if (t.status === 'interrupted') {
             statusText = currentLang === 'tr' ? 'Kesildi; yeniden gönderin' : 'Interrupted; resend';
@@ -1940,9 +1943,10 @@ function renderTransfers() {
             statusColor = 'var(--danger)';
         }
 
-        const pathDisplay = isMobileToPc
-            ? (t.localPath ? escapeHtml(t.localPath.replace(/\\/g, '/')) : 'received/')
-            : `${escapeHtml(t.remotePath || t.targetDir || '')} ${targetDev ? `&bull; ${escapeHtml(targetDev)}` : ''}`;
+        const filePath = (isMobileToPc ? t.localPath || 'received/' : t.remotePath || t.targetDir || '').replace(/\\/g, '/');
+        const pathDisplay = escapeHtml(maskIdentifier(filePath));
+        const folderPath = filePath.endsWith('/') ? filePath.slice(0, -1) : filePath.slice(0, filePath.lastIndexOf('/'));
+        const folderName = escapeHtml(maskIdentifier(folderPath.split('/').filter(Boolean).pop() || dict.transfer_location));
 
         const safeFilename = escapeHtml(t.filename || '');
         const safeLocalPath = escapeHtml(t.localPath || '');
@@ -1972,19 +1976,22 @@ function renderTransfers() {
         return `
           <div class="transfer-card">
             <div class="transfer-left">
-              <div class="transfer-icon">${icon}</div>
+              <div class="transfer-icon" aria-hidden="true">${icon}</div>
               <div class="transfer-meta">
                 <div class="transfer-name" title="${safeFilename}">${safeFilename}</div>
-                <div class="transfer-path mono">${pathDisplay}</div>
+                <div class="transfer-facts">
+                  ${dirBadge}
+                  ${t.size ? `<span class="transfer-size">${escapeHtml(t.size)}</span>` : ''}
+                  ${t.timestamp ? `<span class="transfer-time">${escapeHtml(t.timestamp)}</span>` : ''}
+                </div>
+                ${filePath ? `<details class="transfer-location"><summary><span>${escapeHtml(dict.transfer_location)}: ${folderName}</span></summary><div class="transfer-path mono">${pathDisplay}</div></details>` : ''}
               </div>
             </div>
-            <div class="transfer-right">
-              ${dirBadge}
-              <span class="transfer-tag mono">${escapeHtml(t.size || '')}</span>
-              <span class="transfer-tag mono">${escapeHtml(t.timestamp || '')}</span>
+            <div class="transfer-footer">
               <span class="transfer-status" style="color: ${statusColor};">${statusText}</span>
-              ${actionsHtml}
+              <div class="transfer-right">${actionsHtml}</div>
             </div>
+            ${showProgress ? `<progress class="transfer-progress" max="100" value="${progress}" aria-label="${escapeHtml(statusText)}">${progress}%</progress>` : ''}
           </div>
         `;
     }).join('');
@@ -2013,13 +2020,15 @@ window.openReceivedFile = async (filename, filePath) => {
 // Open received files directory or select file in Windows Explorer
 window.openReceivedFolder = async (filename, filePath) => {
     try {
+        const transfer = currentTransfers.find(t => t.localPath === filePath && t.filename === filename);
+        if (!transfer) throw new Error(currentLang === 'tr' ? 'Dosya kaydı bulunamadı. Listeyi yenileyin.' : 'File record not found. Refresh the list.');
         await requestJson('/api/transfers/open-folder', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filename, filePath })
+            body: JSON.stringify({ id: transfer.id })
         });
     } catch (e) {
-        console.error('Folder open error:', e);
+        showToast(e.message, 'var(--danger)');
     }
 };
 
@@ -2040,31 +2049,6 @@ window.deleteTransfer = async (id) => {
         console.error('Delete transfer error:', e);
     }
 };
-
-// Safe Event Delegation for APK Actions
-if (apkListContainer) {
-    apkListContainer.addEventListener('click', (e) => {
-        const installBtn = e.target.closest('.btn-apk-install');
-        if (installBtn) {
-            const id = installBtn.getAttribute('data-id');
-            const name = installBtn.getAttribute('data-name');
-            if (id && window.installViaAdb) window.installViaAdb(id, name);
-            return;
-        }
-        const launchBtn = e.target.closest('.btn-apk-launch');
-        if (launchBtn) {
-            const pkg = launchBtn.getAttribute('data-pkg');
-            if (pkg && window.launchApp) window.launchApp(pkg);
-            return;
-        }
-        const stopBtn = e.target.closest('.btn-apk-stop');
-        if (stopBtn) {
-            const pkg = stopBtn.getAttribute('data-pkg');
-            if (pkg && window.stopApp) window.stopApp(pkg);
-            return;
-        }
-    });
-}
 
 // Safe Event Delegation for Transfer Actions
 if (transfersListContainer) {
@@ -2246,15 +2230,33 @@ if (clipboardToggleBtn) {
 
 // Render ADB Devices with active i18n & Privacy Masking
 function renderDevices() {
+    currentDevices = currentDevices.flatMap(device => {
+        const transports = device.transports || [device];
+        const visible = transports.filter(transport => transport.state !== 'offline' ||
+            !(transport.isWifi || transport.id.includes(':') || transport.id.includes('._adb-tls-connect._tcp')));
+        if (visible.length === transports.length) return [device];
+        if (!visible.length) return [];
+        const primary = visible.find(transport => transport.state === 'device') || visible[0];
+        return [{ ...device, ...primary, transportId: primary.id, transports: visible }];
+    });
     updateHeaderDevicePill();
     if (!devicesList) return;
     devicesList.replaceChildren();
-    if (!currentDevices?.length) {
+    const reconnectablePhones = pairingServices.filter(phone => phone.reconnectable &&
+        !currentDevices.some(device => (device.transports || [device]).some(transport =>
+            transport.id === phone.name || transport.id.replace(/\.$/, '') === `${phone.name}.${phone.type}` ||
+            transport.id === `${phone.ip.includes(':') ? '[' + phone.ip + ']' : phone.ip}:${phone.port}`)));
+    if (!currentDevices?.length && !reconnectablePhones.length) {
         const empty = document.createElement('div'); empty.className = 'loading-state'; empty.textContent = i18n[currentLang].no_devices_attached;
         devicesList.appendChild(empty);
     }
-    if (activeDeviceIndicator) activeDeviceIndicator.textContent = i18n[currentLang].target_prefix + ' ' + (selectedDevice ? maskIdentifier(selectedDevice) : i18n[currentLang].none);
     const selected = currentDevices.find(d => d.id === selectedDevice || d.transports?.some(t => t.id === selectedDevice));
+    if (activeDeviceIndicator) {
+        const deviceName = [selected?.deviceName, selected?.model].find(name => name?.trim() &&
+            name !== selected?.id && name !== selectedDevice && !/^adb-|\._adb-|^\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?$/i.test(name));
+        activeDeviceIndicator.hidden = !deviceName;
+        activeDeviceIndicator.textContent = deviceName ? `${i18n[currentLang].target_prefix} ${maskIdentifier(deviceName)}` : '';
+    }
     if (quickDeviceStatus) quickDeviceStatus.textContent = selected ? maskIdentifier(selected.model) : i18n[currentLang].no_device;
     for (const device of currentDevices) {
         const card = document.createElement('div'); card.className = 'device-card';
@@ -2267,12 +2269,12 @@ function renderDevices() {
             radio.disabled = transport.state !== 'device' || disconnectingDevices.has(transport.id);
             radio.onchange = () => window.changeSelectedDevice(transport.id);
             label.appendChild(radio);
-            const text = document.createElement('span'); text.textContent = maskIdentifier(transport.id) + ' · ' + (transport.isWifi ? 'Wi-Fi' : 'USB'); label.appendChild(text);
+            const text = document.createElement('span'); text.textContent = (transport.isWifi || transport.id.includes(':') || transport.id.includes('._adb-tls-connect._tcp')) ? 'Wi-Fi' : 'USB'; label.appendChild(text);
             info.appendChild(label);
             if (transport.isWifi || transport.id.includes(':') || transport.id.includes('._adb-tls-connect._tcp')) {
                 const button = document.createElement('button'); button.className = 'btn btn-secondary btn-sm';
                 button.textContent = i18n[currentLang].disconnect;
-                button.disabled = disconnectingDevices.has(transport.id);
+                button.disabled = disconnectingDevices.size > 0 || codePairingInProgress || forgettingPhones;
                 button.onclick = () => window.disconnectDevice(transport.id);
                 info.appendChild(button);
             }
@@ -2282,15 +2284,25 @@ function renderDevices() {
         state.textContent = i18n[currentLang][device.state === 'device' ? 'ready' : device.state === 'unauthorized' ? 'device_unauthorized' : 'device_offline'];
         card.appendChild(state); devicesList.appendChild(card);
     }
+    for (const phone of reconnectablePhones) {
+        const card = document.createElement('div'); card.className = 'device-card';
+        const info = document.createElement('div');
+        const title = document.createElement('div'); title.textContent = maskIdentifier(phone.model || i18n[currentLang].pairing_device);
+        const address = document.createElement('div'); address.textContent = 'Wi-Fi';
+        const button = document.createElement('button'); button.className = 'btn btn-primary btn-sm';
+        button.textContent = i18n[currentLang].reconnect;
+        button.disabled = codePairingInProgress || disconnectingDevices.size > 0 || forgettingPhones;
+        button.onclick = () => window.reconnectDevice(phone.name);
+        info.appendChild(title); info.appendChild(address); info.appendChild(button);
+        const state = document.createElement('span'); state.className = 'count-badge';
+        state.textContent = i18n[currentLang].disconnected;
+        card.appendChild(info); card.appendChild(state); devicesList.appendChild(card);
+    }
 }
 
 window.changeSelectedDevice = (id) => {
     if (isWebStreaming) stopWebScreenStream();
     selectedDevice = id;
-    if (activeDeviceIndicator) {
-        const masked = isPrivacyMode ? maskIdentifier(selectedDevice) : selectedDevice;
-        activeDeviceIndicator.textContent = `${i18n[currentLang].target_prefix} ${masked}`;
-    }
     renderDevices();
     saveSettings({ selectedAdbDevice: id });
 };
@@ -2359,17 +2371,11 @@ window.sendRemoteKey = async (keyCode) => {
     }
 };
 
-// Settings Save
-saveWatchBtn.onclick = async () => {
-    await saveSettings({ watchFolder: watchFolderInput.value.trim() });
-};
-
 if (autoAdbCheckbox) autoAdbCheckbox.onchange = () => saveSettings({ autoInstallOnAdb: autoAdbCheckbox.checked });
 if (autoLaunchCheckbox) autoLaunchCheckbox.onchange = () => saveSettings({ autoLaunchAfterInstall: autoLaunchCheckbox.checked });
 
 let settingsVersion = 0;
 let confirmedSelectedDevice = '';
-let confirmedWatchFolder = '';
 let confirmedConfigRevision = -1;
 let latestServerConfig = null;
 let settingsPending = false;
@@ -2378,9 +2384,6 @@ function applyServerConfig(value) {
     confirmedConfigRevision = value.revision || 0;
     latestServerConfig = value;
     savedPhones = value.knownWirelessDevices || []; renderSavedPhones();
-    if (watchFolderInput && (!watchFolderInput.value || watchFolderInput.value === confirmedWatchFolder)) watchFolderInput.value = value.watchFolder || '';
-    confirmedWatchFolder = value.watchFolder || '';
-    if (currentWatchLabel) currentWatchLabel.textContent = confirmedWatchFolder || i18n[currentLang].default_watch_folder;
     if (!settingsPending) {
         selectedDevice = value.selectedAdbDevice || '';
         confirmedSelectedDevice = selectedDevice;
@@ -2453,6 +2456,12 @@ async function refreshDevices() {
 
 // Drag & Drop (Universal File Transfer & APK)
 dropzone.onclick = () => fileInput.click();
+dropzone.onkeydown = event => {
+    if (event.target === dropzone && (event.key === 'Enter' || event.key === ' ')) {
+        event.preventDefault();
+        fileInput.click();
+    }
+};
 
 fileInput.onchange = () => {
     if (fileInput.files.length > 0) {
@@ -2514,7 +2523,9 @@ async function performUpload(file, target) {
         });
         if (data.success) {
             const saved = data.transfer?.status === 'saved';
-            showToast(saved ? (currentLang === 'tr' ? 'Dosya PC’ye kaydedildi. Telefona gönderilmedi.' : 'Saved on PC. Not sent to a phone.') : (currentLang === 'tr' ? 'Aktarım kuyruğa alındı…' : 'Transfer queued…'), 'var(--warning)');
+            if (!['transferred', 'error'].includes(data.transfer?.status)) {
+                showToast(saved ? (currentLang === 'tr' ? 'Dosya PC’ye kaydedildi. Telefona gönderilmedi.' : 'Saved on PC. Not sent to a phone.') : (currentLang === 'tr' ? 'Aktarım kuyruğa alındı…' : 'Transfer queued…'), 'var(--warning)');
+            }
             if (data.transfer && !currentTransfers.some(t => t.id === data.transfer.id)) {
                 currentTransfers.unshift(data.transfer);
                 renderTransfers();

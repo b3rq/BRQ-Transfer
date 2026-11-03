@@ -10,6 +10,7 @@
     "panel": "node open-dashboard.js",
     "check": "node --check server.js && node --check electron.js && node --check public/pc.js && node --check open-dashboard.js",
     "test:ui": "node node_modules/electron/cli.js tests/electron-ui.cjs",
+    "test:ux": "node node_modules/electron/cli.js tests/electron-ux.cjs",
     "validate:local": "node tests/local-validation.cjs",
     "benchmark:watcher": "node tests/watcher-benchmark.cjs"
   },

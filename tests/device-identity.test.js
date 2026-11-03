@@ -2,6 +2,27 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const createHarness = require('./helpers/server-harness');
 
+test('connectedPhoneUsesMarketingModelWithCachedIdentity', async () => {
+    const h = createHarness({ command: args => {
+        if (args[0] === 'devices') return 'List of devices attached\nUSB\tdevice model:Hardware_Code';
+        if (args.includes('ro.serialno')) return 'SERIAL';
+        if (args.some(arg => arg.includes('BRQ_DEVICE_IDENTITY'))) return 'BRQ_DEVICE_IDENTITY\nPixel 9 Pro\nHardware_Code\nPersonal Name';
+        return '';
+    } });
+    assert.equal((await h.eval('getAdbDevices(true)'))[0].model, 'Pixel 9 Pro');
+    await h.eval('getAdbDevices(true)');
+    assert.equal(h.commands.filter(args => args.some(arg => arg.includes('BRQ_DEVICE_IDENTITY'))).length, 1);
+});
+
+test('connectedNote10PlusResolvesHardwareModelWithoutMarketingProperty', async () => {
+    const h = createHarness({ command: args => {
+        if (args[0] === 'devices') return 'List of devices attached\nadb-PHONE._adb-tls-connect._tcp\tdevice model:SM_N975F';
+        if (args.some(arg => arg.includes('BRQ_DEVICE_IDENTITY'))) return 'BRQ_DEVICE_IDENTITY\n\nSM-N975F\nPersonal Name';
+        return '';
+    } });
+    assert.equal((await h.eval('getAdbDevices(true)'))[0].model, 'Galaxy Note10+');
+});
+
 test('samePhoneTransportAliasesProduceOneRow', async () => {
     const h = createHarness({ command: args => args[0] === 'devices' ? 'List of devices attached\nUSB\tdevice model:Phone\n192.168.1.2:5555\tdevice model:Phone' : args.includes('ro.serialno') ? 'SERIAL' : '' });
     const devices = await h.eval('getAdbDevices(true)');

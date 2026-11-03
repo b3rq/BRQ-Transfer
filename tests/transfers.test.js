@@ -3,6 +3,94 @@ const assert = require('node:assert/strict');
 const createHarness = require('./helpers/server-harness');
 const file = { path: '/uploads/fixture.txt', originalname: 'fixture.txt', size: 3 };
 
+test('folderActionsLaunchVisibleExplorerWithSeparateSelectionArgument', async () => {
+    const launches = [];
+    const h = createHarness({ spawn: (binary, args, settings) => {
+        launches.push({ binary, args: Array.from(args), settings });
+        const proc = new (require('node:events').EventEmitter)();
+        queueMicrotask(() => proc.emit('spawn'));
+        return proc;
+    } });
+    const receivedDir = h.eval('RECEIVED_DIR');
+    const localPath = h.eval('path.join(RECEIVED_DIR, "tatil fotoğrafı.png")');
+    h.files.set(localPath, 'image');
+    h.context.fixturePath = localPath;
+    h.eval('transfersList=[{id:"photo",localPath:fixturePath}]');
+    assert.equal((await h.request('POST', '/api/transfers/open-folder')).body.success, true);
+    assert.equal((await h.request('POST', '/api/transfers/open-folder', { id: 'photo' })).body.success, true);
+    assert.deepEqual(launches.map(item => item.args), [[receivedDir], ['/select,', localPath]]);
+    assert.ok(launches.every(item => item.binary === 'explorer.exe' && item.settings.windowsHide === false));
+});
+
+test('apkPushStartsWhileMetadataIsStillBeingRead', async () => {
+    const h = createHarness({ command: args => args[0] === 'devices' ? 'List of devices attached\nUSB\tdevice' : '' });
+    h.eval('registerApk = () => new Promise(resolve => { globalThis.finishMetadata = resolve; })');
+    const upload = h.request('POST', '/api/upload', { deviceId: 'USB', requestId: 'slow-apk' },
+        { file: { ...file, originalname: 'game.apk' } });
+    await new Promise(resolve => setImmediate(resolve));
+    try {
+        assert.equal(h.commands.filter(args => args.includes('push')).length, 1);
+    } finally {
+        h.eval('finishMetadata(null)');
+        await upload;
+    }
+    assert.equal(h.commands.filter(args => args.includes('push')).length, 1);
+});
+
+test('phoneProgressUsesRemoteBytesAndOnlyCompletesAfterPushSucceeds', async () => {
+    let finish;
+    let remoteBytes = '50';
+    const h = createHarness({ command: args => {
+        if (args[0] === 'devices') return 'List of devices attached\nUSB\tdevice';
+        if (args.includes('push')) return new Promise(resolve => { finish = resolve; });
+        if (args[2] === 'shell' && args[3]?.startsWith('stat ')) return remoteBytes;
+        return '';
+    } });
+    const intervalCount = h.intervals.length;
+    await h.request('POST', '/api/upload', { deviceId: 'USB' }, { file: { ...file, size: 100 } });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(h.eval('transfersList[0].progress'), 0);
+    assert.equal(h.intervals.length, intervalCount + 1);
+    const poll = h.intervals.at(-1);
+    const writes = h.writes.length;
+    await poll();
+    assert.equal(h.eval('transfersList[0].progress'), 50);
+    assert.equal(h.events.at(-1).type, 'TRANSFER_PROGRESS');
+    assert.equal(h.writes.length, writes);
+    remoteBytes = '100';
+    await poll();
+    assert.equal(h.eval('transfersList[0].progress'), 99);
+    assert.equal(h.eval('transfersList[0].status'), 'transferring');
+    finish('ok');
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(h.eval('transfersList[0].progress'), 100);
+    assert.equal(h.eval('transfersList[0].status'), 'transferred');
+    const commands = h.commands.length;
+    await poll();
+    assert.equal(h.commands.length, commands);
+});
+
+test('unavailableRemoteSizeDoesNotFailPushOrInventProgress', async () => {
+    let fail;
+    const h = createHarness({ command: args => {
+        if (args[0] === 'devices') return 'List of devices attached\nUSB\tdevice';
+        if (args.includes('push')) return new Promise((_, reject) => { fail = reject; });
+        if (args[2] === 'shell' && args[3]?.startsWith('stat ')) throw new Error('stat unavailable');
+        return '';
+    } });
+    const intervalCount = h.intervals.length;
+    await h.request('POST', '/api/upload', { deviceId: 'USB' }, { file });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(h.intervals.length, intervalCount + 1);
+    await h.intervals.at(-1)();
+    assert.equal(h.eval('transfersList[0].progress'), 0);
+    assert.equal(h.eval('transfersList[0].status'), 'transferring');
+    fail(new Error('offline'));
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(h.eval('transfersList[0].status'), 'error');
+    assert.equal(h.events.some(event => event.type === 'TRANSFER_COMPLETED'), false);
+});
+
 test('slowPushRemainsInProgressAndReloadKeepsInFlightTransfer', async () => {
     let finish;
     const h = createHarness({ command: args => args[0] === 'devices' ? 'List of devices attached\nUSB\tdevice' : args.includes('push') ? new Promise(resolve => { finish = resolve; }) : '' });
