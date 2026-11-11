@@ -1,0 +1,12 @@
+FROM node:24-alpine
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+COPY web-server.js ./
+COPY web ./web
+COPY public/app.css public/icon.png ./public/
+ENV NODE_ENV=production
+ENV PORT=4600
+EXPOSE 4600
+USER node
+CMD ["node", "web-server.js"]

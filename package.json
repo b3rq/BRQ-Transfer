@@ -5,10 +5,12 @@
   "main": "electron.js",
   "scripts": {
     "start": "node server.js",
+    "web": "node web-server.js",
     "desktop": "node node_modules/electron/cli.js electron.js",
     "test": "node --test",
     "panel": "node open-dashboard.js",
-    "check": "node --check server.js && node --check electron.js && node --check public/pc.js && node --check open-dashboard.js",
+    "check": "node --check server.js && node --check electron.js && node --check public/pc.js && node --check open-dashboard.js && node --check web-server.js && node --check web/app.js && node --check web/protocol.js",
+    "test:web": "node node_modules/electron/cli.js tests/web-browser.cjs",
     "test:ui": "node node_modules/electron/cli.js tests/electron-ui.cjs",
     "test:ux": "node node_modules/electron/cli.js tests/electron-ux.cjs",
     "validate:local": "node tests/local-validation.cjs",

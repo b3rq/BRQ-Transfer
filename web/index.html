@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="tr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="BRQ Transfer — kurulum gerektirmeden, cihazlar arasında doğrudan dosya paylaşımı.">
+  <meta name="referrer" content="no-referrer">
+  <title>BRQ Transfer · Web</title>
+  <link rel="icon" href="icon.png">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="web.css">
+  <script src="protocol.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body class="web-app">
+  <a class="skip-link" href="#main-content" data-i18n="skip">İçeriğe geç</a>
+  <header class="topbar">
+    <div class="brand">
+      <img src="icon.png" class="brand-logo" width="32" height="32" alt="BRQ Transfer">
+      <div class="brand-info">
+        <div class="brand-title-row"><span class="brand-name">BRQ Transfer</span><span class="tag-version">Web</span></div>
+        <span class="brand-slogan" data-i18n="slogan">Kablolar için fazla üşengeç</span>
+      </div>
+    </div>
+    <div class="web-top-actions">
+      <span class="badge-wifi-live" data-i18n="installFree">Kurulumsuz paylaşım</span>
+      <button class="btn btn-secondary" id="language" aria-label="Switch language">EN</button>
+      <button class="btn btn-secondary" id="theme" data-i18n="theme">Tema</button>
+    </div>
+  </header>
+  <main id="main-content" class="web-main">
+    <div class="web-heading">
+      <div class="page-heading"><h1 data-i18n="title">Dosya Transferleri</h1><p data-i18n="subtitle">Aynı Wi-Fi. İki cihaz. Dosyaların doğrudan karşı tarafta.</p></div>
+      <div class="status-indicator" id="connection-pill"><span class="status-dot"></span><span id="connection-status" role="status" aria-live="polite">Bağlanıyor…</span></div>
+    </div>
+    <p id="notice" role="alert" hidden></p>
+    <div class="web-grid">
+      <aside class="web-sidebar" aria-label="Bağlantı ve gönderim">
+        <section class="panel web-pair-panel">
+          <div class="panel-header-between"><h2 data-i18n="pairTitle">Cihazını bağla</h2><span class="badge-wifi-live">Wi-Fi Web</span></div>
+          <div class="web-panel-body">
+            <label for="device-name" data-i18n="deviceName">Bu cihazın adı</label>
+            <div class="web-name-row"><input class="input-text" id="device-name" maxlength="60" autocomplete="off"><button class="btn btn-secondary" id="save-name" data-i18n="save">Kaydet</button></div>
+            <div id="invitation">
+              <div class="web-qr"><img id="qr" width="200" height="200" alt="Diğer cihazı eşleştirmek için QR kodu"></div>
+              <p class="web-hint" data-i18n="qrHint">Telefon kamerasıyla QR kodu okut. Açılan sayfada bağlantıyı onayla.</p>
+              <label for="network" id="network-label" hidden data-i18n="network">Bağlantı adresi</label>
+              <select class="input-text" id="network" hidden></select>
+              <button class="btn btn-secondary w-full" id="copy-link" data-i18n="copyLink">Eşleşme bağlantısını kopyala</button>
+              <p class="web-small" data-i18n="linkHint">Bağlantıyı yalnızca eşleştireceğin cihazla paylaş.</p>
+            </div>
+            <div id="pair-request" class="web-request" hidden>
+              <strong id="request-name"></strong><p data-i18n="pairConfirm">Bu cihazla eşleşmek istiyor musun?</p>
+              <div class="web-button-row"><button class="btn btn-primary" id="approve" data-i18n="approve">Eşleşmeyi onayla</button><button class="btn btn-secondary" id="reject" data-i18n="reject">Reddet</button></div>
+            </div>
+            <div id="remembered" class="web-remembered" hidden>
+              <span class="web-device-icon" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M10 18h4"/></svg></span>
+              <strong id="peer-name"></strong><p class="web-hint" data-i18n="rememberHint">İki cihazda da bu site açıkken otomatik yeniden bağlanır.</p>
+              <div class="web-button-row"><button class="btn btn-secondary" id="reconnect" data-i18n="reconnect">Yeniden bağlan</button><button class="btn btn-secondary" id="forget" data-i18n="forget">Cihazı unut</button></div>
+            </div>
+            <p class="web-small" data-i18n="debugHint">Hata ayıklama veya uygulama kurulumu gerekmez.</p>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panel-header-between"><h2 data-i18n="sendTitle">Dosya gönder</h2><span class="web-small" data-i18n="direct">Doğrudan</span></div>
+          <button class="dropzone" id="dropzone" disabled>
+            <svg aria-hidden="true" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M12 3v12m-5-10 5-5 5 5"/></svg>
+            <span class="dropzone-label" data-i18n="drop">Dosyaları buraya bırak</span><span class="dropzone-sub" data-i18n="browse">veya seçmek için tıkla</span>
+            <span class="dropzone-chips"><span class="chip">APK</span><span class="chip">PNG/JPG</span><span class="chip">MP4</span><span class="chip">PDF/ZIP</span></span>
+          </button>
+          <input type="file" id="file-input" multiple hidden>
+          <p class="web-panel-note" id="send-hint" data-i18n="connectFirst">Dosya göndermek için önce cihazını bağla.</p>
+          <p class="web-panel-note" id="storage-hint" data-i18n="fallbackHint" hidden>Bu tarayıcıda alma sınırı 100 MiB. Son dosyayı yenisini kabul etmeden önce indir.</p>
+        </section>
+      </aside>
+      <section class="panel web-history" aria-labelledby="history-title">
+        <div class="panel-header-between"><h2 id="history-title" data-i18n="history">Aktarım geçmişi</h2><button class="btn btn-secondary" id="clear" data-i18n="clear">Temizle</button></div>
+        <div id="transfer-list" class="web-transfer-list">
+          <div id="empty" class="empty-view">
+            <div class="web-empty-icon" aria-hidden="true"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M7 7h14m-4-4 4 4-4 4M17 17H3m4-4-4 4 4 4"/></svg></div>
+            <p class="empty-title" data-i18n="empty">Henüz dosya aktarılmadı</p><p class="empty-sub" data-i18n="emptyHint">Cihazını eşleştir; fotoğraf, video, APK veya belgelerini iki yönde paylaş.</p>
+          </div>
+        </div>
+        <div class="web-history-footer"><span class="status-dot"></span><span data-i18n="privacy">Dosyaların sunucuda depolanmaz.</span></div>
+      </section>
+    </div>
+    <footer class="web-footer"><span data-i18n="keepOpen">Aktarım boyunca iki cihazda da sayfayı açık tut.</span><span data-i18n="version">BRQ Transfer · Web önizleme</span></footer>
+  </main>
+  <dialog id="forget-dialog"><h2 data-i18n="forget">Cihazı unut</h2><p data-i18n="forgetConfirm">Bu cihazı unutursan yeniden QR ile eşleştirmen gerekir. Devam eden aktarımlar durur.</p><div class="web-button-row"><button class="btn btn-secondary" id="forget-cancel" data-i18n="cancel">Vazgeç</button><button class="btn btn-primary" id="forget-confirm" data-i18n="forget">Cihazı unut</button></div></dialog>
+</body>
+</html>
