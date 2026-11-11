@@ -17,6 +17,7 @@ jobs:
       - run: npm run check
       - run: npm test
       - run: npm run test:ui
+      - run: npm run test:web
 
   android-source:
     runs-on: windows-latest

@@ -1,0 +1,13 @@
+.git
+.agents
+.validation
+node_modules
+uploads
+received
+watch
+tools
+android-companion
+config.json*
+transfers.json*
+.dashboard-session.json*
+*.keystore
