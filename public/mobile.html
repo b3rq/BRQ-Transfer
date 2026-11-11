@@ -829,9 +829,9 @@
       if (isUploading || selectedFiles.length === 0) return;
       isUploading = true;
       const snapshot = [...selectedFiles];
-      if (snapshot.length > 50 || snapshot.some(file => file.size > 2000 * 1024 * 1024) || snapshot.reduce((total, file) => total + file.size, 0) > 4000 * 1024 * 1024) {
+      if (snapshot.length > 50) {
         isUploading = false;
-        showToast(currentLang === 'tr' ? 'En fazla 50 dosya; dosya başına 2000 MiB, gönderim toplamı 4000 MiB.' : 'Up to 50 files; 2000 MiB per file, 4000 MiB total.', true);
+        showToast(currentLang === 'tr' ? 'Bir gönderimde en fazla 50 dosya seçin.' : 'Select up to 50 files per transfer.', true);
         return;
       }
 
@@ -861,7 +861,6 @@
         }
       };
 
-      xhr.timeout = 15 * 60 * 1000;
       xhr.onload = () => {
         activeUpload = null;
         isUploading = false;
@@ -890,7 +889,7 @@
         }
       };
 
-      xhr.onerror = xhr.ontimeout = xhr.onabort = () => {
+      xhr.onerror = xhr.onabort = () => {
         activeUpload = null;
         isUploading = false;
         updateSendButton();

@@ -36,6 +36,9 @@ for (const method of ['get', 'post']) {
         }));
 }
 const server = http.createServer(app);
+// Large uploads may run for hours; close idle connections instead of timing the whole request.
+server.requestTimeout = 0;
+server.timeout = 5 * 60 * 1000;
 const wss = new WebSocket.Server({ server, maxPayload: 64 * 1024, perMessageDeflate: false, verifyClient: ({ req }, done) =>
     done(isAdminRequest(req) || (sameOriginRequest(req) && hasSession(req, 'brq_mobile', mobileSession)), 403) });
 const adminSession = crypto.randomBytes(32).toString('hex');
@@ -67,14 +70,13 @@ function sendApiError(res, error) {
         LIMIT_FILE_SIZE: 'Dosya 2000 MiB sınırını aşıyor.',
         LIMIT_UNEXPECTED_FILE: 'Dosya alanı veya dosya sayısı geçersiz.',
         LIMIT_FILE_COUNT: 'Bir gönderimde en fazla 50 dosya seçin.',
-        LIMIT_TOTAL_SIZE: 'Gönderim toplamı 4000 MiB sınırını aşıyor. Dosyaları ayrı gönderin.',
         EACCES: 'Dosyaya erişilemiyor. Klasör okuma/yazma izinlerini kontrol edin.',
         EPERM: 'Dosya işlemi engellendi. Dosyanın başka uygulamada açık olmadığını ve izinleri kontrol edin.',
         ENOENT: 'Dosya veya klasör bulunamadı. Listeyi yenileyip tekrar deneyin.',
         EIO: 'Disk işlemi tamamlanamadı. Disk bağlantısını ve boş alanı kontrol edin.',
         INTERNAL_ERROR: 'İşlem tamamlanamadı. Tekrar deneyin.'
     };
-    const status = error.status || (['EACCES', 'EPERM'].includes(code) ? 403 : code === 'ENOENT' ? 404 : ['LIMIT_FILE_SIZE', 'LIMIT_TOTAL_SIZE', 'LIMIT_FILE_COUNT'].includes(code) ? 413 : code.startsWith('LIMIT_') ? 400 : 500);
+    const status = error.status || (['EACCES', 'EPERM'].includes(code) ? 403 : code === 'ENOENT' ? 404 : ['LIMIT_FILE_SIZE', 'LIMIT_FILE_COUNT'].includes(code) ? 413 : code.startsWith('LIMIT_') ? 400 : 500);
     return res.status(status).json({ success: false, error: { code: code === 'ENOSPC' ? 'DISK_FULL' : ['EACCES', 'EPERM'].includes(code) ? 'FILE_ACCESS_DENIED' : code,
         message: messages[code] || (/^E[A-Z]+$/.test(code) ? messages.INTERNAL_ERROR : error.message), action: 'Bağlantıyı ve ayarları kontrol edip tekrar deneyin.',
         retryable: status >= 500 }, operationId: error.operationId || crypto.randomUUID() });
@@ -1595,14 +1597,9 @@ function cleanupUploadParts(req) {
         remove(0);
     }
 }
-function accountUploadBytes(req, byteLength) {
-    req.uploadBytes = (req.uploadBytes || 0) + byteLength;
-    if (req.uploadBytes > 4000 * 1024 * 1024) throw Object.assign(new Error('Gönderim toplamı 4000 MiB sınırını aşıyor. Dosyaları ayrı gönderin.'), { code: 'LIMIT_TOTAL_SIZE', status: 413 });
-}
 function uploadStorage(directory) {
     return multer.diskStorage({ destination: (req, file, cb) => cb(null, directory),
         filename: (req, file, cb) => {
-            file.stream.on('data', chunk => { try { accountUploadBytes(req, chunk.length); } catch (error) { file.stream.destroy(error); } });
             if (/^[\x00-\xff]*$/.test(file.originalname)) {
                 try { file.originalname = new TextDecoder('utf-8', { fatal: true }).decode(Buffer.from(file.originalname, 'latin1')); } catch (_) {}
             }
@@ -1617,7 +1614,7 @@ function uploadStorage(directory) {
         } });
 }
 const upload = multer({ storage: uploadStorage(UPLOADS_DIR), limits: { fileSize: 2000 * 1024 * 1024, files: 1, fields: 4, fieldSize: 1024, parts: 5 } });
-const uploadReceived = multer({ storage: uploadStorage(RECEIVED_DIR), limits: { fileSize: 2000 * 1024 * 1024, files: 50, fields: 4, fieldSize: 1024, parts: 55 } });
+const uploadReceived = multer({ storage: uploadStorage(RECEIVED_DIR), limits: { files: 50, fields: 4, fieldSize: 1024, parts: 55 } });
 
 // REST Routes
 app.get('/api/health', (req, res) => res.json({ app: 'brq-transfer', version: require('./package.json').version, ready: serverReady, port: PORT }));
