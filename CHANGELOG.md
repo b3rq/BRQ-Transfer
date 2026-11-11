@@ -3,6 +3,49 @@
 Notable changes are recorded here, newest first. Dated entries describe repository
 updates; they do not imply a new package version or release tag.
 
+## 2026-11-11
+
+### Added
+
+- A separate browser-only file-sharing preview (`npm run web`) with the existing
+  BRQ logo, shared styling, dark/light themes, Turkish/English UI and mobile layout.
+- QR/link pairing with approval on both pages, one remembered counterpart,
+  automatic reconnection while both pages are open, and a Forget device action.
+- Bidirectional WebRTC file transfers with receiver consent, progress,
+  cancellation, retry from the beginning and receiver completion acknowledgments.
+- Chunked, backpressured transfer; direct-to-disk saving in supported browsers
+  and a bounded 100 MiB download fallback elsewhere. Empty files are supported.
+- Isolated signaling service with same-origin checks, bounded rooms/messages,
+  explicit peer approvals and no desktop-admin or file-storage endpoints.
+- `npm run test:web` for real two-browser transfer/connection tests; CI integration,
+  an optional web Dockerfile and a GitHub-to-HTTPS-host deployment guide.
+
+### Scope
+
+- The desktop app and Android/ADB features are unchanged. Web visitors do not
+  need an application, ADB, extension or debugging setting. Both browser pages
+  must remain open; automatic background device discovery is not available.
+- The preview targets direct connections without TURN. Isolated networks can
+  prevent connectivity. Browser storage remembers the pair, not transfer history.
+- GitHub Pages cannot run signaling. Production needs an HTTPS/WebSocket host;
+  this repository update does not by itself provision a public deployment.
+
+### Validation
+
+- Syntax checks and `npm test`: 211 tests passed, no failures or skips.
+- Real Chromium sessions over a local LAN HTTP address: exact binary and empty
+  downloads in both directions, explicit approval, remembered reconnection,
+  cancellation, size limits, download cleanup and safe filename rendering passed.
+- Controlled disk-writer checks verified completion acknowledgment and prevented
+  cancellation once disk commit begins. A malicious-peer burst was disconnected
+  before exceeding the application receive-queue limit.
+- Existing Electron UI checks and all 46 desktop/mobile UX screen checks passed.
+- New web dark/light screenshots at 1280 px and 390 px were inspected.
+
+Physical phones, Safari/Firefox, native OS save dialogs, multi-gigabyte throughput,
+Docker image build and a public HTTPS deployment were not exercised. The web
+service is opt-in; the desktop server's transfer path is unchanged.
+
 ## 2026-11-03
 
 ### Added
