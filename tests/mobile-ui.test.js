@@ -24,9 +24,15 @@ test('mobileHttp200FailureKeepsQueueAndShowsServerReason', () => {
     assert.equal(h.eval('toast.textContent'), 'Disk dolu');
 });
 
-test('mobileRejectsBatchOverTotalBudgetBeforeStartingUpload', () => {
+test('mobileStartsUploadForFileAbovePreviousSizeLimits', () => {
     const h = uiHarness(true);
-    h.eval('selectedFiles=[{name:"A",size:2000*1024*1024},{name:"B",size:2000*1024*1024},{name:"C",size:1}];sendBtn.onclick()');
+    h.eval('selectedFiles=[{name:"video.mp4",size:5*1024**3}];sendBtn.onclick()');
+    assert.equal(h.xhrs.length, 1);
+});
+
+test('mobileRejectsBatchAboveFileCountLimit', () => {
+    const h = uiHarness(true);
+    h.eval('selectedFiles=Array.from({length:51},()=>({name:"A",size:1}));sendBtn.onclick()');
     assert.equal(h.xhrs.length, 0);
 });
 

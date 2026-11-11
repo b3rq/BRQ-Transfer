@@ -15,12 +15,6 @@ function request(url, options = {}, body) {
     });
 }
 
-test('uploadBudgetIncludesAllFilesAndRejectsOnlyAboveBoundary', () => {
-    const h = createHarness();
-    h.context.uploadRequest = {};
-    h.eval('accountUploadBytes(uploadRequest, 2000*1024*1024); accountUploadBytes(uploadRequest, 2000*1024*1024)');
-    assert.throws(() => h.eval('accountUploadBytes(uploadRequest,1)'), error => error.code === 'LIMIT_TOTAL_SIZE' && error.status === 413);
-});
 test('realMultipartSameNameUploadsKeepBothHashesAndRejectUnexpectedFields', async t => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'brq-test-'));
     const h = createHarness({ http: true, multipart: true, diskRoot: root });
@@ -65,8 +59,9 @@ test('realMultipartSameNameUploadsKeepBothHashesAndRejectUnexpectedFields', asyn
 test('exactUploadBoundaryIsAcceptedAndNextByteIsRejectedByRealParser', async t => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'brq-boundary-'));
     const realMulter = require('multer');
-    // Scale the production budget to 3 bytes while preserving its boundary offset.
-    const scaledMulter = options => realMulter({ ...options, limits: { ...options.limits, fileSize: options.limits.fileSize - 2000 * 1024 * 1024 + 3 } });
+    // Scale configured file size limits without imposing a limit on uncapped routes.
+    const scaledMulter = options => realMulter({ ...options, limits: options.limits.fileSize === undefined
+        ? options.limits : { ...options.limits, fileSize: options.limits.fileSize - 2000 * 1024 * 1024 + 3 } });
     scaledMulter.diskStorage = realMulter.diskStorage;
     const h = createHarness({ http: true, diskRoot: root, multipart: true, multer: scaledMulter });
     await new Promise(resolve => h.server.listenForTest(0, '127.0.0.1', resolve));
@@ -85,4 +80,10 @@ test('exactUploadBoundaryIsAcceptedAndNextByteIsRejectedByRealParser', async t =
     const body = Buffer.from(Array.from({ length: 51 }, (_, n) => `--fixture\r\nContent-Disposition: form-data; name="files"; filename="${n}.txt"\r\n\r\n\r\n`).join('') + '--fixture--\r\n');
     assert.equal((await request(base + '/api/upload/mobile-to-pc', { method: 'POST', headers: { cookie, 'content-type': 'multipart/form-data; boundary=fixture' } }, body)).status, 413);
     assert.equal(fs.readdirSync(path.join(root, 'received')).length, 0);
+
+    const mobileBody = Buffer.from('--fixture\r\nContent-Disposition: form-data; name="files"; filename="mobile.txt"\r\n\r\n1234\r\n--fixture--\r\n');
+    const mobileResponse = await request(base + '/api/upload/mobile-to-pc', { method: 'POST', headers: { cookie, 'content-type': 'multipart/form-data; boundary=fixture' } }, mobileBody);
+    assert.equal(mobileResponse.status, 200);
+    const [stored] = fs.readdirSync(path.join(root, 'received'));
+    assert.equal(fs.readFileSync(path.join(root, 'received', stored), 'utf8'), '1234');
 });
