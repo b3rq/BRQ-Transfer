@@ -4,6 +4,13 @@ High-speed local Wi-Fi file transfer, wireless ADB manager, live screen mirrorin
 
 See the [changelog](CHANGELOG.md) for recent improvements and validation results.
 
+**Browser-only file sharing:** run `npm run web` for the separate Web preview.
+Visitors pair two browser pages and send files both ways without installing BRQ
+or enabling Android debugging. It reuses the desktop appearance, remembers one
+paired device, and reconnects while both pages are open. See the
+[Web guide](docs/web-transfer.md) for LAN testing, browser limits and HTTPS hosting
+from this GitHub repository. The desktop commands and ADB features remain separate.
+
 ![BRQ Transfer Dashboard](docs/preview.png)
 
 This tool was created with AI assistance to remove daily friction in moving files, managing Android devices, and testing mobile applications without physical cables or cloud workarounds.
