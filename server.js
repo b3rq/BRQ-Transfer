@@ -40,14 +40,63 @@ const server = http.createServer(app);
 server.requestTimeout = 0;
 server.timeout = 5 * 60 * 1000;
 const wss = new WebSocket.Server({ server, maxPayload: 64 * 1024, perMessageDeflate: false, verifyClient: ({ req }, done) =>
-    done(isAdminRequest(req) || (sameOriginRequest(req) && hasSession(req, 'brq_mobile', mobileSession)), 403) });
+    done(isAdminRequest(req) || (sameOriginRequest(req) && hasMobileSession(req)), 403) });
 const adminSession = crypto.randomBytes(32).toString('hex');
 let dashboardBootstrap = crypto.randomBytes(32).toString('hex');
-const mobileSession = crypto.randomBytes(32).toString('hex');
 const unitySession = crypto.randomBytes(32).toString('hex');
 
 function hasSession(req, name, value) {
     return (req.headers.cookie || '').split(';').some(part => part.trim() === `${name}=${value}`);
+}
+function readCookie(req, name) {
+    for (const part of (req.headers.cookie || '').split(';')) {
+        const index = part.indexOf('=');
+        if (index > 0 && part.slice(0, index).trim() === name) return part.slice(index + 1).trim();
+    }
+    return '';
+}
+
+// --- Phone access ---
+// Anyone on the LAN can open /mobile, so a phone only gets upload/download rights when it
+// (a) scans the panel QR, which carries mobileAccessKey, (b) is approved in the panel, or
+// (c) connects over loopback (the PC itself or an adb-reverse tunnel from an ADB-authorized phone).
+// Each phone gets its own token so access can be reset without restarting.
+let mobileAccessKey = crypto.randomBytes(16).toString('hex');
+const mobileTokens = new Set();
+const mobileAccessRequests = new Map();
+function hasMobileSession(req) {
+    const token = readCookie(req, 'brq_mobile');
+    return !!token && mobileTokens.has(token);
+}
+function isLoopbackRequest(req) {
+    return ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket?.remoteAddress);
+}
+function grantMobileToken(res) {
+    const token = crypto.randomBytes(32).toString('hex');
+    mobileTokens.add(token);
+    if (mobileTokens.size > 200) mobileTokens.delete(mobileTokens.values().next().value);
+    res.cookie('brq_mobile', token, { httpOnly: true, sameSite: 'strict' });
+    return token;
+}
+function matchesAccessKey(value) {
+    if (typeof value !== 'string' || value.length !== mobileAccessKey.length) return false;
+    return crypto.timingSafeEqual(Buffer.from(value), Buffer.from(mobileAccessKey));
+}
+function mobileQrUrl(ip) { return `http://${ip}:${PORT}/mobile?k=${mobileAccessKey}`; }
+function describeUserAgent(agent = '') {
+    const model = agent.match(/;\s*([^;)]+?)\s+Build\//)?.[1] || agent.match(/\((iPhone|iPad)/)?.[1] ||
+        (/Android/i.test(agent) ? 'Android' : /Windows/i.test(agent) ? 'Windows' : /Mac OS/i.test(agent) ? 'Mac' : 'Tarayıcı');
+    const browser = agent.match(/(SamsungBrowser|Firefox|EdgA?|OPR|CriOS|Chrome|Safari)\/[\d.]+/)?.[1] || '';
+    return (browser ? `${model} · ${browser}` : model).replace(/[\x00-\x1f\x7f]/g, '').slice(0, 80);
+}
+function pruneMobileAccessRequests() {
+    const now = Date.now();
+    for (const [id, entry] of mobileAccessRequests) if (now - entry.createdAt > 5 * 60 * 1000) mobileAccessRequests.delete(id);
+}
+function publicMobileAccessRequests() {
+    pruneMobileAccessRequests();
+    return [...mobileAccessRequests.values()].filter(entry => entry.status === 'pending')
+        .map(({ id, ip, agent, createdAt }) => ({ id, ip, agent, createdAt }));
 }
 function sameOriginRequest(req) {
     const origin = req.headers.origin;
@@ -65,6 +114,8 @@ function isAdminRequest(req) {
 function sendApiError(res, error) {
     if (res.headersSent || res.destroyed) return;
     const code = error.code || (error.status ? 'REQUEST_FAILED' : 'INTERNAL_ERROR');
+    recentErrors.push({ at: new Date().toISOString(), code, status: error.status || 500 });
+    if (recentErrors.length > 50) recentErrors.shift();
     const messages = {
         ENOSPC: 'Diskte yeterli boş alan yok. Alan açıp tekrar deneyin.',
         LIMIT_FILE_SIZE: 'Dosya 2000 MiB sınırını aşıyor.',
@@ -81,6 +132,9 @@ function sendApiError(res, error) {
         message: messages[code] || (/^E[A-Z]+$/.test(code) ? messages.INTERNAL_ERROR : error.message), action: 'Bağlantıyı ve ayarları kontrol edip tekrar deneyin.',
         retryable: status >= 500 }, operationId: error.operationId || crypto.randomUUID() });
 }
+
+// Last API failures (codes only, no paths or command output) for the diagnostics report.
+const recentErrors = [];
 
 // Directories
 const BASE_DIR = __dirname;
@@ -345,6 +399,41 @@ function saveTransfers() {
     let completed = 0;
     transfersList = transfersList.filter(item => ['queued', 'transferring'].includes(item.status) || completed++ < 100);
     try { atomicWriteJson(TRANSFERS_FILE, transfersList); } catch (error) { transfersList = previous; throw error; }
+    if (transfersList.length !== previous.length) releaseUploadCopies(previous.filter(item => !transfersList.includes(item)));
+}
+
+function samePath(a, b) {
+    const left = path.resolve(a), right = path.resolve(b);
+    return process.platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right;
+}
+
+// PC-to-phone uploads keep a private copy in UPLOADS_DIR for retry and APK downloads.
+// Remove that copy once its history record is deleted or trimmed, otherwise the folder grows forever.
+function releaseUploadCopies(records) {
+    let apksChanged = false;
+    for (const record of records) {
+        if (record?.direction !== 'pc-to-phone' || typeof record.localPath !== 'string') continue;
+        if (!path.resolve(record.localPath).startsWith(path.resolve(UPLOADS_DIR) + path.sep)) continue;
+        if (transfersList.some(item => item.localPath && samePath(item.localPath, record.localPath))) continue;
+        try { fs.unlinkSync(record.localPath); }
+        catch (error) { if (error.code !== 'ENOENT') { console.error('Yükleme kopyası silinemedi:', error.message); continue; } }
+        const before = apkList.length;
+        apkList = apkList.filter(apk => !samePath(apk.filePath, record.localPath));
+        if (apkList.length !== before) apksChanged = true;
+    }
+    if (apksChanged) broadcast({ type: 'APKS_UPDATED', apks: apkList });
+}
+
+// Nothing can be in flight before the server listens, so leftovers are from crashes or kills.
+function removeStaleTemporaryFiles() {
+    for (const [directory, pattern] of [[UPLOADS_DIR, /^(?:\.install-.+\.apk|\.clip-.+\.tmp|.+\.part)$/i], [RECEIVED_DIR, /\.part$/i]]) {
+        let names = [];
+        try { names = fs.readdirSync(directory); } catch (_) { continue; }
+        for (const name of names) {
+            if (!pattern.test(name)) continue;
+            try { fs.unlinkSync(path.join(directory, name)); } catch (_) {}
+        }
+    }
 }
 
 function requireTransferCapacity() {
@@ -432,8 +521,9 @@ function syncTransfersWithDisk() {
         return timeB - timeA;
     });
 
-    transfersList = saved.slice(0, 100);
-    if (!transfersReadFailed) saveTransfers();
+    // saveTransfers trims the history and releases upload copies of dropped records.
+    if (transfersReadFailed) transfersList = saved.slice(0, 100);
+    else { transfersList = saved; saveTransfers(); }
     return transfersList;
 }
 
@@ -463,7 +553,8 @@ function indexReceivedFile(filePath) {
         const stats = fs.statSync(filePath);
         if (!stats.isFile()) return;
         const previous = transfersList.find(item => item.localPath && path.resolve(item.localPath) === path.resolve(filePath));
-        if (previous && previous.rawSize === stats.size && new Date(previous.mtime).getTime() === stats.mtimeMs) return;
+        // NTFS mtimeMs has sub-millisecond precision while Date/JSON keep whole milliseconds.
+        if (previous && previous.rawSize === stats.size && Math.abs(new Date(previous.mtime).getTime() - stats.mtimeMs) < 1) return;
         const record = { ...(previous || {}), id: previous?.id || crypto.randomUUID(), filename: previous?.filename || path.basename(filePath),
             originalName: previous?.originalName || path.basename(filePath), localPath: filePath, rawSize: stats.size, size: formatBytes(stats.size),
             mtime: stats.mtime, timestamp: new Date(stats.mtime).toLocaleTimeString(), direction: 'mobile-to-pc',
@@ -666,6 +757,20 @@ function getAdbBattery(deviceId) {
     return promise;
 }
 
+// The device monitor runs every 4 s; caching the serial avoids one adb.exe spawn per phone per tick.
+// Entries are dropped as soon as the transport goes offline, and operations that act on a phone
+// still verify the serial directly instead of trusting this cache.
+const transportSerialCache = new Map();
+function readTransportSerial(id) {
+    const cached = transportSerialCache.get(id);
+    if (cached && Date.now() < cached.expiresAt) return cached.promise;
+    const promise = runAdbCommand(['-s', id, 'shell', 'getprop', 'ro.serialno'], 2500)
+        .then(normalizePhoneSerial, () => '')
+        .then(serial => { if (!serial) transportSerialCache.delete(id); return serial; });
+    transportSerialCache.set(id, { promise, expiresAt: Date.now() + 30000 });
+    return promise;
+}
+
 let adbDeviceMutationVersion = 0;
 let devicesPoll = null;
 let devicesSnapshot = [];
@@ -677,28 +782,30 @@ async function getAdbDevices(strict = false) {
     const version = adbDeviceMutationVersion;
     devicesPoll = (async () => {
         const output = await runAdbCommand(['devices', '-l'], 4000);
-        const devices = [];
-        for (const line of output.split(/\r?\n/).slice(1)) {
+        // Query transports in parallel; one slow Wi-Fi phone must not delay every other row.
+        const rows = await Promise.all(output.split(/\r?\n/).slice(1).map(async line => {
             const [id, state] = line.trim().split(/\s+/);
-            if (!id || !state) continue;
+            if (!id || !state) return null;
             const isWifi = id.includes(':') || id.includes('._adb-tls-connect._tcp');
-            if (isWifi && await isForgottenWirelessDevice(id)) continue;
-            let serial = '';
-            if (state === 'device') {
-                try { serial = await runAdbCommand(['-s', id, 'shell', 'getprop', 'ro.serialno'], 2500); } catch (_) {}
-                serial = normalizePhoneSerial(serial);
-            }
+            if (isWifi && await isForgottenWirelessDevice(id)) return null;
+            const online = state === 'device';
+            const [serial, identity] = online ? await Promise.all([readTransportSerial(id), readWirelessPhoneIdentity(id)]) : ['', {}];
             const rawModel = line.match(/model:([^\s]+)/)?.[1]?.replace(/_/g, ' ') || '';
-            const identity = state === 'device' ? await readWirelessPhoneIdentity(id) : {};
-            const model = resolveDeviceModel(identity.model || rawModel) || 'Android Cihaz';
+            return { id, state, isWifi, serial, model: resolveDeviceModel(identity.model || rawModel) || 'Android Cihaz' };
+        }));
+        const devices = [];
+        for (const row of rows) {
+            if (!row) continue;
+            const { id, state, isWifi, serial, model } = row;
             const phoneId = serial ? 'phone-' + crypto.createHash('sha256').update(serial).digest('hex').slice(0, 24) : 'transport-' + id;
             let device = devices.find(d => d.phoneId === phoneId);
             if (device) { device.transports.push({ id, state, isWifi }); continue; }
             device = { id, transportId: id, phoneId, serial, state, model, isWifi, transports: [{ id, state, isWifi }] };
             devices.push(device);
-            if (state === 'device') device.battery = await getAdbBattery(id);
         }
+        await Promise.all(devices.filter(device => device.state === 'device').map(async device => { device.battery = await getAdbBattery(device.id); }));
         const online = new Set(devices.flatMap(d => d.transports.filter(t => t.state === 'device').map(t => t.id)));
+        for (const id of transportSerialCache.keys()) if (!online.has(id)) transportSerialCache.delete(id);
         for (const id of reversedTransports) if (!online.has(id)) { reversedTransports.delete(id); batteryCache.delete(id); }
         for (const id of online) if (!reversedTransports.has(id)) {
             try { await runAdbCommand(['-s', id, 'reverse', 'tcp:' + PORT, 'tcp:' + PORT], 2500); reversedTransports.add(id); } catch (_) {}
@@ -741,7 +848,8 @@ function runAdbCommand(args, options = 8000) {
 }
 const ownedAdbProcesses = new Set();
 
-async function resolveTargetDevice(target) {
+// withSerial returns { target, serial } so callers do not spawn a second getprop for the same phone.
+async function resolveTargetDevice(target, options = {}) {
     if (typeof target === 'string' && target.startsWith('phone-')) {
         const device = (await getAdbDevices(true)).find(item => item.phoneId === target && item.state === 'device');
         if (!device) throw Object.assign(new Error('Seçili telefon bağlı değil. Yeniden bağlanın.'), { code: 'DEVICE_OFFLINE', status: 409 });
@@ -757,11 +865,12 @@ async function resolveTargetDevice(target) {
     if (!row || row[1] !== 'device') throw Object.assign(new Error('Seçili telefon bağlı değil veya izin bekliyor. Telefonu yeniden bağlayın.'),
         { code: row?.[1] === 'unauthorized' ? 'DEVICE_UNAUTHORIZED' : 'DEVICE_OFFLINE', status: 409 });
     const known = config.knownWirelessDevices.find(item => item.deviceId === target && item.serial);
-    if (known) {
-        const serial = await runAdbCommand(['-s', target, 'shell', 'getprop', 'ro.serialno'], 3000);
-        if (serial !== known.serial) throw Object.assign(new Error('Bu bağlantı artık kayıtlı telefona ait değil. Telefonu listeden yeniden seçin.'), { code: 'DEVICE_IDENTITY_CHANGED', status: 409 });
+    let serial = '';
+    if (known || options.withSerial) {
+        serial = await runAdbCommand(['-s', target, 'shell', 'getprop', 'ro.serialno'], 3000);
+        if (known && serial !== known.serial) throw Object.assign(new Error('Bu bağlantı artık kayıtlı telefona ait değil. Telefonu listeden yeniden seçin.'), { code: 'DEVICE_IDENTITY_CHANGED', status: 409 });
     }
-    return target;
+    return options.withSerial ? { target, serial: normalizePhoneSerial(serial) } : target;
 }
 
 function isValidAdbAddress(ip, port) {
@@ -818,16 +927,20 @@ async function launchAppViaAdb(deviceId, packageName) {
 
 const deviceDataQueues = new Map();
 const deviceDataQueueCounts = new Map();
-async function runDeviceDataOperation(target, work) {
-    const serial = normalizePhoneSerial(await runAdbCommand(['-s', target, 'shell', 'getprop', 'ro.serialno'], 3000));
+// knownSerial: pass the serial the caller already verified to skip one more adb.exe spawn.
+async function runDeviceDataOperation(target, work, knownSerial) {
+    const serial = typeof knownSerial === 'string' ? knownSerial : normalizePhoneSerial(await runAdbCommand(['-s', target, 'shell', 'getprop', 'ro.serialno'], 3000));
     const key = serial || target;
     const count = deviceDataQueueCounts.get(key) || 0;
     if (count >= 100) throw Object.assign(new Error('Telefonun işlem kuyruğu dolu. İşlemlerin bitmesini bekleyin.'), { code: 'DEVICE_BUSY', status: 409 });
     deviceDataQueueCounts.set(key, count + 1);
     const previous = deviceDataQueues.get(key) || Promise.resolve();
     const pending = previous.catch(() => {}).then(async () => {
-        await resolveTargetDevice(target);
-        if (serial && await runAdbCommand(['-s', target, 'shell', 'getprop', 'ro.serialno'], 3000) !== serial) throw Object.assign(new Error('Telefon kimliği değişti. İşlemi doğru telefonla yeniden başlatın.'), { code: 'DEVICE_IDENTITY_CHANGED', status: 409 });
+        // Re-check right before the work starts: the queue may have waited minutes behind other pushes.
+        if (serial) {
+            const current = await resolveTargetDevice(target, { withSerial: true });
+            if (current.serial !== serial) throw Object.assign(new Error('Telefon kimliği değişti. İşlemi doğru telefonla yeniden başlatın.'), { code: 'DEVICE_IDENTITY_CHANGED', status: 409 });
+        } else await resolveTargetDevice(target);
         return work();
     });
     deviceDataQueues.set(key, pending);
@@ -842,7 +955,8 @@ async function installApkViaAdb(deviceId, apkPath, apkMeta = null) {
     const operationId = crypto.randomUUID();
     let target = deviceId;
     try {
-        target = await resolveTargetDevice(deviceId);
+        const resolved = await resolveTargetDevice(deviceId, { withSerial: true });
+        target = resolved.target;
         return await runDeviceDataOperation(target, async () => {
             broadcast({ type: 'ADB_INSTALL_START', operationId, deviceId: target, apkName: path.basename(apkPath) });
             const snapshot = path.join(UPLOADS_DIR, '.install-' + crypto.randomUUID() + '.apk');
@@ -861,7 +975,7 @@ async function installApkViaAdb(deviceId, apkPath, apkMeta = null) {
                 }
                 return { success: true, operationId };
             } finally { try { fs.unlinkSync(snapshot); } catch (_) {} }
-        });
+        }, resolved.serial);
     } catch (error) {
         error.operationId = operationId;
         broadcast({ type: 'ADB_INSTALL_ERROR', operationId, deviceId: target, apkName: path.basename(apkPath), error: error.message });
@@ -874,11 +988,12 @@ function normalizePhoneSerial(value) {
     return typeof value === 'string' && /^[a-zA-Z0-9._-]{1,255}$/.test(value) && !/^(unknown|null|undefined|0+)$/i.test(value) ? value : '';
 }
 
+// The QR pairing password grants ADB access, so it must come from a CSPRNG.
 function generateRandomString(length) {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     let res = "";
     for (let i = 0; i < length; i++) {
-        res += chars.charAt(Math.floor(Math.random() * chars.length));
+        res += chars.charAt(crypto.randomInt(chars.length));
     }
     return res;
 }
@@ -1385,15 +1500,27 @@ async function runPairingLoop(session) {
     }
 }
 
+const SHARED_FILE_EVENTS = new Set(['TRANSFERS_UPDATED', 'TRANSFER_SAVED', 'TRANSFER_COMPLETED', 'TRANSFER_FAILED']);
 function broadcast(data) {
     const payload = JSON.stringify(data);
+    // Phones receive only public projections, serialized once per event rather than per client.
+    let phonePayload;
+    if (data.type === 'NEW_APK') phonePayload = JSON.stringify({ type: 'NEW_APK', apk: publicApk(data.apk) });
+    else if (data.type === 'APKS_UPDATED') phonePayload = JSON.stringify({ type: 'APKS_UPDATED', apks: data.apks.map(publicApk) });
+    else if (SHARED_FILE_EVENTS.has(data.type)) phonePayload = JSON.stringify({ type: 'SHARED_FILES_UPDATED', files: publicSharedFiles() });
     wss.clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) {
-            if (client.isAdmin) client.send(payload);
-            else if (data.type === 'NEW_APK') client.send(JSON.stringify({ type: 'NEW_APK', apk: publicApk(data.apk) }));
-            else if (data.type === 'APKS_UPDATED') client.send(JSON.stringify({ type: 'APKS_UPDATED', apks: data.apks.map(publicApk) }));
-        }
+        if (client.readyState !== WebSocket.OPEN) return;
+        if (client.isAdmin) client.send(payload);
+        else if (phonePayload) client.send(phonePayload);
     });
+}
+
+// Files sent from the PC stay downloadable on the phone page, so a phone without
+// wireless debugging can still receive them.
+function publicSharedFiles() {
+    return transfersList.filter(item => item.direction === 'pc-to-phone' && item.localPath && !['queued'].includes(item.status))
+        .slice(0, 100).map(item => ({ id: String(item.id), filename: item.filename, size: item.size, rawSize: item.rawSize,
+            category: item.category, timestamp: item.timestamp }));
 }
 
 // In-Browser High-FPS Screen Streamer via hardware screenrecord H.264
@@ -1476,25 +1603,10 @@ wss.on('connection', (ws, req) => {
 async function initializeWebSocket(ws, req) {
     ws.isAdmin = isAdminRequest(req);
     if (!ws.isAdmin) {
-        ws.send(JSON.stringify({ type: 'INIT', apks: apkList.map(publicApk), port: PORT }));
+        ws.send(JSON.stringify({ type: 'INIT', apks: apkList.map(publicApk), shared: publicSharedFiles(), port: PORT }));
         return;
     }
-    const devices = await getAdbDevices();
-    if (ws.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({
-        type: 'INIT',
-        apks: apkList,
-        transfers: transfersList,
-        devices: devices,
-        config: config,
-        localIp: getPrimaryIp(),
-        availableIps: getAllLocalIps(),
-        port: PORT,
-        clipboardMode: currentClipboardMode,
-        isScrcpyRunning: !!activeScrcpyProcess,
-        pairingSession: publicPairingSession()
-    }));
-
+    // Register before the first await so a START sent right after connecting is not dropped.
     ws.on('message', (message) => {
         try {
             const data = JSON.parse(message);
@@ -1513,6 +1625,28 @@ async function initializeWebSocket(ws, req) {
             stopScreenStream();
         }
     });
+    const devices = await getAdbDevices();
+    if (ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({
+        type: 'INIT',
+        apks: apkList,
+        transfers: transfersList,
+        devices: devices,
+        config: config,
+        localIp: getPrimaryIp(),
+        availableIps: getAllLocalIps(),
+        port: PORT,
+        clipboardMode: currentClipboardMode,
+        isScrcpyRunning: !!activeScrcpyProcess,
+        pairingSession: publicPairingSession(),
+        mobileAccessRequests: publicMobileAccessRequests()
+    }));
+
+}
+
+// The cookie middleware and the '/' route must agree, otherwise a phone gets the page without upload rights.
+function isMobileUserAgent(req) {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(req.headers['user-agent'] || '');
 }
 
 // Middleware
@@ -1520,10 +1654,17 @@ app.use((req, res, next) => {
     if (!sameOriginRequest(req)) return sendApiError(res, Object.assign(new Error('Bu kaynaktan erişime izin verilmiyor. Yerel yönetim panelini açın.'), { code: 'FORBIDDEN', status: 403 }));
     if (req.path === '/api/health') return next();
     if (req.method === 'GET' && (req.path === '/mobile' || req.path === '/mobile.html' ||
-        (req.path === '/' && /Android|iPhone|iPad|Mobile/i.test(req.headers['user-agent'] || '')))) {
-        res.cookie('brq_mobile', mobileSession, { httpOnly: true, sameSite: 'strict' });
+        (req.path === '/' && isMobileUserAgent(req)))) {
+        // The QR key is exchanged for a per-phone cookie and removed from the address bar.
+        if (matchesAccessKey(req.query.k)) {
+            if (!hasMobileSession(req)) grantMobileToken(res);
+            res.setHeader('Referrer-Policy', 'no-referrer');
+            return res.redirect('/mobile');
+        }
+        if (!hasMobileSession(req) && isLoopbackRequest(req)) grantMobileToken(res);
         return next();
     }
+    if (['/api/mobile/access', '/api/mobile/access/request'].includes(req.path) && !isAdminRequest(req)) return next();
     if (req.method === 'GET' && req.path === '/' && isLocalDashboardHost(req) && req.query.session === dashboardBootstrap) {
         const previous = dashboardBootstrap;
         dashboardBootstrap = crypto.randomBytes(32).toString('hex');
@@ -1534,8 +1675,8 @@ app.use((req, res, next) => {
     }
     if (req.method === 'GET' && req.path === '/' && isLocalDashboardHost(req) && !isAdminRequest(req)) return res.status(403).send('Yönetim panelini masaüstü başlatıcısından veya npm run panel ile açın. Mobil aktarım: /mobile');
     if (req.path === '/api/unity-build-done' && isLocalDashboardHost(req) && !req.headers.origin && req.headers['x-brq-local-session'] === unitySession) return next();
-    const transferSurface = req.path === '/api/upload/mobile-to-pc' || req.path === '/api/apks' || req.path.startsWith('/download/');
-    if (isAdminRequest(req) || (transferSurface && hasSession(req, 'brq_mobile', mobileSession))) return next();
+    const transferSurface = req.path.startsWith('/api/upload/mobile-to-pc') || req.path === '/api/apks' || req.path === '/api/shared' || req.path.startsWith('/download/');
+    if (isAdminRequest(req) || (transferSurface && hasMobileSession(req))) return next();
     if (req.path.startsWith('/api/') || req.path.startsWith('/download/')) return sendApiError(res, Object.assign(new Error('Bu işlem için yerel yönetim panelini açın.'), { code: 'FORBIDDEN', status: 403 }));
     next();
 });
@@ -1551,8 +1692,9 @@ app.use((req, res, next) => {
 });
 let activeUploadRequests = 0;
 app.use((req, res, next) => {
-    if (req.method !== 'POST' || !['/api/upload', '/api/upload/mobile-to-pc'].includes(req.path)) return next();
-    if (activeUploadRequests >= 4) return sendApiError(res, Object.assign(new Error('Yükleme sınırı dolu. Devam eden yüklemelerin bitmesini bekleyin.'), { code: 'UPLOAD_BUSY', status: 429 }));
+    if (req.method !== 'POST' || !(['/api/upload', '/api/upload/mobile-to-pc'].includes(req.path) || /^\/api\/upload\/mobile-to-pc\/sessions\/[^/]+\/chunk$/.test(req.path))) return next();
+    // Resumable uploads send short chunk requests, so allow more of them than whole-file uploads.
+    if (activeUploadRequests >= (req.path.endsWith('/chunk') ? 12 : 4)) return sendApiError(res, Object.assign(new Error('Yükleme sınırı dolu. Devam eden yüklemelerin bitmesini bekleyin.'), { code: 'UPLOAD_BUSY', status: 429 }));
     activeUploadRequests++;
     let finished = false;
     const finish = () => { if (!finished) { finished = true; activeUploadRequests--; } };
@@ -1577,9 +1719,7 @@ app.use((req, res, next) => {
 
 // Auto-route mobile clients to mobile PWA interface
 app.get('/', (req, res, next) => {
-    const ua = req.headers['user-agent'] || '';
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-    if (isMobile) {
+    if (isMobileUserAgent(req)) {
         return res.sendFile(path.join(PUBLIC_DIR, 'mobile.html'));
     }
     next();
@@ -1617,6 +1757,86 @@ const upload = multer({ storage: uploadStorage(UPLOADS_DIR), limits: { fileSize:
 const uploadReceived = multer({ storage: uploadStorage(RECEIVED_DIR), limits: { files: 50, fields: 4, fieldSize: 1024, parts: 55 } });
 
 // REST Routes
+// --- Phone access endpoints ---
+app.post('/api/mobile/access/request', (req, res) => {
+    if (hasMobileSession(req)) return res.json({ success: true, authorized: true });
+    pruneMobileAccessRequests();
+    let entry = mobileAccessRequests.get(readCookie(req, 'brq_mobile_req'));
+    if (!entry) {
+        const ip = String(req.socket?.remoteAddress || '').replace(/^::ffff:/, '');
+        const pending = [...mobileAccessRequests.values()].filter(item => item.status === 'pending');
+        if (pending.length >= 10 || pending.filter(item => item.ip === ip).length >= 3) {
+            throw Object.assign(new Error('Çok fazla bekleyen erişim isteği var. Panelden QR kodunu okutun.'), { code: 'ACCESS_BUSY', status: 429 });
+        }
+        entry = { id: crypto.randomUUID(), ip, agent: describeUserAgent(req.headers['user-agent']), createdAt: Date.now(), status: 'pending' };
+        mobileAccessRequests.set(entry.id, entry);
+        res.cookie('brq_mobile_req', entry.id, { httpOnly: true, sameSite: 'strict' });
+        broadcast({ type: 'MOBILE_ACCESS_REQUESTS', requests: publicMobileAccessRequests() });
+    }
+    res.json({ success: true, authorized: false, status: entry.status });
+});
+app.get('/api/mobile/access', (req, res) => {
+    if (hasMobileSession(req)) return res.json({ success: true, authorized: true });
+    pruneMobileAccessRequests();
+    const entry = mobileAccessRequests.get(readCookie(req, 'brq_mobile_req'));
+    if (entry?.status === 'approved') {
+        mobileAccessRequests.delete(entry.id);
+        grantMobileToken(res);
+        return res.json({ success: true, authorized: true });
+    }
+    res.json({ success: true, authorized: false, status: entry?.status || 'none' });
+});
+app.get('/api/mobile/access/requests', (req, res) => res.json({ success: true, requests: publicMobileAccessRequests() }));
+app.post('/api/mobile/access/decide', (req, res) => {
+    const entry = mobileAccessRequests.get(req.body.id);
+    if (!entry || entry.status !== 'pending') throw Object.assign(new Error('Erişim isteği bulunamadı veya süresi doldu.'), { code: 'ACCESS_REQUEST_EXPIRED', status: 404 });
+    entry.status = req.body.approve === true ? 'approved' : 'denied';
+    broadcast({ type: 'MOBILE_ACCESS_REQUESTS', requests: publicMobileAccessRequests() });
+    res.json({ success: true, requests: publicMobileAccessRequests() });
+});
+app.post('/api/mobile/access/reset', async (req, res) => {
+    mobileAccessKey = crypto.randomBytes(16).toString('hex');
+    mobileTokens.clear();
+    mobileAccessRequests.clear();
+    for (const client of wss.clients) if (!client.isAdmin) client.terminate();
+    const primaryIp = getPrimaryIp();
+    const url = mobileQrUrl(primaryIp);
+    const qrDataUrl = await QRCode.toDataURL(url, { width: 320, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
+    broadcast({ type: 'MOBILE_ACCESS_REQUESTS', requests: [] });
+    broadcast({ type: 'MOBILE_QR_UPDATED', url, qrDataUrl, ip: primaryIp, availableIps: getAllLocalIps() });
+    res.json({ success: true, url, qrDataUrl });
+});
+
+// One-click report the user can paste into an issue instead of describing their setup.
+// Serials, IPs and paths are summarized, not exposed.
+app.get('/api/diagnostics', async (req, res) => {
+    let adbVersion = '';
+    try { adbVersion = (await runAdbCommand(['version'], 3000)).split(/\r?\n/)[0]; } catch (error) { adbVersion = 'unavailable (' + (error.code || 'error') + ')'; }
+    const devices = await getAdbDevices();
+    const sizeOf = directory => {
+        let files = 0, bytes = 0;
+        try { for (const name of fs.readdirSync(directory)) { try { const stat = fs.statSync(path.join(directory, name)); if (stat.isFile()) { files++; bytes += stat.size; } } catch (_) {} } } catch (_) {}
+        return { files, size: formatBytes(bytes) };
+    };
+    res.json({
+        generatedAt: new Date().toISOString(),
+        app: { version: require('./package.json').version, node: process.version, platform: [process.platform, os.release?.()].filter(Boolean).join(' '), uptimeSeconds: Math.round(process.uptime?.() || 0) },
+        tools: { adb: ADB_BIN === 'adb.exe' ? 'PATH' : 'bundled SDK', adbVersion, aapt: AAPT_BIN === 'aapt.exe' ? 'PATH' : 'bundled SDK',
+            scrcpy: fs.existsSync(SCRCPY_BIN), clipwatch: fs.existsSync(CLIPWATCH_BIN), clipJar: fs.existsSync(CLIP_JAR_PATH), deviceTracker: !!deviceTracker },
+        network: getAllLocalIps().map(item => ({ adapter: item.friendlyName, priority: item.priority })),
+        devices: devices.map(device => ({ model: device.model, state: device.state, transports: device.transports.map(transport => transport.isWifi ? 'wifi' : 'usb'),
+            battery: device.battery?.level ?? null })),
+        config: { watchFolderExists: fs.existsSync(config.watchFolder), autoInstallOnAdb: config.autoInstallOnAdb, autoLaunchAfterInstall: config.autoLaunchAfterInstall,
+            knownWirelessDevices: config.knownWirelessDevices.length, forgottenWirelessDevices: (config.forgottenWirelessDevices || []).length, language: config.language,
+            configReadFailed, transfersReadFailed },
+        storage: { uploads: sizeOf(UPLOADS_DIR), received: sizeOf(RECEIVED_DIR) },
+        state: { transfers: transfersList.length, activeTransfers: transfersList.filter(item => ['queued', 'transferring'].includes(item.status)).length,
+            apks: apkList.length, phoneSessions: mobileTokens.size, pendingAccessRequests: publicMobileAccessRequests().length,
+            resumableUploads: uploadSessions.size, clipboardMode: currentClipboardMode, screenStream: !!screenSession, websocketClients: wss.clients.size },
+        recentErrors: recentErrors.slice(-20)
+    });
+});
+
 app.get('/api/health', (req, res) => res.json({ app: 'brq-transfer', version: require('./package.json').version, ready: serverReady, port: PORT }));
 app.get('/api/status', async (req, res) => {
     const devices = await getAdbDevices();
@@ -1653,6 +1873,7 @@ app.post('/api/transfers/delete', (req, res) => {
         }
         transfersList = transfersList.filter(t => String(t.id) !== String(id));
         saveTransfers();
+        releaseUploadCopies([target]);
         broadcast({ type: 'TRANSFERS_UPDATED', transfers: transfersList });
     }
     res.json({ success: true, transfers: transfersList });
@@ -1696,10 +1917,8 @@ function enqueueTransfer(record) {
         try { saveTransfers(); } catch (_) { record.error = 'Aktarım sonucu diske kaydedilemedi. Dosya PC’de korunuyor.'; }
         broadcast({ type: 'TRANSFER_FAILED', operationId: record.operationId, transfer: record, transfers: transfersList });
     };
+    // The queue verifies record.phoneSerial right before the push starts.
     runDeviceDataOperation(record.deviceId, async () => {
-        if (record.phoneSerial && normalizePhoneSerial(await runAdbCommand(['-s', record.deviceId, 'shell', 'getprop', 'ro.serialno'], 3000)) !== record.phoneSerial) {
-            throw Object.assign(new Error('Telefon kimliği değişti. Doğru telefonu bağlayıp yeniden deneyin.'), { code: 'DEVICE_IDENTITY_CHANGED', status: 409 });
-        }
         record.status = 'transferring';
         record.progress = 0;
         saveTransfers();
@@ -1709,7 +1928,7 @@ function enqueueTransfer(record) {
         record.progress = 100;
         saveTransfers();
         broadcast({ type: 'TRANSFER_COMPLETED', operationId: record.operationId, transfer: record, transfers: transfersList });
-    }).catch(fail);
+    }, record.phoneSerial || '').catch(fail);
 }
 
 app.post('/api/transfers/retry', async (req, res) => {
@@ -1720,8 +1939,7 @@ app.post('/api/transfers/retry', async (req, res) => {
     try {
         if (!record.phoneSerial) throw Object.assign(new Error('Eski kaydın telefon kimliği eksik. Doğru telefonu seçip dosyayı yeniden yükleyin.'), { status: 409 });
         transferFileById(record.id);
-        await resolveTargetDevice(record.deviceId);
-        const serial = normalizePhoneSerial(await runAdbCommand(['-s', record.deviceId, 'shell', 'getprop', 'ro.serialno'], 3000));
+        const { serial } = await resolveTargetDevice(record.deviceId, { withSerial: true });
         if (serial !== record.phoneSerial) throw Object.assign(new Error('Bu bağlantı başka telefona ait. Önce özgün telefonu bağlayın.'), { code: 'DEVICE_IDENTITY_CHANGED', status: 409 });
         requireTransferCapacity();
         const previous = { ...record };
@@ -1766,8 +1984,9 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
         uploadRequests.set(requestId, { pending: true, operationId });
     }
     const requestedTarget = Object.prototype.hasOwnProperty.call(req.body, 'deviceId') ? req.body.deviceId : config.selectedAdbDevice;
-    const target = requestedTarget ? await resolveTargetDevice(requestedTarget) : '';
-    const phoneSerial = target ? normalizePhoneSerial(await runAdbCommand(['-s', target, 'shell', 'getprop', 'ro.serialno'], 3000)) : '';
+    const resolved = requestedTarget ? await resolveTargetDevice(requestedTarget, { withSerial: true }) : null;
+    const target = resolved?.target || '';
+    const phoneSerial = resolved?.serial || '';
     if (target) requireTransferCapacity();
     finalizeUpload(file);
     const meta = getTargetAndroidDir(file.originalname);
@@ -1803,35 +2022,7 @@ app.post('/api/upload/mobile-to-pc', uploadReceived.array('files', 50), async (r
         const savedRecords = [];
         for (const file of files) {
             finalizeUpload(file);
-            const ext = path.extname(file.filename).toLowerCase();
-            let category = 'document';
-            if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.heic', '.heif'].includes(ext)) category = 'image';
-            else if (['.mp4', '.mkv', '.mov', '.avi', '.webm', '.3gp'].includes(ext)) category = 'video';
-            else if (['.mp3', '.wav', '.ogg', '.flac', '.m4a', '.aac', '.opus'].includes(ext)) category = 'audio';
-            else if (ext === '.apk') category = 'apk';
-
-            if (ext === '.apk') {
-                registerApk(file.path, 'mobile-upload', file.originalname).catch(() => {});
-            }
-
-            const record = {
-                id: crypto.randomUUID(),
-                filename: file.originalname,
-                originalName: file.originalname,
-                size: formatBytes(file.size),
-                rawSize: file.size,
-                category,
-                direction: 'mobile-to-pc',
-                localPath: file.path,
-                timestamp: new Date().toLocaleTimeString(),
-                mtime: new Date(),
-                status: 'transferred'
-            };
-
-            transfersList.unshift(record);
-            savedRecords.push(record);
-
-            console.log(`[Mobil -> PC]: ${file.filename} (${record.size}) kaydedildi -> ${file.path}`);
+            savedRecords.push(recordReceivedUpload(file));
         }
 
         saveTransfers();
@@ -1847,6 +2038,126 @@ app.post('/api/upload/mobile-to-pc', uploadReceived.array('files', 50), async (r
     } catch (err) {
         sendApiError(res, err);
     }
+});
+
+app.get('/api/shared', (req, res) => res.json({ success: true, files: publicSharedFiles() }));
+app.get('/download/file/:id', (req, res) => {
+    const record = transfersList.find(item => String(item.id) === String(req.params.id) && item.direction === 'pc-to-phone');
+    if (!record) throw Object.assign(new Error('Dosya bulunamadı. Listeyi yenileyin.'), { code: 'ENOENT', status: 404 });
+    // res.download streams the file, supports Range (resumable downloads) and encodes non-ASCII names.
+    res.download(transferFileById(record.id), path.basename(record.filename || 'file'), { dotfiles: 'allow' }, error => {
+        if (error && !res.headersSent) sendApiError(res, error);
+    });
+});
+
+// --- Resumable phone uploads ---
+// The phone creates a session per file and sends 4 MiB chunks with an explicit offset.
+// A dropped connection or page reload resumes at the last confirmed byte instead of byte 0.
+const uploadSessions = new Map();
+const UPLOAD_CHUNK_LIMIT = 16 * 1024 * 1024;
+function pruneUploadSessions() {
+    const now = Date.now();
+    for (const [id, session] of uploadSessions) {
+        if (!session.writing && now - session.touchedAt > 60 * 60 * 1000) {
+            uploadSessions.delete(id);
+            try { fs.unlinkSync(session.path); } catch (_) {}
+        }
+    }
+}
+function uploadSessionFor(req) {
+    const session = uploadSessions.get(req.params.id);
+    if (!session || session.owner !== readCookie(req, 'brq_mobile') && !isAdminRequest(req)) {
+        throw Object.assign(new Error('Yükleme oturumu bulunamadı. Dosyayı yeniden seçin.'), { code: 'UPLOAD_SESSION_EXPIRED', status: 404 });
+    }
+    session.touchedAt = Date.now();
+    return session;
+}
+function recordReceivedUpload(file) {
+    const { category } = getTargetAndroidDir(file.filename);
+    // Use the file's own mtime so the received-folder watcher sees it as already indexed.
+    let mtime = new Date();
+    try { mtime = fs.statSync(file.path).mtime; } catch (_) {}
+    if (category === 'apk') registerApk(file.path, 'mobile-upload', file.originalname).catch(() => {});
+    const record = { id: crypto.randomUUID(), filename: file.originalname, originalName: file.originalname,
+        size: formatBytes(file.size), rawSize: file.size, category, direction: 'mobile-to-pc', localPath: file.path,
+        timestamp: new Date().toLocaleTimeString(), mtime, status: 'transferred' };
+    transfersList.unshift(record);
+    console.log(`[Mobil -> PC]: ${file.filename} (${record.size}) kaydedildi -> ${file.path}`);
+    return record;
+}
+app.post('/api/upload/mobile-to-pc/sessions', (req, res) => {
+    const { name, size, lastModified } = req.body || {};
+    if (typeof name !== 'string' || !name.trim() || name.length > 255 || /[\x00-\x1f\x7f]/.test(name) ||
+        !Number.isSafeInteger(size) || size < 0 || (lastModified !== undefined && !Number.isSafeInteger(lastModified))) {
+        throw Object.assign(new Error('Dosya adı veya boyutu geçersiz.'), { code: 'INVALID_UPLOAD', status: 400 });
+    }
+    pruneUploadSessions();
+    const owner = readCookie(req, 'brq_mobile') || 'admin';
+    const originalname = path.basename(name.replace(/\\/g, '/'));
+    // Re-selecting the same file after a reload continues the existing session.
+    const existing = [...uploadSessions.values()].find(item => item.owner === owner && item.originalname === originalname &&
+        item.size === size && item.lastModified === lastModified);
+    if (existing) { existing.touchedAt = Date.now(); return res.json({ success: true, id: existing.id, received: existing.received, size }); }
+    if (uploadSessions.size >= 200 || [...uploadSessions.values()].filter(item => item.owner === owner).length >= 50) {
+        throw Object.assign(new Error('Çok fazla yarım kalmış yükleme var. Biraz bekleyip tekrar deneyin.'), { code: 'UPLOAD_BUSY', status: 429 });
+    }
+    const ext = path.extname(originalname).replace(/[^a-zA-Z0-9.]/g, '').slice(0, 16);
+    const filename = crypto.randomUUID() + ext;
+    const session = { id: crypto.randomUUID(), owner, originalname, size, lastModified, filename, received: 0,
+        path: path.join(RECEIVED_DIR, filename + '.part'), touchedAt: Date.now(), writing: false };
+    fs.writeFileSync(session.path, '', { flag: 'wx' });
+    uploadSessions.set(session.id, session);
+    res.json({ success: true, id: session.id, received: 0, size });
+});
+app.get('/api/upload/mobile-to-pc/sessions/:id', (req, res) => {
+    const session = uploadSessionFor(req);
+    res.json({ success: true, received: session.received, size: session.size });
+});
+app.post('/api/upload/mobile-to-pc/sessions/:id/chunk', async (req, res) => {
+    const session = uploadSessionFor(req);
+    const offset = Number(req.query.offset);
+    if (session.writing) throw Object.assign(new Error('Bu dosyanın başka bir parçası yazılıyor.'), { code: 'UPLOAD_BUSY', status: 409 });
+    if (offset !== session.received) return res.status(409).json({ success: false, received: session.received,
+        error: { code: 'UPLOAD_OFFSET_MISMATCH', message: 'Yükleme konumu değişti; kaldığı yerden devam ediliyor.', retryable: true } });
+    const limit = Math.min(UPLOAD_CHUNK_LIMIT, session.size - offset);
+    session.writing = true;
+    let written = 0;
+    try {
+        const counter = new (require('stream').Transform)({ transform(chunk, encoding, callback) {
+            written += chunk.length;
+            if (written > limit) return callback(Object.assign(new Error('Parça dosya boyutunu aşıyor.'), { code: 'INVALID_UPLOAD', status: 400 }));
+            callback(null, chunk);
+        } });
+        await require('stream').promises.pipeline(req, counter, fs.createWriteStream(session.path, { flags: 'r+', start: offset }));
+        session.received = offset + written;
+    } finally {
+        session.writing = false;
+        session.touchedAt = Date.now();
+    }
+    res.json({ success: true, received: session.received, size: session.size });
+});
+app.post('/api/upload/mobile-to-pc/sessions/:id/complete', (req, res) => {
+    const session = uploadSessionFor(req);
+    if (session.writing || session.received !== session.size) {
+        throw Object.assign(new Error('Dosyanın tamamı henüz alınmadı.'), { code: 'UPLOAD_INCOMPLETE', status: 409 });
+    }
+    // A failed earlier chunk may have left bytes past the confirmed offset.
+    fs.truncateSync(session.path, session.size);
+    const finalPath = session.path.slice(0, -5);
+    fs.renameSync(session.path, finalPath);
+    uploadSessions.delete(session.id);
+    const record = recordReceivedUpload({ path: finalPath, filename: session.filename, originalname: session.originalname, size: session.size });
+    saveTransfers();
+    broadcast({ type: 'FILE_RECEIVED_FROM_PHONE', transfers: [record], allTransfers: transfersList });
+    const { localPath, ...publicRecord } = record;
+    res.json({ success: true, file: publicRecord });
+});
+app.post('/api/upload/mobile-to-pc/sessions/:id/cancel', (req, res) => {
+    const session = uploadSessionFor(req);
+    if (session.writing) throw Object.assign(new Error('Parça yazılırken iptal edilemez; tekrar deneyin.'), { code: 'UPLOAD_BUSY', status: 409 });
+    uploadSessions.delete(session.id);
+    try { fs.unlinkSync(session.path); } catch (_) {}
+    res.json({ success: true });
 });
 
 function transferFileById(id) {
@@ -1888,7 +2199,7 @@ app.post('/api/adb/pull-latest-screenshot', async (req, res) => {
         fs.renameSync(temporary, localPath);
         const record = { id: crypto.randomUUID(), filename: path.basename(phonePath), originalName: path.basename(phonePath),
             size: formatBytes(stats.size), rawSize: stats.size, category: 'image', direction: 'mobile-to-pc', localPath,
-            timestamp: new Date().toLocaleTimeString(), status: 'transferred' };
+            timestamp: new Date().toLocaleTimeString(), mtime: stats.mtime, status: 'transferred' };
         transfersList.unshift(record);
         saveTransfers();
         broadcast({ type: 'FILE_RECEIVED_FROM_PHONE', transfers: [record], allTransfers: transfersList });
@@ -1920,7 +2231,7 @@ app.post('/api/config', async (req, res) => {
     
     // Broadcast updated QR when config or selected IP changes
     const primaryIp = getPrimaryIp();
-    const qrUrl = `http://${primaryIp}:${PORT}/mobile`;
+    const qrUrl = mobileQrUrl(primaryIp);
     QRCode.toDataURL(qrUrl, { width: 320, margin: 2, color: { dark: '#000000', light: '#ffffff' } })
         .then(qrDataUrl => {
             broadcast({ type: 'MOBILE_QR_UPDATED', url: qrUrl, qrDataUrl, ip: primaryIp, availableIps: getAllLocalIps() });
@@ -2602,8 +2913,9 @@ app.get('/download/:id', (req, res) => {
     if (!apk || !fs.existsSync(apk.filePath)) {
         return res.status(404).send('APK dosyası bulunamadı');
     }
+    // res.attachment emits an RFC 5987 filename* so non-ASCII names are not shown percent-encoded.
+    res.attachment(apk.name);
     res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(apk.name)}"`);
     const stream = fs.createReadStream(apk.filePath);
     const cleanup = () => stream.destroy();
     res.on('close', cleanup);
@@ -2629,8 +2941,9 @@ app.get('/mobile', (req, res) => {
 
 app.get('/api/qr', async (req, res) => {
     try {
-        const ip = req.query.ip || getPrimaryIp();
-        const url = `http://${ip}:${PORT}/mobile`;
+        const requestedIp = typeof req.query.ip === 'string' ? req.query.ip : '';
+        const ip = getAllLocalIps().some(item => item.ip === requestedIp) ? requestedIp : getPrimaryIp();
+        const url = mobileQrUrl(ip);
         const qrDataUrl = await QRCode.toDataURL(url, {
             width: 320,
             margin: 2,
@@ -2650,11 +2963,54 @@ app.use((error, req, res, next) => {
     sendApiError(res, error);
 });
 
-// Periodic ADB Device & Battery Monitor (every 4 seconds)
+// ADB device & battery monitor.
+// `adb track-devices` pushes every attach/detach/state change, so the poll only has to refresh
+// battery levels (20 s). If the tracker cannot run, the old 4 s poll remains the fallback.
 let lastDevicesSnapshotJson = '';
 let lastQrUrl = '';
-const monitorTimer = setInterval(async () => {
+let lastMonitorRun = 0;
+let monitorRunning = null;
+let monitorAgain = false;
+let deviceTracker = null;
+let deviceTrackerRetry = null;
+let deviceTrackerDebounce = null;
+function startDeviceTracker() {
+    if (shuttingDown || deviceTracker) return;
+    let proc;
+    try { proc = spawn(ADB_BIN, ['track-devices'], { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }); }
+    catch (_) { return; }
+    deviceTracker = proc;
+    ownedAdbProcesses.add(proc);
+    proc.stdout.on('data', () => {
+        clearTimeout(deviceTrackerDebounce);
+        // Several transports often change together (USB + Wi-Fi alias); coalesce them.
+        deviceTrackerDebounce = setTimeout(() => { devicesSnapshotAt = 0; runDeviceMonitor(); }, 300);
+    });
+    const stopped = () => {
+        ownedAdbProcesses.delete(proc);
+        if (deviceTracker !== proc) return;
+        deviceTracker = null;
+        if (!shuttingDown) { clearTimeout(deviceTrackerRetry); deviceTrackerRetry = setTimeout(startDeviceTracker, 5000); }
+    };
+    proc.on('error', stopped);
+    proc.on('close', stopped);
+}
+function runDeviceMonitor() {
+    if (monitorRunning) { monitorAgain = true; return monitorRunning; }
+    monitorRunning = monitorDevicesOnce().finally(() => {
+        monitorRunning = null;
+        if (monitorAgain && !shuttingDown) { monitorAgain = false; runDeviceMonitor(); }
+    });
+    return monitorRunning;
+}
+const monitorTimer = setInterval(() => {
     if (shuttingDown) return;
+    if (deviceTracker && Date.now() - lastMonitorRun < 20000) return;
+    return runDeviceMonitor();
+}, 4000);
+async function monitorDevicesOnce() {
+    if (shuttingDown) return;
+    lastMonitorRun = Date.now();
     try {
         const devices = await getAdbDevices();
         const currentSnapshot = JSON.stringify(devices.map(d => ({
@@ -2668,7 +3024,7 @@ const monitorTimer = setInterval(async () => {
             broadcast({ type: 'DEVICES_UPDATED', devices });
 
             const primaryIp = getPrimaryIp();
-            const qrUrl = `http://${primaryIp}:${PORT}/mobile`;
+            const qrUrl = mobileQrUrl(primaryIp);
             if (qrUrl === lastQrUrl) return;
             lastQrUrl = qrUrl;
             const qrDataUrl = await QRCode.toDataURL(qrUrl, {
@@ -2679,7 +3035,7 @@ const monitorTimer = setInterval(async () => {
             broadcast({ type: 'MOBILE_QR_UPDATED', url: qrUrl, qrDataUrl, ip: primaryIp, availableIps: getAllLocalIps() });
         }
     } catch (e) {}
-}, 4000);
+}
 
 // Startup and shutdown share ownership in headless and Electron modes.
 function startServer() {
@@ -2688,11 +3044,14 @@ function startServer() {
         server.listen(PORT, '0.0.0.0', async () => {
             try {
                 try { migratePhoneRegistry(); } catch (error) { console.error(error.message); }
+                removeStaleTemporaryFiles();
+                // History trimming may release upload copies, so index APKs only after it.
+                syncTransfersWithDisk();
                 await setupWatcher(config.watchFolder);
                 scanFolder(config.watchFolder, 'startup');
                 scanFolder(UPLOADS_DIR, 'startup');
-                syncTransfersWithDisk();
                 writeDashboardSession();
+                startDeviceTracker();
                 serverReady = true;
                 console.log('BRQ Transfer hazır. Yönetim paneli: masaüstü başlatıcısı veya npm run panel');
                 if (process.env.BRQ_OPEN_BROWSER === '1') {
@@ -2711,6 +3070,9 @@ function shutdown() {
     shuttingDown = true;
     serverReady = false;
     clearInterval(monitorTimer);
+    clearTimeout(deviceTrackerRetry);
+    clearTimeout(deviceTrackerDebounce);
+    try { deviceTracker?.kill(); } catch (_) {}
     for (const socket of discoverySockets) { try { socket.close(); } catch (_) {} }
     if (currentPairingSession) currentPairingSession.cancelled = true;
     stopScreenStream();

@@ -141,9 +141,11 @@
     }
 
     /* Nav Segment */
+    .access-text { font-size: 14px; line-height: 1.5; color: var(--text-muted); margin: 0; }
     .segment-tabs {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      /* minmax(0, 1fr) lets three tabs shrink below their text width on narrow or zoomed screens. */
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       background: var(--surface);
       border: 1px solid var(--border);
       padding: 4px;
@@ -165,7 +167,11 @@
       justify-content: center;
       gap: 6px;
       font-family: inherit;
+      min-width: 0;
+      text-align: center;
+      overflow-wrap: anywhere;
     }
+    @media (max-width: 340px) { .tab-btn svg { display: none; } .tab-btn { padding-inline: 4px; } }
     .tab-btn.active {
       background: var(--surface-elevated);
       color: var(--text);
@@ -519,11 +525,21 @@
       <h1 id="mobile-heading">Telefonunuzdan, kablosuz.</h1>
       <p id="mobile-description">Bilgisayarınıza dosya gönderin veya hazır APK paketlerini indirin.</p>
     </div>
+    <!-- Shown until this phone is authorized (QR key or approval on the PC) -->
+    <section id="view-access" class="card hidden" aria-live="polite">
+      <div class="card-title"><span id="access-title">Bu telefon henüz bağlı değil</span></div>
+      <p id="access-text" class="access-text">PC'deki paneldeki QR kodunu telefon kamerasıyla okutun ya da erişim isteyin. PC'de onaylayınca sayfa açılır.</p>
+      <button class="btn-send-main" id="access-request-btn"><span id="access-request-label">Erişim iste</span></button>
+    </section>
     <!-- View Switcher -->
-    <nav class="segment-tabs">
+    <nav class="segment-tabs" id="segment-tabs">
       <button class="tab-btn active" id="tab-send-btn" aria-pressed="true" aria-controls="view-send">
         <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
         <span id="label-tab-send">PC'ye Gönder</span>
+      </button>
+      <button class="tab-btn" id="tab-shared-btn" aria-pressed="false" aria-controls="view-shared">
+        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+        <span id="label-tab-shared">PC'den Al</span>
       </button>
       <button class="tab-btn" id="tab-apks-btn" aria-pressed="false" aria-controls="view-apks">
         <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
@@ -589,7 +605,16 @@
       </button>
     </section>
 
-    <!-- TAB 2: DOWNLOAD APKS -->
+    <!-- TAB 2: FILES SENT FROM THE PC (no wireless debugging needed) -->
+    <section id="view-shared" class="card hidden">
+      <div class="card-title">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        <span id="card-title-shared">PC'den gönderilen dosyalar</span>
+      </div>
+      <div id="shared-list-container" style="display: flex; flex-direction: column; gap: 10px;"></div>
+    </section>
+
+    <!-- TAB 3: DOWNLOAD APKS -->
     <section id="view-apks" class="card hidden">
       <div class="card-title">
         <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
@@ -631,7 +656,21 @@
         install: "İndir ve Kur",
         uploading: "PC'ye Aktarılıyor...",
         upload_success: "✅ Dosyalar PC'ye başarıyla gönderildi!",
-        upload_error: "Aktarım hatası:"
+        upload_error: "Aktarım hatası:",
+        upload_partial: "Bazı dosyalar gönderilemedi; listede kaldılar. Tekrar gönderince kaldıkları yerden devam eder.",
+        upload_retrying: "Bağlantı koptu, yeniden deneniyor…",
+        tab_shared: "PC'den Al",
+        card_title_shared: "PC'den gönderilen dosyalar",
+        no_shared: "PC'den gönderilmiş dosya yok. PC'deki panelden dosya yükleyince burada görünür.",
+        download: "İndir",
+        access_title: "Bu telefon henüz bağlı değil",
+        access_text: "PC'deki paneldeki QR kodunu telefon kamerasıyla okutun ya da erişim isteyin. PC'de onaylayınca sayfa açılır.",
+        access_request: "Erişim iste",
+        access_pending: "PC'deki panelde bu isteği onaylayın…",
+        access_denied: "İstek reddedildi. QR kodunu okutun veya tekrar isteyin.",
+        access_error: "Erişim isteği gönderilemedi. Bağlantıyı kontrol edin.",
+        new_apk: "Yeni APK:",
+        new_shared: "PC'den yeni dosya:"
       },
       en: {
         page_heading: "From your phone, wirelessly.",
@@ -655,7 +694,21 @@
         install: "Download & Install",
         uploading: "Transferring to PC...",
         upload_success: "✅ Files sent to PC successfully!",
-        upload_error: "Upload error:"
+        upload_error: "Upload error:",
+        upload_partial: "Some files could not be sent and stay in the list. Sending again resumes where they stopped.",
+        upload_retrying: "Connection lost, retrying…",
+        tab_shared: "From PC",
+        card_title_shared: "Files sent from the PC",
+        no_shared: "No files from the PC yet. Files uploaded in the PC dashboard appear here.",
+        download: "Download",
+        access_title: "This phone is not connected yet",
+        access_text: "Scan the QR code shown in the PC dashboard, or request access and approve it on the PC.",
+        access_request: "Request access",
+        access_pending: "Approve this request in the PC dashboard…",
+        access_denied: "Request declined. Scan the QR code or ask again.",
+        access_error: "Could not send the access request. Check the connection.",
+        new_apk: "New APK:",
+        new_shared: "New file from PC:"
       }
     };
 
@@ -663,12 +716,20 @@
     let selectedFiles = [];
     let isUploading = false;
     let activeUpload = null;
+    let progressHideTimer = null;
     let mobileSocket = null;
     let reconnectTimer;
     let reconnectAttempts = 0;
     let closing = false;
     let toastTimer;
     let apks = [];
+    let sharedFiles = [];
+    let authorized = false;
+    let accessPollTimer = null;
+    let cancelUpload = false;
+    const activeChunkRequests = new Set();
+    const CHUNK_SIZE = 4 * 1024 * 1024;
+    const PARALLEL_FILES = 2;
 
     // DOM
     const langBtn = document.getElementById('lang-btn');
@@ -676,8 +737,15 @@
     const connText = document.getElementById('conn-text');
     const tabSendBtn = document.getElementById('tab-send-btn');
     const tabApksBtn = document.getElementById('tab-apks-btn');
+    const tabSharedBtn = document.getElementById('tab-shared-btn');
     const viewSend = document.getElementById('view-send');
     const viewApks = document.getElementById('view-apks');
+    const viewShared = document.getElementById('view-shared');
+    const viewAccess = document.getElementById('view-access');
+    const segmentTabs = document.getElementById('segment-tabs');
+    const accessText = document.getElementById('access-text');
+    const accessRequestBtn = document.getElementById('access-request-btn');
+    const sharedListContainer = document.getElementById('shared-list-container');
     const dropTrigger = document.getElementById('drop-trigger');
     const pickMediaBtn = document.getElementById('pick-media-btn');
     const pickFilesBtn = document.getElementById('pick-files-btn');
@@ -714,32 +782,32 @@
       document.getElementById('queue-heading').textContent = dict.queue_heading;
       clearQueueBtn.textContent = dict.clear;
       document.getElementById('card-title-apks').textContent = dict.card_title_apks;
+      document.getElementById('label-tab-shared').textContent = dict.tab_shared;
+      document.getElementById('card-title-shared').textContent = dict.card_title_shared;
+      document.getElementById('access-title').textContent = dict.access_title;
+      document.getElementById('access-request-label').textContent = dict.access_request;
+      if (!accessPollTimer) accessText.textContent = dict.access_text;
       updateSendButton();
       renderQueue();
       renderApks();
+      renderShared();
     }
 
     langBtn.onclick = () => applyLang(currentLang === 'tr' ? 'en' : 'tr');
 
     // Tab Switcher
-    tabSendBtn.onclick = () => {
-      tabSendBtn.classList.add('active');
-      tabApksBtn.classList.remove('active');
-      tabSendBtn.setAttribute('aria-pressed', 'true');
-      tabApksBtn.setAttribute('aria-pressed', 'false');
-      viewSend.classList.remove('hidden');
-      viewApks.classList.add('hidden');
-    };
-
-    tabApksBtn.onclick = () => {
-      tabApksBtn.classList.add('active');
-      tabSendBtn.classList.remove('active');
-      tabApksBtn.setAttribute('aria-pressed', 'true');
-      tabSendBtn.setAttribute('aria-pressed', 'false');
-      viewApks.classList.remove('hidden');
-      viewSend.classList.add('hidden');
-      fetchApks();
-    };
+    let activeTab = 'send';
+    function showTab(name) {
+      activeTab = name;
+      for (const [tab, button, view] of [['send', tabSendBtn, viewSend], ['shared', tabSharedBtn, viewShared], ['apks', tabApksBtn, viewApks]]) {
+        button.classList.toggle('active', tab === name);
+        button.setAttribute('aria-pressed', String(tab === name));
+        view.classList.toggle('hidden', !authorized || tab !== name);
+      }
+    }
+    tabSendBtn.onclick = () => showTab('send');
+    tabSharedBtn.onclick = () => { showTab('shared'); fetchShared(); };
+    tabApksBtn.onclick = () => { showTab('apks'); fetchApks(); };
 
     // Pickers
     dropTrigger.onclick = () => fileInput.click();
@@ -805,6 +873,8 @@
     };
 
     clearQueueBtn.onclick = () => {
+      // Stop sending too; the server keeps partial uploads for an hour so they can be resumed.
+      if (isUploading) abortUploads();
       selectedFiles = [];
       renderQueue();
     };
@@ -838,80 +908,244 @@
       const dict = i18n[currentLang];
       sendBtn.disabled = true;
       updateSendButton();
+      clearTimeout(progressHideTimer);
       progressContainer.classList.remove('hidden');
       progressBar.style.width = '0%';
       progressBar.style.background = '';
       progressText.style.color = '';
       progressText.textContent = `${dict.uploading} %0`;
 
-      const formData = new FormData();
-      for (const file of snapshot) {
-        formData.append('files', file);
-      }
-
-      const xhr = new XMLHttpRequest();
-      activeUpload = xhr;
-      xhr.open('POST', '/api/upload/mobile-to-pc', true);
-
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          const percent = Math.round((e.loaded / e.total) * 100);
-          progressBar.style.width = `${percent}%`;
-          progressText.textContent = `${dict.uploading} %${percent}`;
+      // Each file is its own resumable session; two files upload in parallel. A dropped
+      // connection retries the current 4 MiB chunk instead of restarting the whole batch.
+      cancelUpload = false;
+      const total = snapshot.reduce((sum, file) => sum + file.size, 0);
+      const confirmed = new Map();
+      const report = (file, bytes) => {
+        confirmed.set(file, bytes);
+        const sent = [...confirmed.values()].reduce((sum, value) => sum + value, 0);
+        const percent = total ? Math.min(100, Math.floor(sent / total * 100)) : 100;
+        progressBar.style.width = `${percent}%`;
+        progressText.textContent = `${dict.uploading} %${percent}`;
+      };
+      const pending = [...snapshot];
+      const finished = [];
+      const failures = [];
+      const worker = async () => {
+        while (pending.length && !cancelUpload) {
+          const file = pending.shift();
+          try { await uploadFile(file, bytes => report(file, bytes)); finished.push(file); }
+          catch (error) { if (!cancelUpload) failures.push(error); }
         }
       };
+      await Promise.all(Array.from({ length: Math.min(PARALLEL_FILES, snapshot.length) }, worker));
 
-      xhr.onload = () => {
-        activeUpload = null;
-        isUploading = false;
-        updateSendButton();
-        let result;
-        try { result = JSON.parse(xhr.responseText); } catch (_) {}
-        if (xhr.status >= 200 && xhr.status < 300 && result?.success === true) {
-          progressBar.style.width = '100%';
-          progressText.textContent = '100%';
-          showToast(dict.upload_success);
-          if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-
-          selectedFiles = selectedFiles.filter(file => !snapshot.includes(file));
-          renderQueue();
-          setTimeout(() => {
-            progressContainer.classList.add('hidden');
-            progressBar.style.width = '0%';
-          }, 2000);
-        } else {
-          const message = result?.error?.message || (typeof result?.error === 'string' ? result.error : dict.upload_error);
-          progressText.textContent = message;
-          progressText.style.color = 'var(--danger)';
-          progressBar.style.background = 'var(--danger)';
-          showToast(message, true);
-          sendBtn.disabled = false;
-        }
-      };
-
-      xhr.onerror = xhr.onabort = () => {
-        activeUpload = null;
-        isUploading = false;
-        updateSendButton();
-        progressText.textContent = dict.upload_error;
+      isUploading = false;
+      activeUpload = null;
+      selectedFiles = selectedFiles.filter(file => !finished.includes(file));
+      renderQueue();
+      updateSendButton();
+      if (cancelUpload) { progressContainer.classList.add('hidden'); return; }
+      if (!failures.length) {
+        progressBar.style.width = '100%';
+        progressText.textContent = '100%';
+        showToast(dict.upload_success);
+        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+        progressHideTimer = setTimeout(() => {
+          progressContainer.classList.add('hidden');
+          progressBar.style.width = '0%';
+        }, 2000);
+      } else {
+        const message = finished.length ? dict.upload_partial : (failures[0]?.message || dict.upload_error);
+        progressText.textContent = message;
         progressText.style.color = 'var(--danger)';
         progressBar.style.background = 'var(--danger)';
-        showToast(dict.upload_error, true);
+        showToast(failures[0]?.message || dict.upload_error, true);
         sendBtn.disabled = false;
-      };
-
-      xhr.send(formData);
+      }
     };
+
+    function abortUploads() {
+      cancelUpload = true;
+      for (const xhr of activeChunkRequests) xhr.abort();
+      activeChunkRequests.clear();
+    }
+
+    function wait(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+    async function apiJson(url, options = {}) {
+      const response = await fetch(url, options);
+      let body = null;
+      try { body = await response.json(); } catch (_) {}
+      if (!response.ok || body?.success === false) {
+        const error = new Error(body?.error?.message || (typeof body?.error === 'string' ? body.error : i18n[currentLang].upload_error));
+        error.status = response.status;
+        error.retryable = response.status >= 500 || response.status === 429 || body?.error?.retryable === true;
+        throw error;
+      }
+      return body;
+    }
+
+    function sendChunk(id, offset, blob, onProgress) {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        activeUpload = xhr;
+        activeChunkRequests.add(xhr);
+        xhr.open('POST', `/api/upload/mobile-to-pc/sessions/${encodeURIComponent(id)}/chunk?offset=${offset}`, true);
+        xhr.setRequestHeader?.('Content-Type', 'application/octet-stream');
+        // A phone that drops Wi-Fi can leave a request hanging; 4 MiB should never take two minutes.
+        xhr.timeout = 120000;
+        xhr.upload.onprogress = event => { if (event.lengthComputable) onProgress(event.loaded); };
+        const done = () => { activeChunkRequests.delete(xhr); if (activeUpload === xhr) activeUpload = null; };
+        xhr.onload = () => {
+          done();
+          let body = null;
+          try { body = JSON.parse(xhr.responseText); } catch (_) {}
+          resolve({ status: xhr.status, body });
+        };
+        xhr.onerror = xhr.ontimeout = () => { done(); reject(Object.assign(new Error(i18n[currentLang].upload_retrying), { retryable: true })); };
+        xhr.onabort = () => { done(); reject(Object.assign(new Error('aborted'), { aborted: true })); };
+        xhr.send(blob);
+      });
+    }
+
+    async function uploadFile(file, report) {
+      const base = '/api/upload/mobile-to-pc/sessions';
+      const session = await apiJson(base, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: file.name, size: file.size, lastModified: Number.isSafeInteger(file.lastModified) ? file.lastModified : undefined }) });
+      let offset = session.received || 0;
+      let failures = 0;
+      report(offset);
+      while (offset < file.size) {
+        if (cancelUpload) throw Object.assign(new Error('aborted'), { aborted: true });
+        const end = Math.min(file.size, offset + CHUNK_SIZE);
+        try {
+          const result = await sendChunk(session.id, offset, file.slice(offset, end), loaded => report(offset + loaded));
+          if (result.status === 409 && Number.isSafeInteger(result.body?.received)) { offset = result.body.received; report(offset); continue; }
+          if (result.status < 200 || result.status >= 300 || !Number.isSafeInteger(result.body?.received)) {
+            const message = result.body?.error?.message || (typeof result.body?.error === 'string' ? result.body.error : i18n[currentLang].upload_error);
+            throw Object.assign(new Error(message), { retryable: result.status >= 500 || result.status === 429 || result.status === 0 });
+          }
+          offset = result.body.received;
+          failures = 0;
+          report(offset);
+        } catch (error) {
+          if (error.aborted || !error.retryable || ++failures > 6) throw error;
+          progressText.textContent = i18n[currentLang].upload_retrying;
+          await wait(Math.min(15000, 1000 * 2 ** failures));
+          // Ask the PC how much it actually stored before continuing.
+          try { offset = (await apiJson(`${base}/${encodeURIComponent(session.id)}`)).received; } catch (_) {}
+        }
+      }
+      return apiJson(`${base}/${encodeURIComponent(session.id)}/complete`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    }
 
     // APK List
     async function fetchApks() {
       try {
         const res = await fetch('/api/apks');
-        apks = await res.json();
+        if (!res.ok) return;
+        const list = await res.json();
+        apks = Array.isArray(list) ? list.slice(0, 50) : [];
         renderApks();
       } catch (e) {
         console.error('APK fetch error:', e);
       }
+    }
+
+    // Files the PC uploaded; downloadable without wireless debugging.
+    async function fetchShared() {
+      try {
+        const res = await fetch('/api/shared');
+        if (!res.ok) return;
+        sharedFiles = ((await res.json()).files || []).slice(0, 100);
+        renderShared();
+      } catch (e) {
+        console.error('Shared files fetch error:', e);
+      }
+    }
+
+    function renderShared() {
+      const dict = i18n[currentLang];
+      if (!sharedFiles.length) {
+        sharedListContainer.innerHTML = `<div style="text-align: center; padding: 24px 0; color: var(--text-muted); font-size: 12.5px;">${dict.no_shared}</div>`;
+        return;
+      }
+      sharedListContainer.innerHTML = sharedFiles.map(file => `
+        <div class="apk-card-mobile">
+          <div class="apk-card-header">
+            <div>
+              <div class="apk-card-title">${escapeHtml(file.filename)}</div>
+            </div>
+          </div>
+          <div class="apk-card-meta">
+            <span class="meta-chip">${escapeHtml(file.size || formatBytes(file.rawSize))}</span>
+            ${file.timestamp ? `<span class="meta-chip">${escapeHtml(file.timestamp)}</span>` : ''}
+          </div>
+          <a href="/download/file/${encodeURIComponent(file.id)}" class="btn-apk-install" download="${escapeHtml(file.filename)}">
+            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            ${dict.download}
+          </a>
+        </div>
+      `).join('');
+    }
+
+    function setSharedFiles(files, announce) {
+      const previous = new Set(sharedFiles.map(file => file.id));
+      sharedFiles = (files || []).slice(0, 100);
+      renderShared();
+      const added = sharedFiles.find(file => !previous.has(file.id));
+      if (announce && added) showToast(`${i18n[currentLang].new_shared} ${added.filename}`);
+    }
+
+    // Access gate: until this phone holds a token, show only the request card.
+    function setAuthorized(value) {
+      authorized = value;
+      viewAccess.classList.toggle('hidden', value);
+      segmentTabs.classList.toggle('hidden', !value);
+      showTab(activeTab);
+    }
+
+    async function checkAccess() {
+      try {
+        const res = await fetch('/api/mobile/access');
+        const data = await res.json();
+        if (data.authorized) { stopAccessPolling(); startAuthorizedSession(); return; }
+        setAuthorized(false);
+        if (data.status === 'pending') {
+          accessText.textContent = i18n[currentLang].access_pending;
+          accessRequestBtn.disabled = true;
+          scheduleAccessPoll();
+        } else if (data.status === 'denied') {
+          stopAccessPolling();
+          accessText.textContent = i18n[currentLang].access_denied;
+          accessRequestBtn.disabled = false;
+        }
+      } catch (_) { scheduleAccessPoll(); }
+    }
+    function scheduleAccessPoll() { clearTimeout(accessPollTimer); accessPollTimer = setTimeout(checkAccess, 2000); }
+    function stopAccessPolling() { clearTimeout(accessPollTimer); accessPollTimer = null; }
+
+    accessRequestBtn.onclick = async () => {
+      accessRequestBtn.disabled = true;
+      try {
+        const data = await apiJson('/api/mobile/access/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        if (data.authorized) return startAuthorizedSession();
+        accessText.textContent = i18n[currentLang].access_pending;
+        scheduleAccessPoll();
+      } catch (error) {
+        accessText.textContent = error.message || i18n[currentLang].access_error;
+        accessRequestBtn.disabled = false;
+      }
+    };
+
+    let sessionStarted = false;
+    function startAuthorizedSession() {
+      setAuthorized(true);
+      if (sessionStarted) return;
+      sessionStarted = true;
+      setupWs();
+      fetchApks();
+      fetchShared();
     }
 
     function renderApks() {
@@ -988,6 +1222,7 @@
           if (data.type === 'INIT') {
             apks = (data.apks || []).slice(0, 50);
             renderApks();
+            if (data.shared) setSharedFiles(data.shared, false);
             connText.textContent = location.host;
           } else if (data.type === 'APKS_UPDATED') {
             apks = (data.apks || []).slice(0, 50);
@@ -995,7 +1230,9 @@
           } else if (data.type === 'NEW_APK') {
             apks = [data.apk, ...apks.filter(apk => apk.id !== data.apk.id)].slice(0, 50);
             renderApks();
-            showToast(`Yeni APK: ${data.apk.name}`);
+            showToast(`${i18n[currentLang].new_apk} ${data.apk.name}`);
+          } else if (data.type === 'SHARED_FILES_UPDATED') {
+            setSharedFiles(data.files, true);
           }
         } catch (err) {}
       };
@@ -1005,7 +1242,14 @@
         connStatus.classList.remove('connected');
         connText.textContent = i18n[currentLang].conn_searching;
         clearTimeout(reconnectTimer);
-        reconnectTimer = setTimeout(setupWs, Math.min(30000, 1000 * 2 ** Math.min(reconnectAttempts++, 5)));
+        // The PC may have reset phone access (or restarted); re-check before reconnecting.
+        reconnectTimer = setTimeout(async () => {
+          try {
+            const access = await (await fetch('/api/mobile/access')).json();
+            if (!access.authorized) { sessionStarted = false; setAuthorized(false); accessText.textContent = i18n[currentLang].access_text; accessRequestBtn.disabled = false; return; }
+          } catch (_) {}
+          setupWs();
+        }, Math.min(30000, 1000 * 2 ** Math.min(reconnectAttempts++, 5)));
       };
       ws.onerror = () => ws.close();
     }
@@ -1014,14 +1258,18 @@
       closing = true;
       clearTimeout(reconnectTimer);
       clearTimeout(toastTimer);
+      stopAccessPolling();
       activeUpload?.abort();
+      abortUploads();
       mobileSocket?.close();
     });
 
     applyLang(currentLang);
+    // Nothing is shown until the access check answers, so an authorized phone never flashes the request card.
+    segmentTabs.classList.add('hidden');
+    showTab('send');
     checkHealth();
-    setupWs();
-    fetchApks();
+    checkAccess();
   </script>
 </body>
 </html>

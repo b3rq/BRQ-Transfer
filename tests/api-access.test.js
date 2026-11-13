@@ -54,7 +54,7 @@ test('mobileSessionReceivesOnlyPublicApkData', async () => {
     const ws = new (require('node:events').EventEmitter)();
     const messages = []; ws.send = text => messages.push(JSON.parse(text));
     h.eval('apkList=[{id:"one",name:"Fixture",filePath:"private-path"}]');
-    h.wss.emit('connection', ws, { headers: { host: 'localhost:4500', cookie: 'brq_mobile=' + h.eval('mobileSession') }, socket: { remoteAddress: '192.168.1.5' } });
+    h.wss.emit('connection', ws, { headers: { host: 'localhost:4500', cookie: 'brq_mobile=' + h.eval('mobileTokens.add("phone-token"), "phone-token"') }, socket: { remoteAddress: '192.168.1.5' } });
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(messages[0].config, undefined);
     assert.equal(messages[0].apks[0].filePath, undefined);

@@ -14,7 +14,9 @@
     "test:ui": "node node_modules/electron/cli.js tests/electron-ui.cjs",
     "test:ux": "node node_modules/electron/cli.js tests/electron-ux.cjs",
     "validate:local": "node tests/local-validation.cjs",
-    "benchmark:watcher": "node tests/watcher-benchmark.cjs"
+    "benchmark:watcher": "node tests/watcher-benchmark.cjs",
+    "bench": "node tests/bench.cjs",
+    "bench:web": "node node_modules/electron/cli.js tests/web-bench.cjs"
   },
   "dependencies": {
     "chokidar": "^4.0.3",

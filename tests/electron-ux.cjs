@@ -22,6 +22,11 @@ app.whenReady().then(async () => {
         if (level === 3 && !message.includes('ERR_BLOCKED_BY_CLIENT')) errors.push(message);
     });
     const check = (condition, message) => { if (!condition) failures.push(message); };
+    async function until(expression, timeout = 3000) {
+        const deadline = Date.now() + timeout;
+        while (Date.now() < deadline) { if (await run(expression)) return; await new Promise(resolve => setTimeout(resolve, 25)); }
+        failures.push('Timed out waiting for: ' + expression);
+    }
     async function capture(name, width, height = 1000) {
         win.setContentSize(width, height);
         // Hidden Chromium windows can pause compositor transitions between frames.
@@ -151,19 +156,37 @@ app.whenReady().then(async () => {
             check(targets, 'Mobile touch targets must be 44px at ' + width);
             await run(`tabApksBtn.click();apks=[{id:'fixture',name:'Build-'+ 'a'.repeat(140)+'.apk',label:'Truck Simulator '+ 'Long title '.repeat(10),packageName:'com.studio.truck',size:'128 MB',versionName:'2.4.1',updatedAt:Date.now()}];renderApks()`);
             await capture('mobile-apks-' + width, width);
+            // Let the tab's own fetch settle first so the fixture is not overwritten by the empty server list.
+            await run('tabSharedBtn.click()');
+            await new Promise(resolve => setTimeout(resolve, 120));
+            await run(`setSharedFiles([{id:'pc1',filename:'Sözleşme taslağı '+ 'uzun '.repeat(30)+'.pdf',size:'2.4 MB',timestamp:'12:40'}],false)`);
+            await capture('mobile-shared-' + width, width);
         }
+        // Phones without the QR key or approval see only the access request card.
+        await run(`setAuthorized(false);accessText.textContent=i18n.tr.access_pending`);
+        await capture('mobile-access-375', 375);
+        check(await run(`!viewAccess.classList.contains('hidden') && viewSend.classList.contains('hidden') && segmentTabs.classList.contains('hidden')`), 'Unauthorized phones must only see the access card');
+        await run('setAuthorized(true)');
         await run(`showToast('Aktarım tamamlanamadı. '+ 'Uzun hata açıklaması '.repeat(20),true)`);
         await capture('mobile-error-375', 375);
         await run('tabSendBtn.click()');
         await capture('mobile-landscape', 812, 375);
-        await run(`applyLang('en');window.XMLHttpRequest=class {constructor(){this.upload={};window.fixtureUpload=this;}open(){}send(){}abort(){}};
-            selectedFiles=[new File(['fixture'],'Screenshot.png',{type:'image/png'})];renderQueue();sendBtn.click();fixtureUpload.upload.onprogress({lengthComputable:true,loaded:42,total:100});`);
+        // Resumable flow: a session request, then one chunk request per 4 MiB.
+        await run(`applyLang('en');window.fixtureUpload=null;window.XMLHttpRequest=class {constructor(){this.upload={};window.fixtureUpload=this;}open(){}send(){}abort(){}setRequestHeader(){}};
+            window.fetch=async url=>({ok:true,status:200,json:async()=>url.endsWith('/sessions')?{success:true,id:'fx',received:0}:{success:true}});
+            selectedFiles=[new File(['fixture'],'Screenshot.png',{type:'image/png'})];renderQueue();sendBtn.click();void 0`);
+        await until('!!window.fixtureUpload');
+        await run('fixtureUpload.upload.onprogress({lengthComputable:true,loaded:3,total:7})');
         check(await run(`sendBtn.disabled && sendBtn.getAttribute('aria-busy')==='true'`), 'Mobile upload must announce busy and prevent duplicate submission');
         await capture('mobile-uploading-375', 375);
-        await run(`fixtureUpload.status=500;fixtureUpload.responseText=JSON.stringify({error:{message:'Disk full. Free space on your computer and retry.'}});fixtureUpload.onload()`);
+        await run(`fixtureUpload.status=400;fixtureUpload.responseText=JSON.stringify({success:false,error:{message:'Disk full. Free space on your computer and retry.'}});fixtureUpload.onload()`);
+        await until('!isUploading');
         check(await run(`!sendBtn.disabled && sendBtn.getAttribute('aria-busy')==='false' && selectedFiles.length===1 && progressText.textContent.includes('Disk full')`), 'Mobile upload error must retain files and show a persistent retry explanation');
         await capture('mobile-upload-error-375', 375);
-        await run(`sendBtn.click();fixtureUpload.status=200;fixtureUpload.responseText='{"success":true}';fixtureUpload.onload()`);
+        await run('window.fixtureUpload=null;sendBtn.click()');
+        await until('!!window.fixtureUpload');
+        await run(`fixtureUpload.status=200;fixtureUpload.responseText='{"success":true,"received":7}';fixtureUpload.onload()`);
+        await until('!isUploading');
         check(await run(`selectedFiles.length===0 && sendBtn.disabled`), 'Successful retry must clear the sent queue');
         win.webContents.setZoomFactor(1.5);
         await capture('mobile-zoom-150', 375);

@@ -3,6 +3,83 @@
 Notable changes are recorded here, newest first. Dated entries describe repository
 updates; they do not imply a new package version or release tag.
 
+## 2026-11-13
+
+A review of the whole repository followed by the first phases of
+[the improvement plan](docs/improvement-plan.md).
+
+### Added
+
+- **PC → phone without wireless debugging**: every file uploaded in the dashboard
+  is listed on the phone page's new **From PC** tab and downloads over HTTP
+  (with Range support). ADB is now only needed for push/install/control.
+- **Phone access control**: `/mobile` no longer grants rights by itself. The
+  dashboard QR carries an access key; other phones send an access request that
+  is approved or declined in the dashboard. Loopback and ADB-reverse
+  connections stay trusted. **Reset phone access** revokes every phone.
+- **Resumable phone uploads**: per-file sessions, 4 MiB chunks with explicit
+  offsets, two files in parallel, retries with backoff, and resume after a
+  page reload. The previous multipart endpoint remains for compatibility.
+- `adb track-devices` drives device updates; the poll falls back to 20 s
+  (battery) while the tracker runs, and to the old 4 s poll without it.
+- `/api/diagnostics` and a **Copy diagnostics report** button (no serials,
+  addresses or paths).
+- `npm run bench` (phone upload/download paths, optional real `adb push`) and
+  `npm run bench:web` (WebRTC path, can target another checkout).
+- Web edition: optional `BRQ_WEB_ICE_SERVERS`, a per-address socket limit
+  (`BRQ_WEB_MAX_PER_IP`, `BRQ_WEB_TRUST_PROXY`).
+- A WebSocket message-contract test between `server.js`, `pc.js` and `mobile.html`.
+
+### Changed
+
+- Web transfer protocol: 64 KiB messages, 1 MiB disk reads, negotiated 4 MiB
+  window, acknowledgments every 1 MiB, event-driven send pacing, Blob folding on
+  the fallback receive path. Older pages still interoperate.
+- One PC → phone push now starts after ~4 ADB processes instead of ~8; the
+  device monitor caches serials for 30 s and queries phones in parallel.
+- English dashboards translate server error codes instead of showing Turkish
+  server text.
+
+### Fixed
+
+- `uploads/` copies of PC uploads were never deleted, so the folder grew without
+  bound. Crash leftovers (`.part`, install snapshots, clipboard temp files) are
+  removed at startup.
+- Received files were re-indexed and re-broadcast once more on Windows
+  (sub-millisecond mtime comparison).
+- QR pairing password used `Math.random`; it now uses `crypto.randomInt`.
+- Progress events rebuilt the whole transfer list every second (lost clicks,
+  collapsed details); only the affected card updates now.
+- "Find Phone" could stay on "Searching…"; screen stream could stay on
+  "Starting…"; reloading the dashboard replayed the "device connected" chime;
+  privacy mode leaked an address in a toast; stale battery after switching phones.
+- Phone page: overlapping progress timers, hanging uploads after Wi-Fi loss,
+  hard-coded Turkish APK toast.
+- Web edition: a phone switching networks could be locked out permanently
+  (`ROOM_BUSY`); a short ICE `disconnected` aborted transfers; renaming silently
+  aborted transfers; a peer closing its tab showed a false connection error;
+  rate-limit errors were shown as "pairing declined"; senders could time out
+  during the receiver's disk commit.
+- Electron: "Retry" after a failed backend start looped forever; a second
+  instance could start work before quitting; quitting could hang.
+- Launchers: `start-hub.bat` had a UTF-8 BOM; `start.bat` checked only three
+  dependencies; `launch.vbs` could leave a hidden headless server running.
+
+### Validation
+
+- `npm run check` passed; `npm test`: 225 tests passed, none failed or skipped;
+  `npm run test:ui` passed; `npm run test:ux`: 51 rendered screen checks passed
+  (new: phone access card and From PC tab at four widths); `npm run test:web`
+  passed; `npm run validate:local` completed its five-minute run.
+- `npm run bench`, 256 MiB over loopback: phone → PC resumable upload 372.6 MiB/s,
+  PC → phone page download 453.1 MiB/s.
+- `npm run bench:web`, 256 MiB over loopback: 15.0 MiB/s with the previous
+  protocol, 18.7 MiB/s now. Larger messages and windows reached only 20–22 MiB/s,
+  which points to Chromium's DataChannel ceiling on loopback; the window change
+  matters most on real Wi-Fi latency and was not measured there.
+- Not exercised: real phones, real ADB, the Android companion APK, Safari or
+  Firefox, the Electron retry/second-instance paths, multi-gigabyte Wi-Fi uploads.
+
 ## 2026-11-11
 
 ### Added
