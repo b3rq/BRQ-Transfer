@@ -9,6 +9,7 @@ let isQuitting = false;
 let ownedBackend = null;
 let shutdownComplete = false;
 let recovering = false;
+let backendStartFailed = false;
 const port = Number(process.env.PORT || 4500);
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT 1–65535 arasında olmalıdır.');
 const baseUrl = 'http://localhost:' + port;
@@ -58,7 +59,8 @@ async function startServer() {
     catch (error) {
         if (error.code !== 'ECONNREFUSED') throw error;
         ownedBackend = require('./server.js');
-        await ownedBackend.startup;
+        // require() caches the module, so a failed startup cannot be retried in this process.
+        try { await ownedBackend.startup; } catch (startError) { backendStartFailed = true; throw startError; }
     }
 }
 async function waitForServer(url, timeout = 10000) {
@@ -164,11 +166,14 @@ async function showRecovery(error) {
     if (mainWindow) { mainWindow.destroy(); mainWindow = null; }
     const result = await dialog.showMessageBox({ type: 'error', title: 'BRQ Transfer', message: error.message, buttons: ['Yeniden dene', 'Çıkış'] });
     recovering = false;
+    if (result.response === 0 && backendStartFailed) { app.relaunch(); app.exit(0); return; }
     if (result.response === 0) { try { await startServer(); await createWindow(); } catch (nextError) { await showRecovery(nextError); } }
     else app.quit();
 }
 
 app.whenReady().then(async () => {
+    // app.quit() is asynchronous; a second instance must not start a server or window meanwhile.
+    if (!gotTheLock) return;
     try { await startServer(); createTray(); await createWindow(); } catch (error) { await showRecovery(error); }
 
     app.on('activate', () => {
@@ -185,7 +190,9 @@ app.on('before-quit', event => {
     isQuitting = true;
     if (ownedBackend && !shutdownComplete) {
         event.preventDefault();
-        ownedBackend.shutdown().finally(() => { shutdownComplete = true; app.quit(); });
+        // Never let a stuck child process or socket keep the app from quitting.
+        Promise.race([ownedBackend.shutdown(), new Promise(resolve => setTimeout(resolve, 5000))])
+            .finally(() => { shutdownComplete = true; app.quit(); });
     }
 });
 

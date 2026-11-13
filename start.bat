@@ -12,7 +12,7 @@ if errorlevel 1 (
     echo [HATA] Node.js en az 22.12.0 olmali.
     goto failure
 )
-node -e "require('express');require('ws');require('multer');if(!require('fs').existsSync('node_modules/electron/dist/electron.exe'))process.exit(1)" >nul 2>&1
+node -e "for(const d of Object.keys(require('./package.json').dependencies))require.resolve(d);if(!require('fs').existsSync('node_modules/electron/dist/electron.exe'))process.exit(1)" >nul 2>&1
 if errorlevel 1 (
     echo Paketler dogrulaniyor: npm ci
     call npm.cmd ci
@@ -20,6 +20,8 @@ if errorlevel 1 (
 )
 call npm.cmd run desktop
 if not errorlevel 1 exit /b 0
+rem A hidden (launch.vbs) session must not leave a headless server running with no window to stop it.
+if "%BRQ_SILENT%"=="1" exit /b 2
 echo [BILGI] Masaustu acilamadi. Tarayici modu baslatiliyor.
 set BRQ_OPEN_BROWSER=1
 node server.js

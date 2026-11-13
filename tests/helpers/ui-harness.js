@@ -12,7 +12,7 @@ module.exports = function uiHarness(mobile = false) {
         querySelectorAll: () => [], querySelector: () => element(), createElement: element,
         documentElement: element(), body: element(), addEventListener() {} };
     const requests = [], xhrs = [], sockets = [], windowListeners = new Map();
-    class Xhr { constructor() { this.upload = {}; xhrs.push(this); } open() {} send() {} abort() { this.aborted = true; this.onabort?.(); } }
+    class Xhr { constructor() { this.upload = {}; xhrs.push(this); } open(method, url) { this.method = method; this.url = url; } send(body) { this.body = body; } abort() { this.aborted = true; this.onabort?.(); } }
     const context = vm.createContext({ document, localStorage: { getItem: () => null, setItem() {} },
         console, navigator: {}, location: { protocol: 'http:', host: 'localhost' },
         window: { addEventListener: (name, fn) => windowListeners.set(name, fn), confirm: () => true },

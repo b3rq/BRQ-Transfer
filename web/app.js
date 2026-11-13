@@ -31,7 +31,10 @@ const words = {
         reconnectHint: 'Sayfayı kapatıp tekrar açtığında bu cihaz hatırlanır. Özel gezinmede kayıt silinebilir.',
         timeout: 'Aktarım zaman aşımına uğradı. İki sayfayı açık tutup tekrar gönder.', joining: 'Eşleşme bekleniyor',
         refreshQr: 'QR hazırlanamadı. Yeniden bağlan veya sayfayı yenile.', busy: 'Karşı cihaz başka bir dosya alıyor.',
-        pendingSave: 'Kaydetme tamamlanıyor…', fallbackHint: 'Bu tarayıcıda alma sınırı 100 MiB. Son dosyayı yenisini kabul etmeden önce indir.'
+        pendingSave: 'Kaydetme tamamlanıyor…', fallbackHint: 'Bu tarayıcıda alma sınırı 100 MiB. Son dosyayı yenisini kabul etmeden önce indir.',
+        renameConfirm: 'Adı değiştirmek bağlantıyı yeniler ve devam eden aktarımları durdurur. Devam edilsin mi?',
+        rateLimited: 'Çok fazla istek gönderildi. Biraz bekleyip Yeniden bağlan seçeneğini kullan.',
+        serverClosed: 'Sunucu bağlantıyı kapattı. Sayfayı yenileyip yeniden bağlan.'
     },
     en: {
         skip: 'Skip to content', slogan: 'Too lazy for cables', installFree: 'No installation', theme: 'Theme',
@@ -55,7 +58,10 @@ const words = {
         queueLimit: 'You can queue up to 20 files.', invalidFile: 'The file name or size is not supported.', saveFailed: 'Could not save the file. Check free disk space and browser permissions.',
         expired: 'Download removed · request the file again if needed', reconnectHint: 'This device will be remembered when you reopen the page. Private browsing may erase it.',
         timeout: 'Transfer timed out. Keep both pages open and send again.', joining: 'Waiting for pairing', refreshQr: 'Could not create QR. Reconnect or reload the page.', busy: 'The other device is already receiving a file.',
-        pendingSave: 'Finishing save…', fallbackHint: 'Receiving limit in this browser: 100 MiB. Download the last file before accepting another.'
+        pendingSave: 'Finishing save…', fallbackHint: 'Receiving limit in this browser: 100 MiB. Download the last file before accepting another.',
+        renameConfirm: 'Renaming refreshes the connection and stops active transfers. Continue?',
+        rateLimited: 'Too many requests. Wait a moment, then choose Reconnect.',
+        serverClosed: 'The server closed the connection. Reload the page and reconnect.'
     }
 };
 function readStorage(key) { try { return localStorage.getItem(key); } catch { return null; } }
@@ -78,6 +84,10 @@ let retryTimer, connectTimer, retryDelay = 1000, stopped = false, approved = fal
 let signalChain = Promise.resolve(), candidates = [], receiveChain = Promise.resolve();
 let invitationBase = location.origin, qrObjectUrl, invitationVersion = 0;
 let statusKey = 'connecting', incoming = null, outgoing = null, queue = [], records = [], retainedDownload = null;
+let iceServers = [], senderWake = null;
+// The sender sleeps until an ack or bufferedamountlow frees capacity; the timeout is only a safety net.
+function wakeSender() { const wake = senderWake; senderWake = null; wake?.(); }
+function waitForCapacity() { return new Promise(resolve => { senderWake = resolve; setTimeout(resolve, 250); }); }
 const activeStates = new Set(['queued', 'awaiting', 'sending', 'receiving', 'offered', 'pendingSave']);
 
 function notice(key) { $('notice').textContent = t(key); $('notice').hidden = false; }
@@ -142,9 +152,8 @@ function connect() {
             setStatus(pair.peerId ? 'rememberedWaiting' : 'waiting'); updateConnectionUI();
         }
         if (message.type === 'error') {
-            if (['ROOM_BUSY', 'REJECTED', 'INVALID_HELLO', 'RATE_LIMIT'].includes(message.code)) {
-                stopped = true; notice(message.code === 'ROOM_BUSY' ? 'blocked' : 'rejected');
-            }
+            const fatal = { ROOM_BUSY: 'blocked', REJECTED: 'rejected', INVALID_HELLO: 'serverClosed', RATE_LIMIT: 'rateLimited' };
+            if (fatal[message.code]) { stopped = true; notice(fatal[message.code]); }
         }
     };
     current.onclose = () => {
@@ -164,12 +173,15 @@ function reconnect() {
 }
 async function startRTC(offerer) {
     closeRTC(); candidates = [];
-    const connection = new RTCPeerConnection({ iceServers: [] });
+    const connection = new RTCPeerConnection({ iceServers });
     rtc = connection;
     connection.onicecandidate = event => { if (event.candidate && rtc === connection) sendSignal({ type: 'signal', data: { candidate: event.candidate.toJSON() } }); };
     connection.onconnectionstatechange = () => {
         if (rtc !== connection) return;
-        if (['failed', 'disconnected'].includes(connection.connectionState)) connectionFailed();
+        // 'disconnected' is often a short Wi-Fi blip that ICE recovers from; give it 5 s before failing.
+        clearTimeout(disconnectGrace);
+        if (connection.connectionState === 'failed') connectionFailed();
+        else if (connection.connectionState === 'disconnected') disconnectGrace = setTimeout(() => { if (rtc === connection && connection.connectionState !== 'connected') connectionFailed(); }, 5000);
     };
     connection.ondatachannel = event => attachChannel(event.channel, connection);
     connectTimer = setTimeout(() => { if (rtc === connection && channel?.readyState !== 'open') connectionFailed(); }, 20000);
@@ -196,14 +208,15 @@ async function receiveSignal(data) {
 }
 function attachChannel(dataChannel, connection) {
     if (rtc !== connection || (channel && channel !== dataChannel)) { dataChannel.close(); return; }
-    channel = dataChannel; channel.binaryType = 'arraybuffer'; channel.bufferedAmountLowThreshold = 128 * 1024;
+    channel = dataChannel; channel.binaryType = 'arraybuffer'; channel.bufferedAmountLowThreshold = 1024 * 1024;
+    channel.onbufferedamountlow = () => { if (channel === dataChannel) wakeSender(); };
     receiveChain = Promise.resolve();
     let pendingBytes = 0, pendingMessages = 0;
     channel.onopen = () => { if (channel !== dataChannel) return; clearTimeout(connectTimer); rememberPeer(); setStatus('connected'); $('notice').hidden = true; updateConnectionUI(); processQueue(); };
     channel.onmessage = event => {
         if (channel !== dataChannel) return;
         const bytes = typeof event.data === 'string' ? event.data.length * 2 : event.data.byteLength;
-        if (!Number.isFinite(bytes) || bytes > 65536 || pendingBytes + bytes > 1024 * 1024 || pendingMessages >= 128) {
+        if (!Number.isFinite(bytes) || bytes > P.ChunkSize || pendingBytes + bytes > P.ReceiveQueueBytes || pendingMessages >= P.ReceiveQueueMessages) {
             connectionFailed(); return;
         }
         pendingBytes += bytes; pendingMessages++;
@@ -211,15 +224,19 @@ function attachChannel(dataChannel, connection) {
             if (channel === dataChannel) { notice('saveFailed'); connectionFailed(); }
         }).finally(() => { pendingBytes -= bytes; pendingMessages--; });
     };
-    channel.onclose = () => { if (channel === dataChannel) connectionFailed(); };
+    // A peer closing its tab closes the channel just before the server's peer-left arrives.
+    // Only treat the close as a failure if no peer-left followed.
+    channel.onclose = () => { if (channel === dataChannel) setTimeout(() => { if (channel === dataChannel) connectionFailed(); }, 1500); };
     channel.onerror = () => { if (channel === dataChannel) connectionFailed(); };
 }
 function connectionFailed() {
     closeRTC(); setStatus('offline'); notice('failure'); updateConnectionUI();
     if (!stopped) { clearTimeout(retryTimer); retryTimer = setTimeout(reconnect, 4000); }
 }
+let disconnectGrace = null;
 function closeRTC() {
     clearTimeout(connectTimer);
+    clearTimeout(disconnectGrace);
     const oldChannel = channel, oldRTC = rtc; channel = null; rtc = null;
     oldChannel?.close(); oldRTC?.close();
     if (incoming) disposeIncoming('error');
@@ -284,16 +301,23 @@ function enqueueFiles(files) {
 function processQueue() {
     if (outgoing || !queue.length || channel?.readyState !== 'open') return;
     outgoing = queue.shift(); setRecord(outgoing, 'awaiting');
-    control({ type: 'offer', id: outgoing.id, name: outgoing.name, size: outgoing.size });
+    control({ type: 'offer', id: outgoing.id, name: outgoing.name, size: outgoing.size, window: P.WindowBytes });
 }
 async function pumpFile(record) {
+    let buffer = null, bufferStart = 0;
     try {
         while (outgoing === record && record.sent < record.size && channel?.readyState === 'open') {
             // Bound both browser send buffers and bytes waiting for the receiver's disk writer.
-            if (record.sent - record.acked >= 256 * 1024 || channel.bufferedAmount > 512 * 1024) { await new Promise(resolve => setTimeout(resolve, 12)); continue; }
-            const bytes = await record.file.slice(record.sent, record.sent + P.ChunkSize).arrayBuffer();
-            if (outgoing !== record || channel?.readyState !== 'open') return;
-            channel.send(bytes); record.sent += bytes.byteLength;
+            if (record.sent - record.acked >= record.window || channel.bufferedAmount > 2 * 1024 * 1024) { await waitForCapacity(); continue; }
+            if (!buffer || record.sent >= bufferStart + buffer.byteLength) {
+                bufferStart = record.sent;
+                buffer = await record.file.slice(record.sent, Math.min(record.size, record.sent + P.ReadSize)).arrayBuffer();
+                if (outgoing !== record || channel?.readyState !== 'open') return;
+                if (!buffer.byteLength) throw new Error('File changed while sending');
+            }
+            const offset = record.sent - bufferStart;
+            const length = Math.min(P.ChunkSize, buffer.byteLength - offset);
+            channel.send(new Uint8Array(buffer, offset, length)); record.sent += length;
         }
         if (outgoing === record && channel?.readyState === 'open') { control({ type: 'end', id: record.id }); setRecord(record, 'pendingSave'); }
     } catch { if (outgoing === record) { control({ type: 'cancel', id: record.id }); setRecord(record, 'error'); outgoing = null; processQueue(); } }
@@ -309,10 +333,10 @@ async function acceptIncoming(record) {
             record.writer = writer;
         } else {
             if (record.size > P.MemoryLimit) { notice('memoryLimit'); cancelRecord(record); return; }
-            releaseDownload(); record.chunks = [];
+            releaseDownload(); record.chunks = []; record.parts = []; record.chunkBytes = 0;
         }
         if (incoming !== record) return;
-        record.accepted = true; setRecord(record, 'receiving'); control({ type: 'accept', id: record.id });
+        record.accepted = true; record.lastAck = 0; setRecord(record, 'receiving'); control({ type: 'accept', id: record.id, window: P.WindowBytes });
     } catch (error) { if (incoming === record) { if (error.name !== 'AbortError') notice('saveFailed'); cancelRecord(record); } }
 }
 function disposeIncoming(status) {
@@ -321,7 +345,7 @@ function disposeIncoming(status) {
     // Closing a disk stream has already begun committing it; report the actual close result.
     if (record.committing) return;
     if (record.writer) { record.writer.abort().catch(() => {}); record.writer = null; }
-    record.chunks = null; setRecord(record, status);
+    record.chunks = null; record.parts = null; setRecord(record, status);
 }
 function cancelRecord(record) {
     if (record.committing) return;
@@ -333,9 +357,14 @@ async function handleData(data) {
     if (data instanceof ArrayBuffer) {
         if (!incoming?.accepted) return; // Already queued bytes may arrive after a local cancellation.
         const record = incoming; P.acceptChunk(record, data.byteLength);
-        if (record.writer) await record.writer.write(data); else record.chunks.push(data);
+        if (record.writer) await record.writer.write(data); else foldChunk(record, data);
         if (incoming !== record) return;
-        progressRecord(record); control({ type: 'ack', id: record.id, bytes: record.received }); return;
+        progressRecord(record);
+        // Batched acks; the final byte count is always acknowledged because completion requires it.
+        if (!record.ackEvery || record.received - record.lastAck >= record.ackEvery || record.received === record.size) {
+            record.lastAck = record.received; control({ type: 'ack', id: record.id, bytes: record.received });
+        }
+        return;
     }
     if (typeof data !== 'string' || data.length > 2048) throw new Error('Invalid control');
     const message = JSON.parse(data);
@@ -344,14 +373,16 @@ async function handleData(data) {
         if (!P.validOffer(message)) throw new Error('Invalid offer');
         if (incoming) { control({ type: 'cancel', id: message.id, reason: 'busy' }); return; }
         incoming = makeRecord(message.id, message.name, message.size, 'in', 'offered');
+        incoming.ackEvery = P.ackInterval(message.window);
         if (typeof window.showSaveFilePicker !== 'function' && message.size > P.MemoryLimit) { notice('memoryLimit'); control({ type: 'cancel', id: message.id, reason: 'memoryLimit' }); disposeIncoming('cancelled'); }
         return;
     }
     const record = outgoing?.id === message.id ? outgoing : null;
-    if (message.type === 'accept' && record?.status === 'awaiting') { setRecord(record, 'sending'); void pumpFile(record); }
+    if (message.type === 'accept' && record?.status === 'awaiting') { record.window = P.negotiatedWindow(message.window); setRecord(record, 'sending'); void pumpFile(record); }
+    else if (message.type === 'committing' && record?.status === 'pendingSave') { record.remoteCommitting = true; record.last = Date.now(); }
     else if (message.type === 'ack' && record) {
         if (!Number.isSafeInteger(message.bytes) || message.bytes < record.acked || message.bytes > record.sent) throw new Error('Invalid acknowledgment');
-        record.acked = message.bytes; progressRecord(record);
+        record.acked = message.bytes; progressRecord(record); wakeSender();
     } else if (message.type === 'complete' && record) {
         if (record.sent !== record.size || record.acked !== record.size || record.status !== 'pendingSave') throw new Error('Premature completion');
         setRecord(record, 'delivered'); record.file = null; outgoing = null; processQueue();
@@ -362,6 +393,8 @@ async function handleData(data) {
         receiving.committing = true;
         setRecord(receiving, 'pendingSave');
         if (receiving.writer) {
+            // Large disk commits (swap file + browser scan) can take long; keep the sender from timing out.
+            control({ type: 'committing', id: receiving.id });
             try { await receiving.writer.close(); }
             catch {
                 receiving.writer = null; receiving.committing = false;
@@ -373,7 +406,7 @@ async function handleData(data) {
             receiving.writer = null;
             setRecord(receiving, 'saved');
         } else {
-            const blob = new Blob(receiving.chunks, { type: 'application/octet-stream' }); receiving.chunks = null;
+            const blob = new Blob([...receiving.parts, ...receiving.chunks], { type: 'application/octet-stream' }); receiving.chunks = null; receiving.parts = null;
             receiving.url = URL.createObjectURL(blob); retainedDownload = receiving; setRecord(receiving, 'received');
         }
         receiving.committing = false;
@@ -383,6 +416,10 @@ async function handleData(data) {
         if (incoming?.id === message.id) disposeIncoming('cancelled');
         if (record) { setRecord(record, 'cancelled'); outgoing = null; if (['busy', 'memoryLimit'].includes(message.reason)) notice(message.reason); processQueue(); }
     }
+}
+function foldChunk(record, data) {
+    record.chunks.push(data); record.chunkBytes += data.byteLength;
+    if (record.chunkBytes >= P.FoldBytes) { record.parts.push(new Blob(record.chunks)); record.chunks = []; record.chunkBytes = 0; }
 }
 async function updateQR() {
     if (pair.peerId || pair.role !== 'host') return;
@@ -398,6 +435,7 @@ async function updateQR() {
 async function initializeInvitation() {
     try {
         const response = await fetch('/api/info'); const info = await response.json();
+        if (Array.isArray(info.iceServers)) iceServers = info.iceServers;
         const addresses = info.publicUrl ? [info.publicUrl.replace(/\/$/, '')] : info.addresses;
         if (addresses?.length) {
             invitationBase = addresses[0];
@@ -411,7 +449,12 @@ $('approve').onclick = approvePeer;
 $('reject').onclick = () => { sendSignal({ type: 'reject' }); $('pair-request').hidden = true; };
 $('reconnect').onclick = reconnect;
 $('device-name').value = deviceName;
-$('save-name').onclick = () => { deviceName = $('device-name').value.trim().slice(0, 60) || deviceName; $('device-name').value = deviceName; writeStorage('brq.web.name', deviceName); reconnect(); };
+$('save-name').onclick = () => {
+    const name = $('device-name').value.trim().slice(0, 60) || deviceName;
+    if (name === deviceName) { $('device-name').value = deviceName; return; }
+    if ((incoming || outgoing || queue.length) && !confirm(t('renameConfirm'))) { $('device-name').value = deviceName; return; }
+    deviceName = name; $('device-name').value = deviceName; writeStorage('brq.web.name', deviceName); reconnect();
+};
 $('theme').onclick = () => { const theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = theme; writeStorage('brq.web.theme', theme); };
 $('language').onclick = () => { language = language === 'tr' ? 'en' : 'tr'; writeStorage('brq.web.language', language); applyLanguage(); };
 $('copy-link').onclick = async () => { try { await navigator.clipboard.writeText(`${invitationBase}/#pair=${pair.room}`); notice('copied'); } catch { notice('copyFailed'); } };
@@ -437,7 +480,8 @@ window.addEventListener('pageshow', event => { if (event.persisted) { stopped = 
 setInterval(() => {
     const now = Date.now();
     for (const record of [incoming, outgoing]) {
-        if (record && !record.committing && now - record.last > (['offered', 'awaiting'].includes(record.status) ? 300000 : 90000)) { notice('timeout'); cancelRecord(record); }
+        const limit = record?.remoteCommitting ? 600000 : ['offered', 'awaiting'].includes(record?.status) ? 300000 : 90000;
+        if (record && !record.committing && now - record.last > limit) { notice('timeout'); cancelRecord(record); }
     }
 }, 5000);
 document.documentElement.dataset.theme = readStorage('brq.web.theme') === 'light' ? 'light' : 'dark';

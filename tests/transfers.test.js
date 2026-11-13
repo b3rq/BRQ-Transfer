@@ -186,3 +186,30 @@ test('explicitEmptyUploadTargetCannotFallBackToNewServerSelection', async () => 
     assert.equal(response.body.transfer.status, 'saved');
     assert.equal(h.commands.length, 0);
 });
+
+test('deletingPcUploadRecordRemovesItsPrivateCopyAndApkEntry', async () => {
+    const h = createHarness();
+    h.context.copyPath = h.eval('path.join(UPLOADS_DIR, "copy.apk")');
+    h.files.set(h.context.copyPath, 'apk');
+    h.eval('transfersList=[{id:"pc",direction:"pc-to-phone",status:"transferred",localPath:copyPath}]; apkList=[{id:"a",filePath:copyPath}]');
+    const response = await h.request('POST', '/api/transfers/delete', { id: 'pc' });
+    assert.equal(response.body.success, true);
+    assert.equal(h.files.has(h.context.copyPath), false);
+    assert.equal(h.eval('apkList.length'), 0);
+    assert.ok(h.events.some(event => event.type === 'APKS_UPDATED'));
+});
+
+test('historyTrimReleasesOnlyDroppedUploadCopies', () => {
+    const h = createHarness();
+    h.context.uploads = Array.from({ length: 102 }, (_, index) => h.eval(`path.join(UPLOADS_DIR, "file${index}.bin")`));
+    for (const item of h.context.uploads) h.files.set(item, 'x');
+    h.context.outside = '/elsewhere/keep.bin';
+    h.files.set(h.context.outside, 'x');
+    h.eval('transfersList=uploads.map((localPath,index)=>({id:String(index),direction:"pc-to-phone",status:"transferred",localPath})); transfersList.push({id:"outside",direction:"pc-to-phone",status:"transferred",localPath:outside}); saveTransfers()');
+    assert.equal(h.eval('transfersList.length'), 100);
+    assert.equal(h.files.has(h.context.uploads[0]), true);
+    assert.equal(h.files.has(h.context.uploads[99]), true);
+    assert.equal(h.files.has(h.context.uploads[100]), false);
+    assert.equal(h.files.has(h.context.uploads[101]), false);
+    assert.equal(h.files.has(h.context.outside), true);
+});

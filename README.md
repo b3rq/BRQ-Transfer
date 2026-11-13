@@ -49,6 +49,10 @@ BRQ Transfer connects your PC and Android devices directly over your local Wi-Fi
 > **Use on Trusted Private Networks Only**
 > BRQ Transfer runs on your local network (LAN) on port 4500 and is designed for ease of use without complex authentication barriers. **Never run this application on public or untrusted Wi-Fi networks** (such as cafes, airports, or hotels) where unknown devices share the same network. Only run it on private, password-protected home or office networks.
 
+> [!NOTE]
+> **Phone access**
+> Opening `/mobile` alone does not give a phone any rights. A phone can send or download files only after it scans the QR code in the dashboard (the QR carries a one-session access key), or after you approve its **access request** in the dashboard. Loopback connections (this PC, or a phone opened through ADB's reverse tunnel) are trusted automatically. **Reset phone access** in the dashboard revokes every phone and rotates the QR key. Restarting the app also requires phones to scan the QR again.
+
 > [!IMPORTANT]
 > **Wireless ADB Security**
 > Wireless ADB grants direct command-level access to your Android device (including installing/uninstalling packages, rebooting, and input simulation). Only pair and connect to Android devices that you personally own. Always verify the device IP before initiating a connection.
@@ -66,8 +70,8 @@ BRQ Transfer connects your PC and Android devices directly over your local Wi-Fi
 ## Features
 
 - **Bidirectional File Transfer**:
-  - **PC to Mobile**: Drag and drop any file onto the web dashboard for immediate download to `/sdcard/Download`.
-  - **Mobile to PC**: Upload photos, videos, recordings, or documents directly from your phone's browser or companion app to your PC's `received/` folder.
+  - **PC to Mobile**: Drag and drop any file onto the web dashboard. With a connected ADB phone it is pushed to `/sdcard/Download`; every phone can also download it from the phone page's **From PC** tab, **without Developer Options or wireless debugging**.
+  - **Mobile to PC**: Upload photos, videos, recordings, or documents directly from your phone's browser or companion app to your PC's `received/` folder. Uploads are resumable: a dropped Wi-Fi connection or a page reload continues from the last confirmed 4 MiB chunk.
 - **Wireless ADB Management**:
   - Pair using only the phone's 6-digit code, with automatic IP and port discovery.
   - Discover previously paired devices on demand and reconnect reachable disconnected phones without pairing again.
@@ -126,11 +130,17 @@ The desktop launcher opens the local management session automatically. For brows
 
 For the Unity hook, set **Hub Folder** in its editor window to this checkout (or set `BRQ_TRANSFER_HOME`). The hook and window share the configured port; the default is 4500.
 
-Mobile-to-PC uploads can include up to 50 files per submission and are streamed to the PC disk. Available disk space and the destination filesystem determine how large a file can be. PC uploads are limited to **2000 MiB per file** and run two at a time with up to 100 waiting files; the server accepts four simultaneous uploads and up to 100 in-flight transfers. Phone push/install work runs one at a time per verified phone. History keeps these in-flight records plus the latest 100 finished records. Without a selected phone, a PC upload is saved locally and is not reported as delivered. Interrupted transfers offer **Retry**, verifying the original phone identity first. Clipboard text has a **64 KiB UTF-8 limit**; larger content should be sent as a file.
+Mobile-to-PC uploads can include up to 50 files per submission. Each file is its own resumable session sent in 4 MiB chunks, two files at a time; a failed chunk is retried with backoff and the phone continues from the byte count the PC confirms. Re-selecting the same file within an hour (for example after reloading the page) resumes it. Available disk space and the destination filesystem determine how large a file can be. PC uploads are limited to **2000 MiB per file** and run two at a time with up to 100 waiting files; the server accepts four simultaneous uploads and up to 100 in-flight transfers. Phone push/install work runs one at a time per verified phone. History keeps these in-flight records plus the latest 100 finished records. Without a selected phone, a PC upload is kept on the PC and offered on the phone page's **From PC** tab; it is not reported as delivered. Removing a PC upload from history (or letting it age out of the 100-record history) also deletes BRQ's private copy in `uploads/`. Interrupted transfers offer **Retry**, verifying the original phone identity first. Clipboard text has a **64 KiB UTF-8 limit**; larger content should be sent as a file.
 
 Local build folders use native filesystem events. UNC folders and native watcher errors use polling; set `BRQ_WATCH_POLLING=1` to force polling on other network mounts. Completed APK checks and write stabilization remain enabled.
 
 Run `npm test` for regression tests, `npm run test:ui` for the Electron DOM/render checks, `npm run validate:local` for the five-minute isolated local load test, and `npm run benchmark:watcher` for the 10,000-file watcher comparison. The local validation tools use fixture files and fake ADB/UDP; they do not operate on phones or your normal configuration.
+
+`npm run bench` measures the phone-upload and phone-download paths over loopback (`BRQ_BENCH_MB` sets the size; `BRQ_BENCH_DEVICE=<adb id>` additionally times a real `adb push` and deletes the file afterwards). `npm run bench:web` measures the browser-to-browser WebRTC path. Loopback numbers show the software's overhead ceiling, not Wi-Fi speed; compare them before and after a change on the same machine.
+
+Device changes are detected through `adb track-devices`, so attaching or detaching a phone is reflected immediately and the background poll only refreshes battery levels every 20 seconds. If the tracker cannot run, the previous 4-second poll is used.
+
+**Copy diagnostics report** (next to the phone QR code) copies a JSON summary for bug reports: tool availability, ADB version, adapters, device models and states, storage use and the last API error codes. It contains no serial numbers, IP addresses or file paths.
 
 The Companion source can be compiled without replacing the distributed APK using `./android-companion/build-companion.ps1 -ValidateOnly`. Physical Android update/install validation remains separate from this source compilation. Existing public APKs are preserved when build or signing validation fails.
 
@@ -140,7 +150,7 @@ For Android 11 and newer:
 2. Go to **Settings -> Developer Options -> Wireless Debugging** and enable it.
 3. Connect the phone and PC to the same local network (including a PC mobile hotspot). Keep **Wireless debugging** enabled and allow debugging on that network. You do not need to keep the pairing code dialog open for discovery.
 4. In BRQ Transfer, open **Devices**, select your phone, and click **Connect**. If this PC is already authorized, it connects without asking for a code. Otherwise, the code field appears: open **Pair device with pairing code** on the phone, keep that dialog open while pairing, enter the **6-digit code**, and click **Pair**. IP addresses and ports are resolved automatically.
-5. After pairing, keep Wireless Debugging enabled. BRQ Transfer attempts to reconnect known devices every 10 seconds using their current advertised address, without scanning port ranges. Choosing **Disconnect** pauses the app's reconnection attempts for that device until you reconnect it manually, including after an app restart.
+5. After pairing, keep Wireless Debugging enabled. Use **Find Phone** to discover known devices at their current advertised address and reconnect them, without scanning port ranges. Choosing **Disconnect** pauses the app's reconnection attempts for that device until you reconnect it manually, including after an app restart.
 6. If discovery is blocked by your network, expand **Phone not found? Pair manually** and enter the IP:Port from the **pairing code dialog**, along with the 6-digit code. If automatic connection after pairing is also unavailable, enter the separate **connection port** from the main Wireless Debugging screen. QR pairing is available as an alternative.
 7. Enable **Auto-install on new build** for hands-free updates.
 

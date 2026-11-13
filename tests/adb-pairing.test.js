@@ -123,7 +123,7 @@ function createSavedPhonesUiHarness(options = {}) {
         document: { getElementById: id => elements[id], createElement: makeElement },
         window: { confirm: () => options.confirm !== false },
         savedPhones: [{ serviceName: 'adb-PHONE-old', model: '<Galaxy>', deviceName: 'My Phone', ip: '192.168.1.20' }],
-        forgettingPhones: false, codePairingInProgress: false, devicesRequestVersion: 0,
+        forgettingPhones: false, codePairingInProgress: false, devicesRequestVersion: 0, pairingDiscoveryVersion: 0,
         currentDevices: [{ id: 'phone' }], selectedDevice: 'phone', currentPairingSession: {}, lastPairedIp: '192.168.1.20',
         quickPortBox: { style: {} }, currentLang: 'tr',
         i18n: { tr: { no_saved_phones: 'Kayıt yok', forget_phone: 'Sil', phones_forgotten: 'Silindi' } },
@@ -734,7 +734,7 @@ function createPhoneUiHarness(responseData) {
         pairingServices: [{ name: 'adb-PHONE-random', ip: '192.168.137.20' }],
         pairingDiscoveryState: 'pairing_found', pairingDiscoveryInProgress: false, pairingDiscoveryFeedbackTimer: null, codePairingInProgress: false,
         currentPairingSession: null, currentDevices: [], pairingMethod: 'discover', qrPairingRequestId: 0,
-        window: {}, devicesRequestVersion: 0,
+        window: {}, devicesRequestVersion: 0, pairingDiscoveryVersion: 0,
         document: { createElement: element, querySelectorAll: () => [], getElementById: id => {
             if (!panels.has(id)) panels.set(id, element());
             return panels.get(id);
@@ -849,12 +849,12 @@ function createDisconnectUiHarness(fetch) {
     const uiSource = fs.readFileSync(path.join(__dirname, '..', 'public', 'pc.js'), 'utf8');
     const messages = [];
     const context = vm.createContext({
-        window: {}, fetch, disconnectingDevices: new Set(), devicesRequestVersion: 0,
+        window: {}, fetch, disconnectingDevices: new Set(), devicesRequestVersion: 0, pairingDiscoveryVersion: 0,
         currentDevices: [{ id: 'phone', state: 'device' }], selectedDevice: 'phone',
         currentPairingSession: { status: 'connected' }, lastPairedIp: '192.168.1.20',
         quickPortBox: { style: {} }, currentLang: 'tr',
         i18n: { tr: { toast_disconnected: 'Kesildi:', toast_device_refreshed: 'Liste güncellendi' } },
-        renderDevices() {}, discoverPairingPhones: async () => {}, updatePairStatusBadge() {}, showToast: message => messages.push(message)
+        renderDevices() {}, discoverPairingPhones: async () => {}, updatePairStatusBadge() {}, maskIdentifier: value => value, showToast: message => messages.push(message)
     });
     loadUiRequestHelpers(context, uiSource);
     vm.runInContext(uiSource.slice(uiSource.indexOf('window.disconnectDevice ='),

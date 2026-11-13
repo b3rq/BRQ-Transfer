@@ -105,3 +105,15 @@ test('invalid room credentials and binary signaling are rejected', async t => {
     valid.socket.send(Buffer.from('not a signaling message'));
     assert.equal((await valid.next('error')).code, 'INVALID_MESSAGE');
 });
+
+test('same browser identity can reclaim its slot from a stale socket', async t => {
+    const { client } = await setup(t);
+    const a = await client(room, 'host', hostId);
+    const b = await client(room, 'guest', guestId);
+    await a.next('peer');
+    const returning = await client(room, 'guest', guestId);
+    assert.equal((await returning.next('waiting')).type, 'waiting');
+    await a.next('peer-left');
+    assert.equal((await a.next('peer')).id, guestId);
+    await new Promise(resolve => b.socket.readyState === WebSocket.CLOSED ? resolve() : b.socket.once('close', resolve));
+});

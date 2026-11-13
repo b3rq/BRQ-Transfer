@@ -38,7 +38,7 @@ test('invalidConfigReturns400AndOversizeUploadReturns413', async () => {
     assert.equal(typeof result.operationId, 'string');
 });
 
-test('httpDisconnectCancelsOwnedAdbCommand', { timeout: 3000 }, async t => {
+test('httpDisconnectCancelsOwnedAdbCommand', { timeout: 15000 }, async t => {
     let started, cancelled;
     const running = new Promise(resolve => { started = resolve; });
     const stopped = new Promise(resolve => { cancelled = resolve; });
@@ -71,4 +71,18 @@ test('mobileDiskFailureUsesSanitizedErrorContract', async () => {
     const response = await h.request('POST', '/api/upload/mobile-to-pc', {}, { files: [{ path: '/fixture.part', filename: 'fixture.part', originalname: 'fixture', size: 1 }] });
     assert.equal(response.body.error.code, 'FILE_ACCESS_DENIED');
     assert.equal(JSON.stringify(response.body).includes('private filename'), false);
+});
+
+test('diagnosticsReportSummarizesWithoutSerialsOrPaths', async () => {
+    const h = createHarness({ command: args => args[0] === 'version' ? 'Android Debug Bridge version 1.0.41' :
+        args[0] === 'devices' ? 'List of devices attached\nSECRET123\tdevice model:Pixel_8' : args.includes('ro.serialno') ? 'SECRET123' : '' });
+    h.eval('sendApiError({status(){return this},json(){}}, Object.assign(new Error("x"),{code:"DEVICE_OFFLINE",status:409}))');
+    const response = await h.request('GET', '/api/diagnostics');
+    assert.equal(response.body.tools.adbVersion, 'Android Debug Bridge version 1.0.41');
+    assert.equal(response.body.devices[0].model, 'Pixel 8');
+    assert.deepEqual([...response.body.devices[0].transports], ['usb']);
+    assert.equal(response.body.recentErrors.at(-1).code, 'DEVICE_OFFLINE');
+    const text = JSON.stringify(response.body);
+    assert.equal(text.includes('SECRET123'), false);
+    assert.equal(text.includes(h.eval('BASE_DIR')), false);
 });

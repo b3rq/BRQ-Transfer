@@ -30,3 +30,15 @@ test('stored pairs are rejected when damaged or incompatible', () => {
     assert.equal(protocol.validPair({ ...pair, room: '123' }), false);
     assert.equal(protocol.validPair(null), false);
 });
+
+test('window negotiation stays compatible with peers that predate it', () => {
+    assert.equal(protocol.negotiatedWindow(undefined), protocol.LegacyWindow);
+    assert.equal(protocol.negotiatedWindow(64 * 1024 * 1024), protocol.LegacyWindow);
+    assert.equal(protocol.negotiatedWindow(1024 * 1024), 1024 * 1024);
+    assert.equal(protocol.negotiatedWindow(16 * 1024 * 1024), protocol.WindowBytes);
+    // A legacy sender (no window) must still get an ack for every chunk.
+    assert.equal(protocol.ackInterval(undefined), 0);
+    assert.equal(protocol.ackInterval(protocol.WindowBytes), protocol.WindowBytes / 4);
+    assert.equal(protocol.validOffer({ type: 'offer', id: 'a'.repeat(32), name: 'x', size: 1, window: 1 }), false);
+    assert.ok(protocol.ReceiveQueueBytes >= protocol.WindowBytes + protocol.ChunkSize);
+});

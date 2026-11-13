@@ -5,8 +5,23 @@ const express = require('express');
 const { WebSocketServer, WebSocket } = require('ws');
 const QRCode = require('qrcode');
 
+// Optional ICE servers (JSON array) for networks where direct host candidates cannot meet,
+// e.g. BRQ_WEB_ICE_SERVERS='[{"urls":"stun:stun.example.org:3478"}]'. Invalid entries are dropped.
+function parseIceServers(text) {
+    if (!text) return [];
+    let value;
+    try { value = JSON.parse(text); } catch { console.error('BRQ_WEB_ICE_SERVERS is not valid JSON; ignoring it.'); return []; }
+    if (!Array.isArray(value)) return [];
+    const validUrl = url => typeof url === 'string' && url.length <= 512 && /^(stun|turns?):/i.test(url);
+    return value.slice(0, 8).filter(entry => entry && typeof entry === 'object' &&
+        (validUrl(entry.urls) || (Array.isArray(entry.urls) && entry.urls.length > 0 && entry.urls.every(validUrl))) &&
+        ['username', 'credential'].every(key => entry[key] === undefined || (typeof entry[key] === 'string' && entry[key].length <= 256)))
+        .map(({ urls, username, credential }) => ({ urls, ...(username ? { username } : {}), ...(credential ? { credential } : {}) }));
+}
+
 // Signaling only. Never import the desktop server or accept file payloads here.
-function createWebServer({ publicUrl = process.env.BRQ_WEB_URL || '' } = {}) {
+function createWebServer({ publicUrl = process.env.BRQ_WEB_URL || '', iceServers = parseIceServers(process.env.BRQ_WEB_ICE_SERVERS),
+    maxConnectionsPerIp = Number(process.env.BRQ_WEB_MAX_PER_IP) || 16, trustProxy = process.env.BRQ_WEB_TRUST_PROXY === '1' } = {}) {
     const app = express();
     const server = http.createServer(app);
     const rooms = new Map();
@@ -28,7 +43,7 @@ function createWebServer({ publicUrl = process.env.BRQ_WEB_URL || '' } = {}) {
         const addresses = local && !publicUrl ? Object.values(os.networkInterfaces()).flat()
             .filter(item => item.family === 'IPv4' && !item.internal && /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(item.address))
             .map(item => `http://${item.address}:${port}`) : [];
-        res.json({ publicUrl, addresses });
+        res.json({ publicUrl, addresses, iceServers });
     });
     let qrInFlight = 0;
     app.post('/api/qr', async (req, res) => {
@@ -48,10 +63,24 @@ function createWebServer({ publicUrl = process.env.BRQ_WEB_URL || '' } = {}) {
     }
     app.use((error, req, res, next) => res.sendStatus(error.status || 500));
     const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024, perMessageDeflate: false });
+    // One client must not be able to take every signaling slot.
+    const connectionsByIp = new Map();
+    const clientIp = req => (trustProxy && String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()) || req.socket.remoteAddress || '';
     server.on('upgrade', (req, socket, head) => {
-        if (req.url !== '/signal' || !req.headers.origin || !sameOrigin(req) || wss.clients.size >= 1000) {
+        const ip = clientIp(req);
+        if (req.url !== '/signal' || !req.headers.origin || !sameOrigin(req) || wss.clients.size >= 1000 ||
+            (connectionsByIp.get(ip) || 0) >= maxConnectionsPerIp) {
             socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n'); return;
         }
+        connectionsByIp.set(ip, (connectionsByIp.get(ip) || 0) + 1);
+        let released = false;
+        const release = () => {
+            if (released) return;
+            released = true;
+            const count = (connectionsByIp.get(ip) || 1) - 1;
+            if (count > 0) connectionsByIp.set(ip, count); else connectionsByIp.delete(ip);
+        };
+        socket.once('close', release);
         wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws));
     });
     const send = (ws, message) => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message)); };
@@ -75,6 +104,15 @@ function createWebServer({ publicUrl = process.env.BRQ_WEB_URL || '' } = {}) {
                     !['host', 'guest'].includes(role) || typeof id !== 'string' || !/^[a-f0-9]{32}$/.test(id) ||
                     typeof name !== 'string' || !name.trim() || name.length > 60) return fail(ws, 'INVALID_HELLO', true);
                 const entry = rooms.get(room) || {};
+                // A phone that switched networks reconnects before the heartbeat drops its old socket.
+                // The same browser identity may take over its own slot; anyone else still gets ROOM_BUSY.
+                const stale = entry[role];
+                if (stale && stale.id === id) {
+                    delete entry[role];
+                    const peer = entry[role === 'host' ? 'guest' : 'host'];
+                    if (peer) { peer.approved = false; peer.started = false; send(peer, { type: 'peer-left' }); }
+                    stale.terminate();
+                }
                 if (entry[role] || Object.values(entry).some(peer => peer.id === id)) return fail(ws, 'ROOM_BUSY', true);
                 Object.assign(ws, { room, role, id, name: name.trim(), approved: false });
                 entry[role] = ws; rooms.set(room, entry); clearTimeout(deadline);
@@ -137,4 +175,4 @@ if (require.main === module) {
     process.once('SIGINT', () => service.close());
     process.once('SIGTERM', () => service.close());
 }
-module.exports = { createWebServer };
+module.exports = { createWebServer, parseIceServers };

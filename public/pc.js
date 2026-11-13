@@ -59,7 +59,7 @@ const i18n = {
         stop: "Durdur",
         download: "İndir",
         status_transferred: "Cihaza Aktarıldı",
-        status_saved: "Sunucuda Hazır",
+        status_saved: "Telefon sayfasında hazır",
         status_received: "PC'ye Alındı",
         status_error: "Aktarım Başarısız",
         dir_pc_to_phone: "PC → Telefon",
@@ -73,6 +73,15 @@ const i18n = {
         adb_push_badge: "ADB Push",
         mobile_qr_desc: "Telefon kamerasıyla QR kodu tarayın; fotoğraf, video ve belgeleri kablosuz PC'ye gönderin.",
         copy_link: "Linki Kopyala",
+        mobile_access_requests: "Erişim isteyen telefonlar",
+        mobile_access_approve: "Onayla",
+        mobile_access_deny: "Reddet",
+        mobile_access_reset: "Telefon erişimlerini sıfırla",
+        mobile_access_reset_confirm: "Tüm telefonların erişimi kaldırılacak ve yeni bir QR kodu oluşturulacak. Telefonlar yeni QR kodunu okutana kadar dosya gönderemez. Devam edilsin mi?",
+        mobile_access_reset_done: "Telefon erişimleri sıfırlandı. Yeni QR kodunu okutun.",
+        mobile_access_new: "Bir telefon erişim istiyor:",
+        diagnostics_copy: "Tanılama raporunu kopyala",
+        diagnostics_copied: "Tanılama raporu panoya kopyalandı.",
         received_folder: "İndirilenler Klasörü",
         open_folder_title: "Gelen dosyalar klasörünü aç",
         network_adapter: "Ağ:",
@@ -170,7 +179,7 @@ const i18n = {
         toast_uploading: "Yükleniyor:",
         toast_transferring: "Cihaza aktarılıyor:",
         toast_transferred: "Cihaza aktarıldı:",
-        toast_transfer_saved: "Dosya yüklendi (Cihaz bekleniyor):",
+        toast_transfer_saved: "Telefon sayfasının \"PC'den Al\" sekmesinden indirilebilir:",
         toast_transfer_error: "Aktarım hatası:",
         toast_ready: "Paket hazır:",
         toast_installing: "Yükleniyor:",
@@ -267,7 +276,7 @@ const i18n = {
         stop: "Stop",
         download: "Download",
         status_transferred: "Transferred to Device",
-        status_saved: "Ready on Server",
+        status_saved: "Ready on phone page",
         status_received: "Received on PC",
         status_error: "Transfer Failed",
         dir_pc_to_phone: "PC ➔ Phone",
@@ -281,6 +290,15 @@ const i18n = {
         adb_push_badge: "ADB Push",
         mobile_qr_desc: "Scan QR with your phone camera to send photos, videos, and documents directly to PC over Wi-Fi.",
         copy_link: "Copy Link",
+        mobile_access_requests: "Phones requesting access",
+        mobile_access_approve: "Approve",
+        mobile_access_deny: "Decline",
+        mobile_access_reset: "Reset phone access",
+        mobile_access_reset_confirm: "Every phone loses access and a new QR code is created. Phones cannot send files until they scan the new QR code. Continue?",
+        mobile_access_reset_done: "Phone access reset. Scan the new QR code.",
+        mobile_access_new: "A phone is requesting access:",
+        diagnostics_copy: "Copy diagnostics report",
+        diagnostics_copied: "Diagnostics report copied to the clipboard.",
         received_folder: "Received Folder",
         open_folder_title: "Open received files folder",
         network_adapter: "Network:",
@@ -378,7 +396,7 @@ const i18n = {
         toast_uploading: "Uploading:",
         toast_transferring: "Transferring to device:",
         toast_transferred: "Transferred to device:",
-        toast_transfer_saved: "File saved (Awaiting device):",
+        toast_transfer_saved: "Download it from the phone page's \"From PC\" tab:",
         toast_transfer_error: "Transfer error:",
         toast_ready: "Package ready:",
         toast_installing: "Installing:",
@@ -428,6 +446,8 @@ let ws = null;
 let currentTransfers = [];
 let currentDevices = [];
 let devicesRequestVersion = 0;
+// Only forget/disconnect invalidate a running phone search; routine device broadcasts must not.
+let pairingDiscoveryVersion = 0;
 const disconnectingDevices = new Set();
 let selectedDevice = '';
 let isPrivacyMode = localStorage.getItem('apkdrop_privacy') === 'true';
@@ -788,7 +808,72 @@ async function loadMobileTransferQr() {
     }
 }
 
+// Phones that opened /mobile without the QR key ask for access; the PC user decides here.
+let knownAccessRequestIds = new Set();
+function renderMobileAccessRequests(requests, announce) {
+    const container = document.getElementById('mobile-access-requests');
+    if (!container) return;
+    const dict = i18n[currentLang];
+    container.hidden = requests.length === 0;
+    const heading = document.createElement('div');
+    heading.className = 'mobile-access-heading';
+    heading.textContent = dict.mobile_access_requests;
+    const rows = requests.map(request => {
+        const row = document.createElement('div');
+        row.className = 'mobile-access-row';
+        const label = document.createElement('span');
+        label.className = 'mobile-access-label';
+        label.textContent = `${request.agent} · ${maskIdentifier(request.ip)}`;
+        const approve = document.createElement('button');
+        approve.className = 'btn-transfer-action';
+        approve.textContent = dict.mobile_access_approve;
+        approve.onclick = () => decideMobileAccess(request.id, true);
+        const deny = document.createElement('button');
+        deny.className = 'btn-transfer-action btn-transfer-delete';
+        deny.textContent = dict.mobile_access_deny;
+        deny.onclick = () => decideMobileAccess(request.id, false);
+        row.append(label, approve, deny);
+        return row;
+    });
+    container.replaceChildren(heading, ...rows);
+    const fresh = requests.find(request => !knownAccessRequestIds.has(request.id));
+    knownAccessRequestIds = new Set(requests.map(request => request.id));
+    if (announce && fresh) { playChime(); showToast(`${dict.mobile_access_new} ${fresh.agent}`, 'var(--warning)', 6000); }
+}
+async function decideMobileAccess(id, approve) {
+    try {
+        const data = await requestJson('/api/mobile/access/decide', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, approve }) });
+        renderMobileAccessRequests(data.requests || [], false);
+    } catch (error) { showToast(error.message, 'var(--danger)'); }
+}
+function bindMobileAccessControls() {
+    const reset = document.getElementById('mobile-access-reset-btn');
+    if (reset && !reset.dataset.bound) {
+        reset.dataset.bound = '1';
+        reset.onclick = async () => {
+            if (!window.confirm(i18n[currentLang].mobile_access_reset_confirm)) return;
+            try {
+                await requestJson('/api/mobile/access/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+                showToast(i18n[currentLang].mobile_access_reset_done, 'var(--success)');
+                loadMobileTransferQr();
+            } catch (error) { showToast(error.message, 'var(--danger)'); }
+        };
+    }
+    const diagnostics = document.getElementById('copy-diagnostics-btn');
+    if (diagnostics && !diagnostics.dataset.bound) {
+        diagnostics.dataset.bound = '1';
+        diagnostics.onclick = async () => {
+            try {
+                const report = await requestJson('/api/diagnostics');
+                await navigator.clipboard.writeText(JSON.stringify(report, null, 2));
+                showToast(i18n[currentLang].diagnostics_copied, 'var(--success)');
+            } catch (error) { showToast(error.message, 'var(--danger)'); }
+        };
+    }
+}
+
 function bindOpenOnPhone() {
+    bindMobileAccessControls();
     const button = document.getElementById('open-on-phone-btn');
     if (!button || button.onclick) return;
     button.onclick = async () => {
@@ -854,7 +939,7 @@ async function forgetSavedPhones(serviceName) {
     const dict = i18n[currentLang];
     if (!window.confirm(serviceName ? dict.forget_phone_confirm : dict.forget_all_phones_confirm)) return;
     forgettingPhones = true;
-    devicesRequestVersion++;
+    devicesRequestVersion++; pairingDiscoveryVersion++;
     renderSavedPhones();
     try {
         const response = await requestResponse('/api/adb/forget', {
@@ -876,7 +961,7 @@ async function forgetSavedPhones(serviceName) {
         showToast(e.message, 'var(--danger)', 6000);
     } finally {
         forgettingPhones = false;
-        devicesRequestVersion++;
+        devicesRequestVersion++; pairingDiscoveryVersion++;
         renderSavedPhones();
     }
 }
@@ -942,18 +1027,18 @@ async function discoverPairingPhones() {
     }
     if (pairingDiscoveryInProgress) return;
     pairingDiscoveryInProgress = true;
-    const version = devicesRequestVersion;
+    const version = pairingDiscoveryVersion;
     renderPairingDiscovery();
     try {
         const response = await requestResponse('/api/adb/wireless-phones');
         const data = await response.json();
-        if (version !== devicesRequestVersion) return;
+        if (version !== pairingDiscoveryVersion) { pairingDiscoveryState = 'pairing_idle'; return; }
         if (!response.ok || !data.success) throw new Error('Discovery unavailable');
         pairingServices = data.services || [];
         pairingDiscoveryState = pairingServices.length > 1 ? 'pairing_multiple' :
             pairingServices.length === 1 ? 'pairing_found' : 'pairing_missing';
     } catch (e) {
-        if (version !== devicesRequestVersion) return;
+        if (version !== pairingDiscoveryVersion) { pairingDiscoveryState = 'pairing_idle'; return; }
         pairingServices = [];
         pairingDiscoveryState = 'pairing_discovery_error';
     } finally {
@@ -1231,7 +1316,7 @@ if (quickPortBtn) {
 window.disconnectDevice = async (deviceId) => {
     if (disconnectingDevices.has(deviceId)) return;
     disconnectingDevices.add(deviceId);
-    devicesRequestVersion++;
+    devicesRequestVersion++; pairingDiscoveryVersion++;
     renderDevices();
     try {
         const res = await requestResponse('/api/adb/disconnect', {
@@ -1247,7 +1332,7 @@ window.disconnectDevice = async (deviceId) => {
             lastPairedIp = '';
             if (quickPortBox) quickPortBox.style.display = 'none';
             updatePairStatusBadge();
-            showToast(`${i18n[currentLang].toast_disconnected} ${deviceId}`, 'var(--success)');
+            showToast(`${i18n[currentLang].toast_disconnected} ${maskIdentifier(deviceId)}`, 'var(--success)');
         } else {
             showToast(data.error, 'var(--danger)');
         }
@@ -1255,7 +1340,7 @@ window.disconnectDevice = async (deviceId) => {
         showToast(e.message, 'var(--danger)');
     } finally {
         disconnectingDevices.delete(deviceId);
-        devicesRequestVersion++;
+        devicesRequestVersion++; pairingDiscoveryVersion++;
         renderDevices();
     }
 };
@@ -1292,11 +1377,15 @@ function initJMuxer() {
 }
 
 let displayedStreamDevice = '';
+let activeStreamId = '';
+let streamStartTimer = null;
 function startWebScreenStream() {
     const target = selectedDevice;
     if (!target) return showToast(i18n[currentLang].toast_no_device, 'var(--danger)');
 
+    if (!ws || ws.readyState !== WebSocket.OPEN) return showToast(currentLang === 'tr' ? 'Sunucu bağlantısı bekleniyor. Biraz sonra tekrar deneyin.' : 'Waiting for the server connection. Try again shortly.', 'var(--danger)');
     displayedStreamDevice = target;
+    activeStreamId = '';
     fetchDisplaySize(target);
 
     isWebStreaming = true;
@@ -1314,6 +1403,12 @@ function startWebScreenStream() {
 
     initJMuxer();
 
+    // Never leave the UI on "Starting…" if the server never confirms the stream.
+    clearTimeout(streamStartTimer);
+    streamStartTimer = setTimeout(() => {
+        if (isWebStreaming && !activeStreamId) { stopWebScreenStream(true); showToast(currentLang === 'tr' ? 'Ekran yayını başlatılamadı. Bağlantıyı kontrol edin.' : 'Screen stream did not start. Check the connection.', 'var(--danger)'); }
+    }, 15000);
+
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({
             action: 'START_SCREEN_STREAM',
@@ -1325,6 +1420,8 @@ function startWebScreenStream() {
 }
 
 function stopWebScreenStream(notifyServer = true) {
+    clearTimeout(streamStartTimer);
+    activeStreamId = '';
     displayedStreamDevice = '';
     isWebStreaming = false;
     startWebStreamBtn.style.display = 'inline-flex';
@@ -1741,11 +1838,12 @@ function connectWs() {
             renderDevices();
             if (data.pairingSession && adbQrImg) {
                 if (data.pairingSession.qrDataUrl) adbQrImg.src = data.pairingSession.qrDataUrl;
-                handleAdbPairStatus(data.pairingSession);
+                handleAdbPairStatus(data.pairingSession, { replay: true });
             }
             if (data.clipboardMode) {
                 updateClipboardUI(data.clipboardMode);
             }
+            renderMobileAccessRequests(data.mobileAccessRequests || [], false);
             loadMobileTransferQr();
         } else if (data.type === 'NEW_APK') {
 
@@ -1755,7 +1853,7 @@ function connectWs() {
             const transfer = currentTransfers.find(item => item.id === data.id && item.operationId === data.operationId);
             if (transfer?.status === 'transferring' && Number.isFinite(data.progress)) {
                 transfer.progress = Math.max(transfer.progress || 0, Math.min(99, Math.max(0, Math.floor(data.progress))));
-                renderTransfers();
+                if (!updateTransferProgress(transfer)) renderTransfers();
             }
         } else if (data.type === 'TRANSFER_FAILED') {
             currentTransfers = data.transfers || currentTransfers; renderTransfers();
@@ -1780,7 +1878,7 @@ function connectWs() {
             renderTransfers();
             playChime();
             const count = data.transfers ? data.transfers.length : 1;
-            showToast(data.message || `${i18n[currentLang].toast_file_received_from_phone} (${count})`, 'var(--success)', 5000);
+            showToast(`${i18n[currentLang].toast_file_received_from_phone} (${count})`, 'var(--success)', 5000);
         } else if (data.type === 'TRANSFERS_UPDATED') {
             currentTransfers = data.transfers || [];
             renderTransfers();
@@ -1818,13 +1916,16 @@ function connectWs() {
             }
         } else if (['WATCHER_ERROR', 'PERSISTENCE_ERROR', 'CLIPBOARD_ERROR'].includes(data.type)) {
             showToast(data.error, 'var(--danger)', 6000);
-        } else if (data.type === 'CLIPBOARD_MODE_CHANGED' || data.type === 'CLIPBOARD_SYNC_STATUS') {
-            updateClipboardUI(data.mode || (data.active ? 'phone-to-pc' : 'off'));
+        } else if (data.type === 'CLIPBOARD_MODE_CHANGED') {
+            updateClipboardUI(data.mode || 'off');
+        } else if (data.type === 'MOBILE_ACCESS_REQUESTS') {
+            renderMobileAccessRequests(data.requests || [], true);
         } else if (data.type === 'ADB_PAIR_STATUS') {
             handleAdbPairStatus(data.session);
         } else if (data.type === 'SCREEN_STREAM_STATUS') {
             if (data.running && data.deviceId === displayedStreamDevice && screenStreamStatusBadge) screenStreamStatusBadge.textContent = i18n[currentLang].live;
-            if (!data.running && isWebStreaming) {
+            if (data.running) activeStreamId = data.streamId || '';
+            if (!data.running && isWebStreaming && (!data.streamId || !activeStreamId || data.streamId === activeStreamId)) {
                 stopWebScreenStream(false);
             }
             if (data.error) showToast(data.error, 'var(--danger)');
@@ -1842,7 +1943,7 @@ function connectWs() {
     };
 }
 
-function handleAdbPairStatus(session) {
+function handleAdbPairStatus(session, { replay = false } = {}) {
     if (!session) {
         currentPairingSession = null;
         lastPairedIp = '';
@@ -1866,14 +1967,16 @@ function handleAdbPairStatus(session) {
     if (session.status === 'paired_need_port') {
         if (quickPortBox) {
             quickPortBox.style.display = 'block';
-            quickPortInput.focus();
+            if (!replay) quickPortInput.focus();
         }
+        if (replay) return;
         playChime();
         showToast(i18n[currentLang].toast_pairing_ok, 'var(--success)', 5000);
     } else if (session.status === 'connected') {
         if (pairingCodeFields) pairingCodeFields.hidden = true;
         updatePairingFormState();
         if (quickPortBox) quickPortBox.style.display = 'none';
+        if (replay) return;
         playChime();
         showToast(i18n[currentLang].toast_device_connected, 'var(--success)', 4000);
         refreshDevices();
@@ -1974,7 +2077,7 @@ function renderTransfers() {
         `;
 
         return `
-          <div class="transfer-card">
+          <div class="transfer-card" data-transfer-id="${safeId}">
             <div class="transfer-left">
               <div class="transfer-icon" aria-hidden="true">${icon}</div>
               <div class="transfer-meta">
@@ -1995,6 +2098,22 @@ function renderTransfers() {
           </div>
         `;
     }).join('');
+}
+
+// Progress events arrive every second during a push. Rebuilding ~100 cards each time
+// collapsed open <details>, reset focus and could swallow Retry/Delete clicks.
+function updateTransferProgress(transfer) {
+    const card = [...transfersListContainer.querySelectorAll('.transfer-card')].find(node => node.dataset.transferId === String(transfer.id));
+    const bar = card?.querySelector('.transfer-progress');
+    const status = card?.querySelector('.transfer-status');
+    if (!bar || !status) return false;
+    const progress = Math.min(99, Math.max(0, Math.floor(Number(transfer.progress) || 0)));
+    const text = `${currentLang === 'tr' ? 'Telefona aktarılıyor' : 'Sending to phone'} · ${progress}%`;
+    bar.value = progress;
+    bar.textContent = `${progress}%`;
+    bar.setAttribute('aria-label', text);
+    status.textContent = text;
+    return true;
 }
 
 // Open received file with default Windows app
@@ -2134,6 +2253,7 @@ function updateHeaderDevicePill() {
         if (onlineDev.battery) {
             updateBatteryUI(onlineDev.battery);
         } else {
+            updateBatteryUI(null);
             fetchBattery(onlineDev.id);
         }
     } else {
@@ -2407,7 +2527,7 @@ async function requestResponse(url, options = {}) {
         let data;
         try { data = await response.json(); } catch (_) { throw new Error('Sunucudan geçerli yanıt alınamadı. Tekrar deneyin.'); }
         if (!data || typeof data !== 'object') throw new Error('Sunucudan geçerli yanıt alınamadı. Hub bağlantısını kontrol edin.');
-        if (!response.ok || (data.success === false && !data.needsPairing)) throw Object.assign(new Error(data.error?.message || (typeof data.error === 'string' ? data.error : 'İşlem tamamlanamadı. Tekrar deneyin.')), { operationId: data.operationId });
+        if (!response.ok || (data.success === false && !data.needsPairing)) throw Object.assign(new Error(localizedApiError(data.error) || 'İşlem tamamlanamadı. Tekrar deneyin.'), { operationId: data.operationId, code: data.error?.code });
         return { ok: response.ok, status: response.status, json: async () => data };
     } catch (error) {
         if (error.name === 'AbortError') throw new Error(currentLang === 'tr' ? 'İşlem iptal edildi veya zaman aşımına uğradı. Bağlantıyı kontrol edin.' : 'Request cancelled or timed out. Check the connection.');
@@ -2418,6 +2538,43 @@ async function requestResponse(url, options = {}) {
 async function requestJson(url, options = {}) {
     return (await requestResponse(url, options)).json();
 }
+const API_ERRORS_EN = {
+    ADB_NOT_FOUND: 'ADB was not found. Check the Android Platform-Tools path.',
+    ADB_TIMEOUT: 'The device operation timed out. Check the connection and try again.',
+    ADB_FAILED: 'The device operation failed. Check the connection and try again.',
+    DEVICE_UNAUTHORIZED: 'Allow USB/wireless debugging for this computer on the phone.',
+    DEVICE_OFFLINE: 'The selected phone is not connected. Reconnect it.',
+    DEVICE_BUSY: 'The phone or the transfer queue is busy. Wait for current work to finish.',
+    DEVICE_IDENTITY_CHANGED: 'This connection now belongs to a different phone. Select the phone again.',
+    INVALID_TARGET: 'Select a valid phone.',
+    INVALID_PAIRING: 'Invalid IP, port or 6-digit pairing code. Check the details.',
+    PAIRING_FAILED: 'Pairing failed. Check that the code is current and the pairing screen is open.',
+    LAUNCH_FAILED: 'The app could not be launched. Check the package and its launch activity.',
+    INSTALL_SIGNATURE_MISMATCH: 'The installed app has a different signature. Use an APK with the same signature.',
+    INSTALL_SDK_UNSUPPORTED: 'This APK does not support the phone\'s Android version.',
+    DISK_FULL: 'Not enough free disk space. Free some space and try again.',
+    FILE_ACCESS_DENIED: 'The file cannot be accessed. Check folder permissions and whether another app has it open.',
+    ENOENT: 'File or folder not found. Refresh the list and try again.',
+    EIO: 'The disk operation failed. Check the disk connection and free space.',
+    LIMIT_FILE_SIZE: 'The file exceeds the 2000 MiB limit.',
+    LIMIT_FILE_COUNT: 'Select at most 50 files per transfer.',
+    LIMIT_UNEXPECTED_FILE: 'Invalid file field or file count.',
+    UPLOAD_BUSY: 'Too many uploads are running. Wait for them to finish.',
+    INVALID_CONFIG: 'Invalid settings. Check the fields.',
+    PERSISTENCE_FAILED: 'The change could not be saved to disk. Check write permissions and free space.',
+    TOOL_MISSING: 'A required tool is missing. Check the tools folder.',
+    CLIPBOARD_TOO_LARGE: 'Clipboard text exceeds 64 KiB. Send larger text as a file.',
+    SCREENSHOT_INVALID: 'No valid screenshot was received. Check the phone connection.',
+    ACCESS_REQUEST_EXPIRED: 'The access request was not found or has expired.',
+    FORBIDDEN: 'Open the local dashboard to perform this action.',
+    INVALID_JSON: 'Invalid request. Try again.',
+    INTERNAL_ERROR: 'The operation could not be completed. Try again.'
+};
+function localizedApiError(error) {
+    if (currentLang === 'en' && error && API_ERRORS_EN[error.code]) return API_ERRORS_EN[error.code];
+    return error?.message || (typeof error === 'string' ? error : '');
+}
+
 async function saveSettings(patch) {
     const version = ++settingsVersion;
     settingsPending = true;

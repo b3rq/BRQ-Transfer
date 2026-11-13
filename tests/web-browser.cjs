@@ -105,7 +105,8 @@ app.whenReady().then(async () => {
         await until(b, '!!document.querySelector("[data-action=accept]")');
         await b.webContents.executeJavaScript('document.querySelector("[data-action=accept]").click()');
         await until(b, 'incoming?.accepted === true');
-        await a.webContents.executeJavaScript('for(let i=0;i<100;i++) channel.send(new Uint8Array(16384))');
+        // Exceeds the receiver's 8 MiB / 256-message queue bound whatever window the peer advertised.
+        await a.webContents.executeJavaScript('for(let i=0;i<300;i++) channel.send(new Uint8Array(32768))');
         await until(b, 'channel === null', 3000);
         console.log('Web check: receiver rejects buffer flood');
         await until(a, 'channel?.readyState === "open"');

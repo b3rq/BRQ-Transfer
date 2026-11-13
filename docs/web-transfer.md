@@ -37,7 +37,11 @@ browser compatibility must still be checked on the intended devices.
   The first pairing requires approval on both devices; receiving files always
   requires consent, including after automatic reconnection.
 - Keep the pages open. Background suspension or locking a phone can interrupt a
-  transfer. Retry starts the file from the beginning.
+  transfer. A short Wi-Fi drop (ICE `disconnected`) gets 5 seconds to recover
+  before the transfer fails. Retry starts the file from the beginning.
+- If the old connection of a phone that switched networks is still open on the
+  server, the same browser identity takes over its own slot instead of being
+  refused as "open in another tab".
 - **Forget device** discards the local credential and rotates the invitation.
   Re-pairing with a different device requires forgetting the old device first.
 - Private browsing, cleared site data, another browser, or a different site URL
@@ -49,15 +53,27 @@ browser compatibility must still be checked on the intended devices.
 - Files travel over an encrypted, reliable, ordered WebRTC DataChannel. The
   signaling server only exchanges room/peer information, SDP and ICE candidates;
   it has no file-upload/download route and never stores transferred file bytes.
-- There is no STUN or TURN configuration in this version. It targets direct
-  same-network connections. Client isolation, VPNs, blocked UDP, or some browser
-  and network combinations can prevent pairing. There is no silent cloud relay.
-- File data is sent in 16 KiB chunks with a 256 KiB unacknowledged window.
-  Receiver acknowledgments follow disk writes. Receiver queues are independently
-  bounded to 1 MiB / 128 pending messages, even for a misbehaving paired peer.
+- By default there is no STUN or TURN server; the edition targets direct
+  same-network connections. Browsers hide local addresses behind `.local` mDNS
+  names, so networks that block multicast (guest Wi-Fi, client isolation, some
+  mesh routers), VPNs or blocked UDP can prevent pairing. The host may set
+  `BRQ_WEB_ICE_SERVERS` (a JSON array such as
+  `[{"urls":"stun:stun.example.org:3478"}]`, TURN entries may carry `username`
+  and `credential`) and the pages use it. There is no silent cloud relay.
+- File data is sent in 64 KiB messages read from disk in 1 MiB slices. Both sides
+  advertise a window in the offer/accept messages; the effective unacknowledged
+  window is 4 MiB and the receiver acknowledges every 1 MiB and at the final byte.
+  The sender also pauses while more than 2 MiB is buffered in the browser and
+  wakes on `bufferedamountlow` or the next acknowledgment. Pages from before this
+  negotiation still interoperate with the old 256 KiB window and per-chunk acks.
+- Acknowledgments follow the disk write (save-picker path) or the in-memory
+  append (fallback path). Receiver queues are independently bounded to 8 MiB /
+  256 pending messages, even for a misbehaving paired peer.
 - A browser with `showSaveFilePicker` streams received data to a user-selected
-  file. Without it, files are limited to **100 MiB each**; only one completed
-  download Blob is retained. Download it before accepting another file or
+  file. While the browser commits a large file, the receiver tells the sender, so
+  the sender does not time out. Without a save picker, files are limited to
+  **100 MiB each**; received data is folded into Blobs every 8 MiB so the page
+  never holds two copies, and only one completed download Blob is retained. Download it before accepting another file or
   clearing history. Disk saves depend on free space and filesystem limits.
 - One file per direction is active; a sender queues at most 20 files. The history
   is session-only and bounded to 100 entries. Zero-byte files are supported.
@@ -94,6 +110,10 @@ docker run --rm -p 4600:4600 brq-transfer-web
 
 Terminate TLS at the hosting proxy, preserve the public `Host` header and forward
 WebSocket upgrades. Set `BRQ_WEB_URL` to the HTTPS origin without a subpath.
+Each client address may hold at most 16 signaling sockets (`BRQ_WEB_MAX_PER_IP`).
+Behind a reverse proxy, set `BRQ_WEB_TRUST_PROXY=1` so the limit uses the first
+`X-Forwarded-For` address instead of the proxy's address.
+
 Use a single service instance: room membership is held in memory, so independent
 replicas cannot route peers together. A service restart requires clients to
 reconnect and active transfers may be interrupted. No database is required.
@@ -117,6 +137,7 @@ npm test
 npm run test:web
 npm run test:ui
 npm run test:ux
+npm run bench:web
 ```
 
 `test:web` uses isolated Chromium sessions provided by the existing Electron dev
