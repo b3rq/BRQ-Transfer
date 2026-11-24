@@ -137,7 +137,7 @@ app.whenReady().then(async () => {
             selectedDevice=currentDevices[0].id;renderDevices();
             currentTransfers=[
                 {id:'sent',filename:'siege_flow_v1.0.5.apk',size:'131.89 MB',timestamp:'15:31:22',direction:'pc-to-phone',status:'transferred',deviceId:selectedDevice,remotePath:'/sdcard/Download/siege_flow_v1.0.5.apk'},
-                {id:'received',filename:'.gitkeep',size:'2 Bytes',timestamp:'13:17:13',direction:'mobile-to-pc',status:'transferred',localPath:'D:/MOOD_GAMES/UNITY_PROJECTS/github_projects/BRQ-Transfer/received/.gitkeep'},
+                {id:'received',filename:'.gitkeep',size:'2 Bytes',timestamp:'13:17:13',direction:'mobile-to-pc',status:'transferred',localPath:'C:/BRQ-Transfer/received/.gitkeep'},
                 {id:'sending',filename:'defence_loop_v1.0.115.apk',size:'186.54 MB',timestamp:'11:52:35',direction:'pc-to-phone',status:'transferring',progress:42,remotePath:'/sdcard/Download/defence_loop_v1.0.115.apk'}
             ];renderTransfers();window.scrollTo(0,0);
         `);

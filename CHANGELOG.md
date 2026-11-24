@@ -5,8 +5,7 @@ updates; they do not imply a new package version or release tag.
 
 ## 2026-11-13
 
-A review of the whole repository followed by the first phases of
-[the improvement plan](docs/improvement-plan.md).
+A review of the whole repository followed by the first round of improvements.
 
 ### Added
 

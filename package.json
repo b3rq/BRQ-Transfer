@@ -2,6 +2,11 @@
   "name": "brq-transfer",
   "version": "1.0.0",
   "description": "BRQ Transfer - Too lazy for cables",
+  "author": "BRQ Transfer Contributors",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/b3rq/BRQ-Transfer.git" },
+  "homepage": "https://github.com/b3rq/BRQ-Transfer#readme",
+  "bugs": { "url": "https://github.com/b3rq/BRQ-Transfer/issues" },
   "main": "electron.js",
   "scripts": {
     "start": "node server.js",
