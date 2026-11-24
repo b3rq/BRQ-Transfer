@@ -57,7 +57,8 @@ app.whenReady().then(async () => {
                 const masked = !document.getElementById('mobile-transfer-url-text').textContent.includes('192.168.1.20') &&
                     document.getElementById('mobile-ip-select').selectedOptions[0].textContent.includes('*') &&
                     document.getElementById('adb-ip-input').type === 'password';
-                const qrHidden = getComputedStyle(document.getElementById('mobile-transfer-qr')).visibility === 'hidden';
+                // Inline style, not computed: with prefers-reduced-motion (CI runners) the 0.01ms transition never ticks in this hidden window.
+                const qrHidden = document.getElementById('mobile-transfer-qr').style.visibility === 'hidden';
                 const deviceMasked = !document.getElementById('header-device-pill').title.includes('USB_FIXTURE');
                 isPrivacyMode=false;updatePrivacyUI();
                 const restored = document.getElementById('mobile-transfer-url-text').textContent === url &&
