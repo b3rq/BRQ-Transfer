@@ -26,3 +26,4 @@ transfers.json.bak
 transfers.json.*.tmp
 android-companion/signing/
 *.keystore
+.agents/

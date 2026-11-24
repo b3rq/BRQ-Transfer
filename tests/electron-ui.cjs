@@ -63,10 +63,12 @@ app.whenReady().then(async () => {
                 const restored = document.getElementById('mobile-transfer-url-text').textContent === url &&
                     document.getElementById('mobile-ip-select').selectedOptions[0].textContent === '192.168.1.20 - Ethernet' &&
                     document.getElementById('adb-ip-input').value === '192.168.1.20:' && document.getElementById('adb-ip-input').type === 'text';
-                return visible && masked && qrHidden && deviceMasked && restored;
+                const seen = JSON.stringify([document.getElementById('mobile-transfer-url-text').textContent,
+                    document.getElementById('mobile-ip-select').selectedOptions[0]?.textContent, document.getElementById('adb-ip-input').value]);
+                return {visible,masked,qrHidden,deviceMasked,restored,seen};
             } finally { fetch=originalFetch; }
         })()`);
-        if (!privacy) throw new Error('Privacy rendering failed');
+        if (Object.values(privacy).some(value => !value)) throw new Error('Privacy rendering failed: ' + JSON.stringify(privacy));
         await win.webContents.executeJavaScript("imageModal.style.display='none'");
         await win.webContents.executeJavaScript(`document.querySelector('[data-tab="tab-adb"]').click()`);
         await new Promise(resolve => setTimeout(resolve, 200));
