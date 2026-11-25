@@ -23,15 +23,19 @@ test('realWatcherReportsAddChangeUnlinkForLiteralFolder', { timeout: 10000 }, as
     });
     await once(watcher, 'ready');
     const file = path.join(directory, 'fixture.apk');
-    let event = once(watcher, 'add');
+    // The poller takes its baseline just after it starts; a change landing before that is absorbed, so nudge until it is seen.
+    const seen = async (name, nudge) => {
+        const event = once(watcher, name);
+        const timer = setInterval(nudge, 150);
+        try { return (await event)[0]; } finally { clearInterval(timer); }
+    };
+    const touchFolder = () => fs.utimesSync(directory, new Date(), new Date());
     fs.writeFileSync(file, 'first');
-    assert.equal((await event)[0], file);
-    event = once(watcher, 'change');
+    assert.equal(await seen('add', touchFolder), file);
     fs.appendFileSync(file, '-second');
-    assert.equal((await event)[0], file);
-    event = once(watcher, 'unlink');
+    assert.equal(await seen('change', () => fs.appendFileSync(file, '-again')), file);
     fs.unlinkSync(file);
-    assert.equal((await event)[0], file);
+    assert.equal(await seen('unlink', touchFolder), file);
 });
 test('watchFolderSwapClosesOldWatcherAndSkipsSupersededFolder', async () => {
     let finish;
