@@ -19,10 +19,10 @@ public class UnityDropWindow : EditorWindow
     private static readonly HttpClient _client = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
 
     #region Lifecycle
-    [MenuItem("Tools/UnityDrop Hub 🚀", false, 50)]
+    [MenuItem("Tools/BRQ Transfer", false, 50)]
     public static void ShowWindow()
     {
-        var window = GetWindow<UnityDropWindow>("UnityDrop Hub");
+        var window = GetWindow<UnityDropWindow>("BRQ Transfer");
         window.minSize = new Vector2(350, 420);
     }
     private void OnEnable()
@@ -89,7 +89,7 @@ public class UnityDropWindow : EditorWindow
         }
         EditorGUILayout.LabelField("Hub Klasörü", _hubFolder);
         EditorGUILayout.Space(10);
-        GUILayout.Label("🎮 UnityDrop Hub", EditorStyles.boldLabel);
+        GUILayout.Label("BRQ Transfer", EditorStyles.boldLabel);
         EditorGUILayout.LabelField("Kablosuz APK Dağıtım & Canlı Test Aracı", EditorStyles.miniLabel);
 
         EditorGUILayout.Space(10);
@@ -131,7 +131,7 @@ public class UnityDropWindow : EditorWindow
         }
         else
         {
-            EditorGUILayout.HelpBox("UnityDrop Hub çalışmıyor. Proje klasöründeki start-hub.bat dosyasını çalıştırarak hub'ı başlatın.", MessageType.Warning);
+            EditorGUILayout.HelpBox("BRQ Transfer çalışmıyor. Proje klasöründeki start-hub.bat dosyasını çalıştırarak hub'ı başlatın.", MessageType.Warning);
         }
 
         EditorGUILayout.Space(15);
@@ -144,7 +144,7 @@ public class UnityDropWindow : EditorWindow
         }
 
         EditorGUILayout.Space(10);
-        EditorGUILayout.HelpBox("Build Settings'ten Android seçip Build aldığınızda, UnityDrop otomatik olarak APK'yı yakalar ve telefonunuza gönderir.", MessageType.Info);
+        EditorGUILayout.HelpBox("Build Settings'ten Android seçip Build aldığınızda, BRQ Transfer otomatik olarak APK'yı yakalar ve telefonunuza gönderir.", MessageType.Info);
     }
     #endregion
 

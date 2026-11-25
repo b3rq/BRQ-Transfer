@@ -83,7 +83,7 @@ BRQ Transfer connects your PC and Android devices directly over your local Wi-Fi
   - `PC → Mobile`: Text copied on PC is automatically sent to the phone's clipboard.
   - `Mobile → PC`: Text copied on phone is automatically received on PC.
   - `Off`: Toggle synchronization off when not needed.
-- **High-FPS Screen Mirroring**: Integrated `scrcpy` engine for viewing and controlling your Android device at 60 FPS with low latency.
+- **High-FPS Screen Mirroring**: Optional `scrcpy` integration for viewing and controlling your Android device at 60 FPS with low latency.
 - **Build Watcher & Developer Hooks**:
   - Automatically monitors configured folders for newly exported APKs.
   - Includes optional editor post-build scripts (`plugins/`) for developers wanting instant zero-touch testing upon compilation.
@@ -96,6 +96,7 @@ BRQ Transfer connects your PC and Android devices directly over your local Wi-Fi
 ### Requirements
 - [Node.js](https://nodejs.org/) (v22.12.0 or newer required; Node 22/24 are the validation targets)
 - Android SDK Platform-Tools (`adb`) in PATH (automatically detected if installed via Android Studio or Unity Hub)
+- Optional, for screen mirroring: extract a [scrcpy release](https://github.com/Genymobile/scrcpy/releases) into `tools/scrcpy/` so that `tools/scrcpy/scrcpy.exe` exists
 
 ### Installation & Run
 

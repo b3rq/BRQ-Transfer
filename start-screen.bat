@@ -3,10 +3,10 @@ setlocal
 cd /d "%~dp0tools\scrcpy"
 
 echo ==================================================
-echo   ApkDrop - 60 FPS Canli Ekran Baslatiliyor...
+echo   BRQ Transfer - 60 FPS Canli Ekran Baslatiliyor...
 echo ==================================================
 
-scrcpy.exe --window-title "ApkDrop - 60 FPS Canli Ekran" --max-size 1280 --video-bit-rate 8M --max-fps 60 --stay-awake --always-on-top
+scrcpy.exe --window-title "BRQ Transfer - 60 FPS Canli Ekran" --max-size 1280 --video-bit-rate 8M --max-fps 60 --stay-awake --always-on-top
 
 if %ERRORLEVEL% NEQ 0 (
     echo.

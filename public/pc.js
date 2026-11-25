@@ -1,5 +1,5 @@
 // ==========================================================================
-// ApkDrop Engineering Console - Controller with Full i18n & Captures Gallery
+// BRQ Transfer Dashboard - Controller with Full i18n & Captures Gallery
 // ==========================================================================
 
 // --- Complete i18n Dictionary (Turkish & English) ---

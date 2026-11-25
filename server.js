@@ -2928,7 +2928,7 @@ app.get('/download-companion', (req, res) => {
         return res.status(404).send('Companion APK bulunamadı');
     }
     res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-    res.setHeader('Content-Disposition', 'attachment; filename="ApkDropCompanion.apk"');
+    res.setHeader('Content-Disposition', 'attachment; filename="BRQTransferCompanion.apk"');
     const stream = fs.createReadStream(companionPath);
     const cleanup = () => stream.destroy();
     res.on('close', cleanup);
